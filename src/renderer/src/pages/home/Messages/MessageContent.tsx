@@ -1,4 +1,5 @@
 import { getModelUniqId } from '@renderer/services/ModelService'
+import type { Assistant, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { Flex } from 'antd'
 import { isEmpty } from 'lodash'
@@ -8,9 +9,11 @@ import styled from 'styled-components'
 import MessageBlockRenderer from './Blocks'
 interface Props {
   message: Message
+  topic?: Topic
+  assistant?: Assistant
 }
 
-const MessageContent: React.FC<Props> = ({ message }) => {
+const MessageContent: React.FC<Props> = ({ message, topic, assistant }) => {
   return (
     <>
       {!isEmpty(message.mentions) && (
@@ -20,7 +23,7 @@ const MessageContent: React.FC<Props> = ({ message }) => {
           ))}
         </Flex>
       )}
-      <MessageBlockRenderer blocks={message.blocks} message={message} />
+      <MessageBlockRenderer blocks={message.blocks} message={message} topic={topic} assistant={assistant} />
     </>
   )
 }

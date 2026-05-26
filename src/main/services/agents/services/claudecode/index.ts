@@ -1097,7 +1097,7 @@ async function buildAssistantContext(): Promise<string> {
   const probeResults = await Promise.allSettled([
     probeHost('github.com'),
     probeHost('google.com'),
-    probeHost('docs.cherry-ai.com')
+    probeHost('github.com')
   ])
   const networkLines = probeResults.map((r) => {
     const v = r.status === 'fulfilled' ? r.value : { host: '?', ok: false, ms: 0 }
@@ -1106,7 +1106,7 @@ async function buildAssistantContext(): Promise<string> {
 
   return [
     '## Current Environment',
-    `- App: Cherry Studio v${appVersion}`,
+    `- App: Perry Studio v${appVersion}`,
     `- OS: ${platform}`,
     `- Language: ${language}, Theme: ${theme}`,
     proxy ? `- Proxy: ${proxy}` : '- Proxy: none',

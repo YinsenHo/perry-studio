@@ -209,6 +209,12 @@ class MemoryService {
 
       const memoryConfig = selectMemoryConfig(store.getState())
       const embeddingModel = memoryConfig.embeddingModel
+      if (!embeddingModel?.id || !embeddingModel?.provider) {
+        return window.api.memory.setConfig({
+          ...memoryConfig,
+          embeddingApiClient: undefined
+        })
+      }
 
       // Get knowledge base params for memory
       const { embedApiClient: embeddingApiClient } = getKnowledgeBaseParams({

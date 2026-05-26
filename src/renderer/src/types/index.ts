@@ -15,6 +15,7 @@ import type { FileMetadata } from './file'
 import type { KnowledgeBase, KnowledgeReference } from './knowledge'
 import type { MCPConfigSample, MCPServerInstallSource, McpServerType } from './mcp'
 import type { Message } from './newMessage'
+export type { MessageBlock } from './newMessage'
 import type { BaseTool, MCPTool } from './tool'
 
 export * from './agent'

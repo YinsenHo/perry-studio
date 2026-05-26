@@ -52,6 +52,7 @@ interface Registry {
 }
 
 const NpmRegistry: Registry[] = [
+  { name: 'NPM 官方源', url: 'https://registry.npmjs.org' },
   { name: '淘宝 NPM Mirror', url: 'https://registry.npmmirror.com' },
   { name: '自定义', url: 'custom' }
 ]

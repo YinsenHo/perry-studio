@@ -804,10 +804,11 @@ describe('streamCallback Integration Tests', () => {
     const errorBlock = blocks.find((block) => block.type === MessageBlockType.ERROR)
     expect(errorBlock).toBeDefined()
     expect(errorBlock?.status).toBe(MessageBlockStatus.SUCCESS)
+    expect(errorBlock?.error?.i18nKey).toBe('stream_paused')
 
-    // 验证消息状态更新为成功（因为是暂停，不是真正的错误）
+    // 验证消息状态更新为暂停（不是普通错误，也不是成功完成）
     const message = state.messages.entities[mockAssistantMsgId]
-    expect(message?.status).toBe(AssistantMessageStatus.SUCCESS)
+    expect(message?.status).toBe(AssistantMessageStatus.PAUSED)
   })
 
   it('should maintain block reference integrity during streaming', async () => {

@@ -260,7 +260,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })
       await blockManager.handleBlockTransition(errorBlock, MessageBlockType.ERROR)
       const messageErrorUpdate = {
-        status: isErrorTypeAbort ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
+        status: isErrorTypeAbort ? AssistantMessageStatus.PAUSED : AssistantMessageStatus.ERROR
       }
       dispatch(
         newMessagesActions.updateMessage({

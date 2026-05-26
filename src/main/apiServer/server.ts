@@ -15,6 +15,7 @@ const GLOBAL_KEEPALIVE_TIMEOUT_MS = 60_000
 
 export class ApiServer {
   private server: ReturnType<typeof createServer> | null = null
+  private readonly maxPortAttempts = 10
 
   async start(): Promise<void> {
     if (this.server && this.server.listening) {
@@ -31,6 +32,37 @@ export class ApiServer {
     // Load config
     const { port, host } = await config.load()
 
+    let lastError: any
+
+    for (let attempt = 0; attempt < this.maxPortAttempts; attempt++) {
+      const candidatePort = port + attempt
+
+      try {
+        await this.listen(host, candidatePort)
+
+        if (candidatePort !== port) {
+          logger.warn('API server started on a fallback port without changing saved settings', {
+            configuredPort: port,
+            actualPort: candidatePort
+          })
+        }
+
+        return
+      } catch (error: any) {
+        lastError = error
+        const isPortInUse = error?.code === 'EADDRINUSE'
+        if (!isPortInUse) {
+          throw error
+        }
+
+        logger.warn('API server port is in use, trying next port', { host, port: candidatePort })
+      }
+    }
+
+    throw lastError
+  }
+
+  private async listen(host: string, port: number): Promise<void> {
     // Create server with Express app
     this.server = createServer(app)
     this.applyServerTimeouts(this.server)

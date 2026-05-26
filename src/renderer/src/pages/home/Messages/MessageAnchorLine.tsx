@@ -2,9 +2,12 @@ import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogoById } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
 import useAvatar from '@renderer/hooks/useAvatar'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { getAgentAvatar } from '@renderer/pages/settings/AgentSettings/shared'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelName } from '@renderer/services/ModelService'
 import { useAppDispatch } from '@renderer/store'
@@ -36,6 +39,10 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
   const dispatch = useAppDispatch()
   const { userName } = useSettings()
   const { setTimeoutTimer } = useTimer()
+  const isAgentView = window.location.hash.startsWith('#/agents')
+  const { chat } = useRuntime()
+  const { agent } = useAgent(isAgentView ? chat.activeAgentId : null)
+  const agentAvatar = getAgentAvatar(agent?.configuration)
 
   const messagesListRef = useRef<HTMLDivElement>(null)
   const messageItemsRef = useRef<Map<string, HTMLDivElement>>(new Map())
@@ -87,6 +94,10 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
         return APP_NAME
       }
 
+      if (isAgentView && message.role === 'assistant') {
+        return agent?.name ?? t('common.unknown')
+      }
+
       if (message.role === 'assistant') {
         if (message.model) {
           return getModelName(message.model) || message.model.name || message.modelId || ''
@@ -98,7 +109,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
 
       return userName || t('common.you')
     },
-    [userName, t]
+    [agent?.name, isAgentView, userName, t]
   )
 
   const setSelectedMessage = useCallback(
@@ -226,14 +237,30 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
               </MessageItemContainer>
 
               {message.role === 'assistant' ? (
-                <MessageItemAvatar
-                  src={avatarSource}
-                  size={size}
-                  style={{
-                    border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
-                    filter: theme === 'dark' ? 'invert(0.05)' : undefined
-                  }}
-                />
+                isAgentView ? (
+                  isEmoji(agentAvatar) ? (
+                    <EmojiAvatar
+                      size={size}
+                      fontSize={size * 0.6}
+                      style={{
+                        cursor: 'default',
+                        pointerEvents: 'none'
+                      }}>
+                      {agentAvatar}
+                    </EmojiAvatar>
+                  ) : (
+                    <MessageItemAvatar src={agentAvatar} size={size} />
+                  )
+                ) : (
+                  <MessageItemAvatar
+                    src={avatarSource}
+                    size={size}
+                    style={{
+                      border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
+                      filter: theme === 'dark' ? 'invert(0.05)' : undefined
+                    }}
+                  />
+                )
               ) : (
                 <>
                   {isEmoji(avatar) ? (

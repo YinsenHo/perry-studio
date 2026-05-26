@@ -12,7 +12,7 @@ import type {
   UpdateAgentFunction,
   UpdateAgentSessionFunction
 } from '@renderer/types'
-import { AgentConfigurationSchema } from '@renderer/types'
+import { AgentConfigurationSchema, isAgentType } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import type { ModalProps } from 'antd'
 import { Menu, Modal } from 'antd'
@@ -94,8 +94,14 @@ export const SOUL_MODE_EMOJI = '🦞'
 export const isSoulModeEnabled = (configuration: AgentConfiguration | undefined | null): boolean =>
   configuration?.soul_enabled === true
 
+export const getAgentAvatar = (configuration: AgentConfiguration | undefined | null): string => {
+  const avatar = configuration?.avatar?.trim()
+  if (!avatar || isAgentType(avatar)) return '⭐️'
+  return avatar
+}
+
 export const AgentLabel = ({ agent, classNames, hideIcon }: AgentLabelProps) => {
-  const emoji = agent?.configuration?.avatar || '⭐️'
+  const emoji = getAgentAvatar(agent?.configuration)
 
   return (
     <div className={cn('flex w-full items-center gap-2 truncate', classNames?.container)}>

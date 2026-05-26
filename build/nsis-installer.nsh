@@ -116,8 +116,8 @@
       Your system: $1$\r$\n\
       App architecture: $3$\r$\n$\r$\n\
       Please download the correct version from:$\r$\n\
-      https://www.cherry-ai.com/"
-    ExecShell "open" "https://www.cherry-ai.com/"
+      https://github.com/YinsenHo/perry-studio/releases"
+    ExecShell "open" "https://github.com/YinsenHo/perry-studio/releases"
     Abort
   ${EndIf}
 

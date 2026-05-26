@@ -3,7 +3,9 @@ import { app } from 'electron'
 
 import { getDataPath } from './utils'
 
-if (isDev) {
+if (process.env.CHERRY_STUDIO_USER_DATA_DIR) {
+  app.setPath('userData', process.env.CHERRY_STUDIO_USER_DATA_DIR)
+} else if (isDev) {
   app.setPath('userData', app.getPath('userData') + 'Dev')
 }
 

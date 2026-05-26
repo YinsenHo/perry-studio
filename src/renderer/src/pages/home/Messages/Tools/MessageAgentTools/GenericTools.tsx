@@ -4,6 +4,7 @@ import { LoadingIcon } from '@renderer/components/Icons'
 import { SkeletonSpan } from '@renderer/components/Skeleton/InlineSkeleton'
 import type { MCPToolResponseStatus } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils/file'
+import { Tooltip } from 'antd'
 import { Check, Ellipsis, TriangleAlert, X } from 'lucide-react'
 import { createContext, type ReactNode, use } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -131,7 +132,7 @@ export function getEffectiveStatus(status: MCPToolResponseStatus | undefined, is
 export function ToolStatusIndicator({ status, hasError = false }: { status: ToolStatus; hasError?: boolean }) {
   const { t } = useTranslation()
 
-  const getStatusInfo = (): { label: string; icon: ReactNode; color: StatusColor } | null => {
+  const getStatusInfo = (): { label: string; icon: ReactNode; color: StatusColor; quiet?: boolean } | null => {
     switch (status) {
       case 'streaming':
         return { label: t('message.tools.streaming', 'Streaming'), icon: <LoadingIcon />, color: 'primary' }
@@ -151,18 +152,21 @@ export function ToolStatusIndicator({ status, hasError = false }: { status: Tool
           ? {
               label: t('message.tools.error'),
               icon: <TriangleAlert size={13} className="lucide-custom" />,
-              color: 'error'
+              color: 'muted',
+              quiet: true
             }
           : {
               label: t('message.tools.completed'),
               icon: <Check size={13} className="lucide-custom" />,
-              color: 'success'
+              color: 'success',
+              quiet: true
             }
       case 'error':
         return {
           label: t('message.tools.error'),
           icon: <TriangleAlert size={13} className="lucide-custom" />,
-          color: 'error'
+          color: 'muted',
+          quiet: true
         }
       default:
         return null
@@ -172,15 +176,25 @@ export function ToolStatusIndicator({ status, hasError = false }: { status: Tool
   const info = getStatusInfo()
   if (!info) return null
 
-  return (
+  const indicator = (
     <StatusIndicatorContainer $color={info.color}>
-      {info.label}
+      {!info.quiet && info.label}
       {info.icon}
     </StatusIndicatorContainer>
   )
+
+  if (info.quiet) {
+    return (
+      <Tooltip title={info.label} mouseEnterDelay={0.4} mouseLeaveDelay={0}>
+        {indicator}
+      </Tooltip>
+    )
+  }
+
+  return indicator
 }
 
-export type StatusColor = 'primary' | 'success' | 'warning' | 'error'
+export type StatusColor = 'primary' | 'success' | 'warning' | 'error' | 'muted'
 
 function getStatusColor(color: StatusColor): string {
   switch (color) {
@@ -191,6 +205,8 @@ function getStatusColor(color: StatusColor): string {
       return 'var(--color-status-warning, #faad14)'
     case 'error':
       return 'var(--color-status-error, #ff4d4f)'
+    case 'muted':
+      return 'var(--color-text-3)'
     default:
       return 'var(--color-text)'
   }
@@ -201,7 +217,7 @@ export const StatusIndicatorContainer = styled.span<{ $color: StatusColor }>`
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  opacity: 0.85;
+  opacity: 0.75;
   color: ${(props) => getStatusColor(props.$color)};
 `
 

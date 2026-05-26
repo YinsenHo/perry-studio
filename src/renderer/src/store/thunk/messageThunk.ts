@@ -746,7 +746,7 @@ const fetchAndProcessAgentResponseImpl = async (
     const adapter = new AiSdkToChunkAdapter(
       streamProcessorCallbacks,
       [],
-      false,
+      true,
       false,
       (sessionId) => {
         void persistAgentSessionId(sessionId)
@@ -1380,24 +1380,37 @@ export const regenerateAssistantResponseThunk =
         return
       }
 
+      const agentId = messageToResetEntity.assistantId || assistantMessageToRegenerate.assistantId || assistant.id
+      const sessionId = isAgentSessionTopicId(topicId) ? extractAgentSessionIdFromTopicId(topicId) : undefined
+      const activeAgentSession = sessionId
+        ? (findExistingAgentSessionContext(state, topicId, agentId) ?? {
+            agentId,
+            sessionId,
+            agentSessionId: messageToResetEntity.agentSessionId ?? originalUserQuery.agentSessionId
+          })
+        : undefined
+
       // 4. Get Block IDs to delete
       const blockIdsToDelete = [...(messageToResetEntity.blocks || [])]
 
       // 5. Reset the message entity in Redux
-      const resetAssistantMsg = resetAssistantMessage(
-        messageToResetEntity,
-        // Grouped message (mentioned model message) should not reset model and modelId, always use the original model
-        assistantMessageToRegenerate.modelId
-          ? {
-              status: AssistantMessageStatus.PENDING,
-              updatedAt: new Date().toISOString()
-            }
-          : {
-              status: AssistantMessageStatus.PENDING,
-              updatedAt: new Date().toISOString(),
-              model: assistant.model
-            }
-      )
+      const resetAssistantMsg = {
+        ...resetAssistantMessage(
+          messageToResetEntity,
+          // Grouped message (mentioned model message) should not reset model and modelId, always use the original model
+          assistantMessageToRegenerate.modelId
+            ? {
+                status: AssistantMessageStatus.PENDING,
+                updatedAt: new Date().toISOString()
+              }
+            : {
+                status: AssistantMessageStatus.PENDING,
+                updatedAt: new Date().toISOString(),
+                model: assistant.model
+              }
+        ),
+        ...(activeAgentSession?.agentSessionId ? { agentSessionId: activeAgentSession.agentSessionId } : {})
+      }
 
       dispatch(
         newMessagesActions.updateMessage({
@@ -1430,6 +1443,17 @@ export const regenerateAssistantResponseThunk =
         ...(resetAssistantMsg.model ? { model: resetAssistantMsg.model } : {})
       }
       void queue.add(async () => {
+        if (activeAgentSession) {
+          await fetchAndProcessAgentResponseImpl(dispatch, getState, {
+            topicId,
+            assistant: assistantConfigForRegen,
+            assistantMessage: resetAssistantMsg,
+            agentSession: activeAgentSession,
+            userMessageId: originalUserQuery.id
+          })
+          return
+        }
+
         await fetchAndProcessAssistantResponseImpl(
           dispatch,
           getState,
@@ -2227,7 +2251,7 @@ export const setupChannelStream = (
   const streamProcessorCallbacks = createStreamProcessor(callbacks)
   streamProcessorCallbacks({ type: ChunkType.LLM_RESPONSE_CREATED })
 
-  const adapter = new AiSdkToChunkAdapter(streamProcessorCallbacks, [], false, false)
+  const adapter = new AiSdkToChunkAdapter(streamProcessorCallbacks, [], true, false)
   adapter
     .processStream({
       fullStream: stream,

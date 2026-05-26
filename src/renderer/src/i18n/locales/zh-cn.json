@@ -1838,7 +1838,10 @@
     "status": "状态码",
     "statusCode": "状态码",
     "statusText": "状态文本",
-    "stream_paused": "已中断",
+    "stream_paused": "已暂停",
+    "stream_paused_description": "你手动停止了这次生成，当前内容已经保留。可以继续输入，也可以重新生成这条回复。",
+    "stream_paused_resume": "重新生成",
+    "stream_paused_title": "任务已暂停",
     "text": "文本",
     "toolInput": "工具输入",
     "toolName": "工具名",
@@ -2486,6 +2489,9 @@
       "completed": "已完成",
       "error": "发生错误",
       "groupHeader": "{{count}} 个工具调用",
+      "activity": {
+        "running": "正在处理"
+      },
       "invoking": "调用中",
       "labels": {
         "bash": "执行命令",

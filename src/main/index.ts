@@ -31,7 +31,7 @@ import { openClawService } from './services/OpenClawService'
 import { nodeTraceService } from './services/NodeTraceService'
 import powerMonitorService from './services/PowerMonitorService'
 import {
-  CHERRY_STUDIO_PROTOCOL,
+  COMPATIBLE_PROTOCOLS,
   handleProtocolUrl,
   registerProtocolClient,
   setupAppImageDeepLink
@@ -50,8 +50,8 @@ const logger = loggerService.withContext('MainEntry')
 
 // enable local crash reports
 crashReporter.start({
-  companyName: 'CherryHQ',
-  productName: 'CherryStudio',
+  companyName: 'YinsenHo',
+  productName: 'PerryStudio',
   submitURL: '',
   uploadToServer: false
 })
@@ -87,8 +87,8 @@ if (isLinux && process.env.XDG_SESSION_TYPE === 'wayland') {
  * This ensures the window manager identifies the app correctly on both X11 and Wayland
  */
 if (isLinux) {
-  app.commandLine.appendSwitch('class', 'CherryStudio')
-  app.commandLine.appendSwitch('name', 'CherryStudio')
+  app.commandLine.appendSwitch('class', 'PerryStudio')
+  app.commandLine.appendSwitch('name', 'PerryStudio')
 }
 
 // DocumentPolicyIncludeJSCallStacksInCrashReports: Enable features for unresponsive renderer js call stacks
@@ -146,7 +146,7 @@ if (!app.requestSingleInstanceLock()) {
 
     initWebviewHotkeys()
     // Set app user model id for windows
-    electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
+    electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.yinsenho.PerryStudio')
 
     // Mac: Hide dock icon before window creation when launch to tray is set
     const isLaunchToTray = configManager.getLaunchToTray()
@@ -157,6 +157,9 @@ if (!app.requestSingleInstanceLock()) {
     // Check for backup restore marker and complete restoration (highest priority, before window creation)
     const { BackupManager } = await import('./services/BackupManager')
     await BackupManager.handleStartupRestore()
+
+    // Renderer components subscribe during startup, so these handlers must exist before creating windows.
+    registerSessionStreamIpc()
 
     const mainWindow = windowService.createMainWindow()
 
@@ -235,9 +238,6 @@ if (!app.requestSingleInstanceLock()) {
         // Restore CherryClaw schedulers after services are ready
         await schedulerService.restoreSchedulers()
 
-        // Register IPC handlers for session stream before starting channels
-        registerSessionStreamIpc()
-
         // Start CherryClaw channel adapters (Telegram, etc.)
         await channelManager.start()
       } catch (error: any) {
@@ -256,7 +256,7 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   const handleOpenUrl = (args: string[]) => {
-    const url = args.find((arg) => arg.startsWith(CHERRY_STUDIO_PROTOCOL + '://'))
+    const url = args.find((arg) => COMPATIBLE_PROTOCOLS.some((protocol) => arg.startsWith(protocol + '://')))
     if (url) handleProtocolUrl(url)
   }
 

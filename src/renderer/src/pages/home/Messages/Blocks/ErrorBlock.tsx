@@ -1,5 +1,6 @@
 import { SettingOutlined } from '@ant-design/icons'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
+import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabel, getProviderLabel } from '@renderer/i18n/label'
 import type { DiagnosisResult } from '@renderer/services/ErrorDiagnosisService'
@@ -7,10 +8,12 @@ import { classifyErrorByAI } from '@renderer/services/ErrorDiagnosisService'
 import { getProviderById } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
+import type { Assistant, Topic } from '@renderer/types'
+import { ERROR_I18N_KEY_STREAM_PAUSED } from '@renderer/types/error'
 import type { ErrorMessageBlock, Message } from '@renderer/types/newMessage'
 import { classifyError } from '@renderer/utils/errorClassifier'
 import { Button } from 'antd'
-import { AlertTriangle, ChevronRight, X } from 'lucide-react'
+import { AlertTriangle, ChevronRight, CirclePause, RotateCcw, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
@@ -23,9 +26,17 @@ const aiClassifyCache = new Map<string, Promise<string>>()
 interface Props {
   block: ErrorMessageBlock
   message: Message
+  topic?: Topic
+  assistant?: Assistant
 }
 
-const ErrorBlock: React.FC<Props> = ({ block, message }) => {
+const isStreamPausedBlock = (block: ErrorMessageBlock) => block.error?.i18nKey === ERROR_I18N_KEY_STREAM_PAUSED
+
+const ErrorBlock: React.FC<Props> = ({ block, message, topic, assistant }) => {
+  if (isStreamPausedBlock(block)) {
+    return <MessagePausedInfo block={block} message={message} topic={topic} assistant={assistant} />
+  }
+
   return <MessageErrorInfo block={block} message={message} />
 }
 
@@ -73,6 +84,97 @@ const ErrorMessage: React.FC<{ block: ErrorMessageBlock }> = ({ block }) => {
   }
 
   return block.error?.message || ''
+}
+
+const PausedResumeButton: React.FC<{ message: Message; topic: Topic; assistant: Assistant }> = ({
+  message,
+  topic,
+  assistant
+}) => {
+  const { t } = useTranslation()
+  const { regenerateAssistantMessage } = useMessageOperations(topic)
+
+  const onResume = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      void regenerateAssistantMessage(message, assistant)
+    },
+    [assistant, message, regenerateAssistantMessage]
+  )
+
+  return (
+    <button
+      type="button"
+      className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border px-2.5 text-xs transition-all duration-150 hover:-translate-y-px"
+      style={{
+        borderColor: 'color-mix(in srgb, var(--color-primary) 22%, transparent)',
+        background: 'color-mix(in srgb, var(--color-primary) 7%, transparent)',
+        color: 'var(--color-primary)'
+      }}
+      onClick={onResume}>
+      <RotateCcw size={13} />
+      {t('error.stream_paused_resume')}
+    </button>
+  )
+}
+
+const MessagePausedInfo: React.FC<{
+  block: ErrorMessageBlock
+  message: Message
+  topic?: Topic
+  assistant?: Assistant
+}> = ({ block, message, topic, assistant }) => {
+  const dispatch = useAppDispatch()
+  const { setTimeoutTimer } = useTimer()
+  const { t } = useTranslation()
+
+  const onRemoveBlock = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      setTimeoutTimer(
+        'onRemovePausedBlock',
+        () => dispatch(removeBlocksThunk(message.topicId, message.id, [block.id])),
+        350
+      )
+    },
+    [setTimeoutTimer, dispatch, message.topicId, message.id, block.id]
+  )
+
+  return (
+    <div
+      className="group relative my-2 rounded-lg border px-3.5 py-3 text-[13px] transition-all duration-200"
+      style={{
+        borderColor: 'color-mix(in srgb, var(--color-primary) 18%, var(--color-border))',
+        background:
+          'linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 5%, transparent), color-mix(in srgb, var(--color-background) 92%, transparent))'
+      }}>
+      <button
+        type="button"
+        className="absolute top-2 right-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent opacity-0 transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--color-primary)_10%,transparent)] hover:text-(--color-primary) group-hover:opacity-100"
+        onClick={onRemoveBlock}
+        aria-label="close"
+        title={t('common.close')}>
+        <X size={14} />
+      </button>
+
+      <div className="mb-1.5 flex items-center gap-2">
+        <div className="flex shrink-0 items-center justify-center" style={{ color: 'var(--color-primary)' }}>
+          <CirclePause size={15} />
+        </div>
+        <div className="pr-5 text-[13px] leading-[1.4]" style={{ color: 'var(--color-text)' }}>
+          {t('error.stream_paused_title')}
+        </div>
+      </div>
+
+      <div className="ml-5.75 text-xs leading-normal" style={{ color: 'var(--color-text-2)' }}>
+        {t('error.stream_paused_description')}
+      </div>
+
+      <div className="mt-2.5 ml-5.75 flex items-center">
+        {topic && assistant && <PausedResumeButton message={message} topic={topic} assistant={assistant} />}
+      </div>
+    </div>
+  )
 }
 
 const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }> = ({ block, message }) => {

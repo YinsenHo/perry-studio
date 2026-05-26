@@ -1,4 +1,5 @@
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
+import EmojiIcon from '@renderer/components/EmojiIcon'
 import { HStack } from '@renderer/components/Layout'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
@@ -10,6 +11,7 @@ import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
+import { getAgentAvatar } from '@renderer/pages/settings/AgentSettings/shared'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelName } from '@renderer/services/ModelService'
 import type { Assistant, Model, Topic } from '@renderer/types'
@@ -42,10 +44,10 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const avatar = useAvatar()
   const { theme } = useTheme()
   const { userName, sidebarIcons } = useSettings()
+  const isAgentView = window.location.hash.startsWith('#/agents')
   const { chat } = useRuntime()
   const { activeAgentId } = chat
-  const { agent } = useAgent(activeAgentId)
-  const isAgentView = window.location.hash.startsWith('#/agents')
+  const { agent } = useAgent(isAgentView ? activeAgentId : null)
   const { t } = useTranslation()
   const { isBubbleStyle } = useMessageStyle()
   const { openMinappById } = useMinappPopup()
@@ -76,7 +78,11 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const isUserMessage = message.role === 'user'
   const showMinappIcon = sidebarIcons.visible.includes('minapp')
 
-  const avatarName = useMemo(() => firstLetter(assistant?.name).toUpperCase(), [assistant?.name])
+  const avatarName = useMemo(
+    () => firstLetter((isAgentView ? agent?.name : assistant?.name) ?? '').toUpperCase(),
+    [agent?.name, assistant?.name, isAgentView]
+  )
+  const agentAvatar = getAgentAvatar(agent?.configuration)
   const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])
 
   const showMiniApp = useCallback(() => {
@@ -94,18 +100,28 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   return (
     <Container className="message-header">
       {isAssistantMessage ? (
-        <Avatar
-          src={avatarSource}
-          size={35}
-          style={{
-            borderRadius: '25%',
-            cursor: showMinappIcon ? 'pointer' : 'default',
-            border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
-            filter: theme === 'dark' ? 'invert(0.05)' : undefined
-          }}
-          onClick={showMiniApp}>
-          {avatarName}
-        </Avatar>
+        isAgentView ? (
+          isEmoji(agentAvatar) ? (
+            <EmojiIcon emoji={agentAvatar} size={35} fontSize={20} />
+          ) : (
+            <Avatar src={agentAvatar} size={35} style={{ borderRadius: '25%' }}>
+              {avatarName}
+            </Avatar>
+          )
+        ) : (
+          <Avatar
+            src={avatarSource}
+            size={35}
+            style={{
+              borderRadius: '25%',
+              cursor: showMinappIcon ? 'pointer' : 'default',
+              border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
+              filter: theme === 'dark' ? 'invert(0.05)' : undefined
+            }}
+            onClick={showMiniApp}>
+            {avatarName}
+          </Avatar>
+        )
       ) : (
         <>
           {isEmoji(avatar) ? (

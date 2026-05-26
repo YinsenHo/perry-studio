@@ -10,7 +10,7 @@ import * as path from 'path'
 import { ConfigKeys, configManager } from './ConfigManager'
 import { spanCacheService } from './SpanCacheService'
 
-export const TRACER_NAME = 'CherryStudio'
+export const TRACER_NAME = 'PerryStudio'
 
 const logger = loggerService.withContext('NodeTraceService')
 

@@ -12,12 +12,12 @@ import type { TextStreamPart } from 'ai'
 import { and, desc, eq, not } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
-import { sessionMessagesTable } from '../database/schema'
+import { agentsTable, sessionMessagesTable } from '../database/schema'
 import { agentMessageRepository } from '../database/sessionMessageRepository'
 import type { AgentStreamEvent } from '../interfaces/AgentStreamInterface'
-import ClaudeCodeService from './claudecode'
+import PiAgentService from './pi'
 
-const claudeCodeService = new ClaudeCodeService()
+const agentRuntimeService = new PiAgentService()
 
 const logger = loggerService.withContext('SessionMessageService')
 
@@ -182,11 +182,12 @@ export class SessionMessageService extends BaseService {
     options?: CreateMessageOptions
   ): Promise<SessionStreamResult> {
     const agentSessionId = await this.getLastAgentSessionId(session.id)
+    const runtimeSession = await this.withCurrentAgentIdentity(session)
     logger.debug('Session Message stream message data:', { message: req, session_id: agentSessionId })
 
-    const claudeStream = await claudeCodeService.invoke(
+    const agentStream = await agentRuntimeService.invoke(
       req.content,
-      session,
+      runtimeSession,
       abortController,
       agentSessionId,
       {
@@ -216,12 +217,12 @@ export class SessionMessageService extends BaseService {
     const cleanup = () => {
       if (finished) return
       finished = true
-      claudeStream.removeAllListeners()
+      agentStream.removeAllListeners()
     }
 
     const stream = new ReadableStream<TextStreamPart<Record<string, any>>>({
       start: (controller) => {
-        claudeStream.on('data', async (event: AgentStreamEvent) => {
+        agentStream.on('data', async (event: AgentStreamEvent) => {
           if (finished) return
           try {
             switch (event.type) {
@@ -251,10 +252,10 @@ export class SessionMessageService extends BaseService {
                 cleanup()
                 controller.close()
                 if (options?.persist) {
-                  // Read SDK session_id from the stream object (set by ClaudeCodeService on init)
-                  const resolvedSessionId = claudeStream.sdkSessionId || agentSessionId
+                  // Read runtime session_id from the stream object for resume/persistence metadata.
+                  const resolvedSessionId = agentStream.sdkSessionId || agentSessionId
                   logger.debug('Persisting headless exchange with agent session ID', {
-                    sdkSessionId: claudeStream.sdkSessionId,
+                    sdkSessionId: agentStream.sdkSessionId,
                     fallback: agentSessionId,
                     resolved: resolvedSessionId
                   })
@@ -280,7 +281,7 @@ export class SessionMessageService extends BaseService {
                 cleanup()
                 controller.close()
                 if (options?.persist) {
-                  const resolvedSessionId = claudeStream.sdkSessionId || agentSessionId
+                  const resolvedSessionId = agentStream.sdkSessionId || agentSessionId
                   const partialText = accumulator.getText()
                   if (partialText) {
                     this.persistHeadlessExchange(
@@ -325,6 +326,26 @@ export class SessionMessageService extends BaseService {
     })
 
     return { stream, completion }
+  }
+
+  private async withCurrentAgentIdentity(session: GetAgentSessionResponse): Promise<GetAgentSessionResponse> {
+    try {
+      const database = await this.getDatabase()
+      const rows = await database
+        .select({ name: agentsTable.name })
+        .from(agentsTable)
+        .where(eq(agentsTable.id, session.agent_id))
+        .limit(1)
+      const agentName = rows[0]?.name?.trim()
+      return agentName ? { ...session, name: agentName } : session
+    } catch (error) {
+      logger.warn('Failed to resolve current agent identity; using session name', {
+        sessionId: session.id,
+        agentId: session.agent_id,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return session
+    }
   }
 
   /**

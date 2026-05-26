@@ -1,12 +1,12 @@
 {
-  "name": "CherryStudio",
+  "name": "PerryStudio",
   "version": "1.9.6",
   "private": true,
-  "description": "A powerful AI assistant for producer.",
-  "desktopName": "CherryStudio.desktop",
+  "description": "A powerful AI desktop client with the pi agent runtime.",
+  "desktopName": "PerryStudio.desktop",
   "main": "./out/main/index.js",
-  "author": "support@cherry-ai.com",
-  "homepage": "https://github.com/CherryHQ/cherry-studio",
+  "author": "YinsenHo",
+  "homepage": "https://github.com/YinsenHo/perry-studio",
   "engines": {
     "node": ">=24.11.1"
   },
@@ -85,6 +85,8 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.112",
+    "@earendil-works/pi-agent-core": "0.75.5",
+    "@earendil-works/pi-ai": "0.75.5",
     "@expo/sudo-prompt": "^9.3.2",
     "@larksuiteoapi/node-sdk": "^1.59.0",
     "@libsql/client": "0.14.0",
@@ -93,6 +95,7 @@
     "@paymoapp/electron-shutdown-handler": "1.1.2",
     "cron-parser": "^5.0.8",
     "express": "5.1.0",
+    "fast-glob": "3.3.3",
     "font-list": "2.0.0",
     "graceful-fs": "4.2.11",
     "grammy": "^1.36.3",

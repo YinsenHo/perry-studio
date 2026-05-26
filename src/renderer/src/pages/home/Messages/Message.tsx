@@ -227,7 +227,7 @@ const MessageItem: FC<Props> = ({
                 overflowY: isHorizontalMultiModelLayout ? 'auto' : 'visible'
               }}>
               <MessageErrorBoundary>
-                <MessageContent message={message} />
+                <MessageContent message={message} topic={topic} assistant={assistant} />
               </MessageErrorBoundary>
             </MessageContentContainer>
             {showMenubar && (

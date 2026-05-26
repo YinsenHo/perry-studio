@@ -1,5 +1,5 @@
 import type { CollapseProps } from 'antd'
-import { Tag } from 'antd'
+import { Tag, Tooltip } from 'antd'
 import { CheckCircle, Terminal, XCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -62,9 +62,10 @@ export function BashOutputTool({
 
     if (parsed.tool_use_error) {
       return {
-        color: 'danger',
-        icon: <XCircle className="h-3.5 w-3.5" />,
-        text: t('message.tools.status.error')
+        color: undefined,
+        icon: <XCircle className="h-3.5 w-3.5 text-muted-foreground" />,
+        text: t('message.tools.status.error'),
+        quiet: true
       } as const
     }
 
@@ -81,9 +82,10 @@ export function BashOutputTool({
 
     if (isCompleted) {
       return {
-        color: 'danger',
-        icon: <XCircle className="h-3.5 w-3.5" />,
-        text: t('message.tools.status.failed')
+        color: undefined,
+        icon: <XCircle className="h-3.5 w-3.5 text-muted-foreground" />,
+        text: t('message.tools.status.failed'),
+        quiet: true
       } as const
     }
 
@@ -127,8 +129,8 @@ export function BashOutputTool({
 
       {/* Standard Error */}
       {truncatedStderr.data && (
-        <div className="border border-danger-200">
-          <div className="mb-2 font-medium text-danger-600 text-xs">{t('message.tools.sections.stderr')}:</div>
+        <div>
+          <div className="mb-2 font-medium text-muted-foreground text-xs">{t('message.tools.sections.stderr')}:</div>
           <TerminalOutput content={truncatedStderr.data} />
           {truncatedStderr.isTruncated && <TruncatedIndicator originalLength={truncatedStderr.originalLength} />}
         </div>
@@ -136,10 +138,10 @@ export function BashOutputTool({
 
       {/* Tool Use Error */}
       {truncatedError.data && (
-        <div className="border border-danger-200">
+        <div>
           <div className="mb-2 flex items-center gap-2">
-            <XCircle className="h-4 w-4 text-danger" />
-            <span className="font-medium text-danger-600 text-xs">{t('message.tools.status.error')}:</span>
+            <XCircle className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium text-muted-foreground text-xs">{t('message.tools.status.error')}</span>
           </div>
           <TerminalOutput content={truncatedError.data} />
           {truncatedError.isTruncated && <TruncatedIndicator originalLength={truncatedError.originalLength} />}
@@ -164,17 +166,19 @@ export function BashOutputTool({
           <div className="flex items-center gap-2">
             <Tag className="py-0 font-mono text-xs">{input?.bash_id}</Tag>
             {statusConfig && (
-              <Tag
-                color={statusConfig.color}
-                icon={statusConfig.icon}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: '2px'
-                }}>
-                {statusConfig.text}
-              </Tag>
+              <Tooltip title={statusConfig.text} mouseEnterDelay={0.4} mouseLeaveDelay={0}>
+                <Tag
+                  color={statusConfig.color}
+                  icon={statusConfig.icon}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: '2px'
+                  }}>
+                  {statusConfig.quiet ? null : statusConfig.text}
+                </Tag>
+              </Tooltip>
             )}
           </div>
         }

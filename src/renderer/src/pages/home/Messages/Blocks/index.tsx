@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
+import type { Assistant, Topic } from '@renderer/types'
 import type { ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { isMainTextBlock, isMessageProcessing, isToolBlock, isVideoBlock } from '@renderer/utils/messageUtils/is'
@@ -64,6 +65,8 @@ interface Props {
   blocks: string[] // 可以接收块ID数组或MessageBlock数组
   messageStatus?: Message['status']
   message: Message
+  topic?: Topic
+  assistant?: Assistant
 }
 
 const groupSimilarBlocks = (blocks: MessageBlock[]): (MessageBlock[] | MessageBlock)[] => {
@@ -112,7 +115,7 @@ const groupSimilarBlocks = (blocks: MessageBlock[]): (MessageBlock[] | MessageBl
   }, [])
 }
 
-const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
+const MessageBlockRenderer: React.FC<Props> = ({ blocks, message, topic, assistant }) => {
   // 始终调用useSelector，避免条件调用Hook
   const blockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
   // 根据blocks类型处理渲染数据
@@ -161,14 +164,13 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
           } else if (block[0].type === MessageBlockType.TOOL) {
             // 对于连续的TOOL，使用分组显示
             if (block.length === 1) {
-              // 单个工具调用，直接渲染
               if (!isToolBlock(block[0])) {
                 logger.warn('Expected tool block but got different type', block[0])
                 return null
               }
               return (
                 <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
-                  <ToolBlock key={block[0].id} block={block[0]} />
+                  <ToolBlockGroup blocks={[block[0]]} />
                 </AnimatedBlockWrapper>
               )
             }
@@ -224,7 +226,9 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             blockComponent = <CitationBlock key={block.id} block={block} />
             break
           case MessageBlockType.ERROR:
-            blockComponent = <ErrorBlock key={block.id} block={block} message={message} />
+            blockComponent = (
+              <ErrorBlock key={block.id} block={block} message={message} topic={topic} assistant={assistant} />
+            )
             break
           case MessageBlockType.THINKING:
             blockComponent = <ThinkingBlock key={block.id} block={block} />

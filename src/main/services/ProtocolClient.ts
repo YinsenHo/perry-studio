@@ -12,22 +12,28 @@ import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('ProtocolClient')
 
-export const CHERRY_STUDIO_PROTOCOL = 'cherrystudio'
+export const CHERRY_STUDIO_PROTOCOL = 'perrystudio'
+export const COMPATIBLE_PROTOCOLS = [CHERRY_STUDIO_PROTOCOL, 'cherrystudio']
 
 export function registerProtocolClient(app: Electron.App) {
   if (process.defaultApp) {
     if (process.argv.length >= 2) {
-      app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL, process.execPath, [process.argv[1]])
+      for (const protocol of COMPATIBLE_PROTOCOLS) {
+        app.setAsDefaultProtocolClient(protocol, process.execPath, [process.argv[1]])
+      }
     }
+    return
   }
 
-  app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL)
+  for (const protocol of COMPATIBLE_PROTOCOLS) {
+    app.setAsDefaultProtocolClient(protocol)
+  }
 }
 
 export function handleProtocolUrl(url: string) {
   if (!url) return
   // Process the URL that was used to open the app
-  // The url will be in the format: cherrystudio://data?param1=value1&param2=value2
+  // The url will be in the format: perrystudio://data?param1=value1&param2=value2
 
   // Parse the URL and extract parameters
   const urlObj = new URL(url)
@@ -55,11 +61,11 @@ export function handleProtocolUrl(url: string) {
 
 const execAsync = promisify(exec)
 
-const DESKTOP_FILE_NAME = 'cherrystudio-url-handler.desktop'
+const DESKTOP_FILE_NAME = 'perrystudio-url-handler.desktop'
 
 /**
  * Sets up deep linking for the AppImage build on Linux by creating a .desktop file.
- * This allows the OS to open cherrystudio:// URLs with this App.
+ * This allows the OS to open perrystudio:// URLs with this App.
  */
 export async function setupAppImageDeepLink(): Promise<void> {
   // Only run on Linux and when packaged as an AppImage
@@ -87,7 +93,7 @@ export async function setupAppImageDeepLink(): Promise<void> {
     // %U allows passing the URL to the application
     // NoDisplay=true hides it from the regular application menu
     const desktopFileContent = `[Desktop Entry]
-Name=Cherry Studio
+Name=Perry Studio
 Exec=${escapePathForExec(appPath)} %U
 Terminal=false
 Type=Application

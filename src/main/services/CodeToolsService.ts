@@ -5,7 +5,6 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
 import { removeEnvProxy } from '@main/utils'
-import { isUserInChina } from '@main/utils/ipService'
 import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
 import getShellEnv from '@main/utils/shell-env'
 import type { TerminalConfig, TerminalConfigWithCommand } from '@shared/config/constant'
@@ -26,6 +25,21 @@ import { promisify } from 'util'
 
 const execAsync = promisify(require('child_process').exec)
 const logger = loggerService.withContext('CodeToolsService')
+const DEFAULT_NPM_REGISTRY = 'https://registry.npmjs.org'
+const NPMMIRROR_REGISTRY = 'https://registry.npmmirror.com'
+const NPM_MIRROR_SSL_PATTERN =
+  /(?:npmmirror\.com|registry\.npmmirror\.com|cdn\.npmmirror\.com)[\s\S]{0,400}(?:SSL|certificate|CERT_|UNABLE_TO_VERIFY|SELF_SIGNED|CERT_HAS_EXPIRED|unable to verify|unable to get local issuer|certificate verify failed|SSL routines)|(?:SSL|certificate|CERT_|UNABLE_TO_VERIFY|SELF_SIGNED|CERT_HAS_EXPIRED|unable to verify|unable to get local issuer|certificate verify failed|SSL routines)[\s\S]{0,400}(?:npmmirror\.com|registry\.npmmirror\.com|cdn\.npmmirror\.com)/i
+
+const isNpmMirrorSslError = (error: unknown) => {
+  const output = [
+    error instanceof Error ? error.message : String(error),
+    (error as any)?.stdout,
+    (error as any)?.stderr
+  ]
+    .filter(Boolean)
+    .join('\n')
+  return NPM_MIRROR_SSL_PATTERN.test(output)
+}
 
 interface VersionInfo {
   installed: string | null
@@ -756,12 +770,29 @@ class CodeToolsService {
 
         // Fetch package info directly from npm registry API
         const packageUrl = `${registryUrl}/${packageName}/latest`
-        const response = await fetch(packageUrl, {
+        let response = await fetch(packageUrl, {
           signal: AbortSignal.timeout(15000)
+        }).catch(async (error) => {
+          if (registryUrl === NPMMIRROR_REGISTRY && isNpmMirrorSslError(error)) {
+            logger.warn(`npm mirror SSL failed for ${packageName}, retrying with default npm registry`)
+            return fetch(`${DEFAULT_NPM_REGISTRY}/${packageName}/latest`, {
+              signal: AbortSignal.timeout(15000)
+            })
+          }
+          throw error
         })
 
         if (!response.ok) {
-          throw new Error(`Failed to fetch package info: ${response.statusText}`)
+          if (registryUrl === NPMMIRROR_REGISTRY) {
+            logger.warn(`npm mirror returned ${response.status}, retrying with default npm registry`)
+            response = await fetch(`${DEFAULT_NPM_REGISTRY}/${packageName}/latest`, {
+              signal: AbortSignal.timeout(15000)
+            })
+          }
+
+          if (!response.ok) {
+            throw new Error(`Failed to fetch package info: ${response.statusText}`)
+          }
         }
 
         const packageInfo = await response.json()
@@ -800,19 +831,13 @@ class CodeToolsService {
    * Get npm registry URL based on user location
    */
   private async getNpmRegistryUrl(): Promise<string> {
-    try {
-      const inChina = await isUserInChina()
-      if (inChina) {
-        logger.info('User in China, using Taobao npm mirror')
-        return 'https://registry.npmmirror.com'
-      } else {
-        logger.info('User not in China, using default npm mirror')
-        return 'https://registry.npmjs.org'
-      }
-    } catch (error) {
-      logger.warn('Failed to detect user location, using default npm mirror')
-      return 'https://registry.npmjs.org'
+    if (process.env.CHERRY_STUDIO_USE_NPMMIRROR === '1') {
+      logger.info('CHERRY_STUDIO_USE_NPMMIRROR=1, using Taobao npm mirror')
+      return NPMMIRROR_REGISTRY
     }
+
+    logger.info('Using default npm registry for CLI tools')
+    return DEFAULT_NPM_REGISTRY
   }
 
   /**
@@ -841,15 +866,30 @@ class CodeToolsService {
       const logsDir = loggerService.getLogsDir()
       const updateLogPath = path.join(logsDir, 'cli-tools-update.log').replace(/\\/g, '/')
 
-      const installEnvPrefix = isWin
-        ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
-        : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
+      const installEnvPrefix = (targetRegistryUrl: string) =>
+        isWin
+          ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${targetRegistryUrl}" &&`
+          : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${targetRegistryUrl}" &&`
 
       // Use > to truncate log file on each update
-      const updateCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName} > "${updateLogPath}" 2>&1`
+      const updateCommand = `${installEnvPrefix(registryUrl)} "${bunPath}" install -g ${packageName} > "${updateLogPath}" 2>&1`
       logger.info(`Executing update command: ${updateCommand}`)
 
-      await execAsync(updateCommand, { timeout: 60000 })
+      try {
+        await execAsync(updateCommand, { timeout: 60000 })
+      } catch (error) {
+        const logOutput = fs.existsSync(updateLogPath) ? fs.readFileSync(updateLogPath, 'utf8') : ''
+        if (
+          registryUrl === NPMMIRROR_REGISTRY &&
+          (isNpmMirrorSslError(error) || NPM_MIRROR_SSL_PATTERN.test(logOutput))
+        ) {
+          logger.warn(`npm mirror SSL failed while updating ${cliTool}, retrying with default npm registry`)
+          const fallbackCommand = `${installEnvPrefix(DEFAULT_NPM_REGISTRY)} "${bunPath}" install -g ${packageName} >> "${updateLogPath}" 2>&1`
+          await execAsync(fallbackCommand, { timeout: 60000 })
+        } else {
+          throw error
+        }
+      }
       logger.info(`Successfully executed update command for ${cliTool}`)
 
       // Clear version cache for this package
@@ -1170,9 +1210,9 @@ class CodeToolsService {
         const batContent = [
           '@echo off',
           'chcp 65001 >nul 2>&1', // Switch to UTF-8 code page for international path support
-          `title ${cliTool} - Cherry Studio`,
+          `title ${cliTool} - Perry Studio`,
           'echo ================================================',
-          'echo Cherry Studio CLI Tool Launcher',
+          'echo Perry Studio CLI Tool Launcher',
           `echo Tool: ${CodeToolsService.escapeBatchTextForEcho(cliTool)}`,
           `echo Directory: ${CodeToolsService.escapeBatchTextForEcho(directory)}`,
           `echo Time: ${new Date().toLocaleString()}`,

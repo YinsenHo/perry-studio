@@ -1839,6 +1839,9 @@
     "statusCode": "Status Code",
     "statusText": "Status Text",
     "stream_paused": "Paused",
+    "stream_paused_description": "You stopped this response manually. The current content was kept, and you can continue typing or regenerate this response.",
+    "stream_paused_resume": "Regenerate",
+    "stream_paused_title": "Task paused",
     "text": "Text",
     "toolInput": "Tool Input",
     "toolName": "Tool Name",
@@ -2486,6 +2489,9 @@
       "completed": "Completed",
       "error": "Error occurred",
       "groupHeader": "{{count}} tool calls",
+      "activity": {
+        "running": "Working"
+      },
       "invoking": "Invoking",
       "labels": {
         "bash": "Bash",

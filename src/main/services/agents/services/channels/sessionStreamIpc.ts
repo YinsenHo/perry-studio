@@ -6,8 +6,12 @@ import { channelMessageHandler } from './ChannelMessageHandler'
 import { sessionStreamBus, type SessionStreamChunk } from './SessionStreamBus'
 
 const activeSubscriptions = new Map<string, () => void>()
+let registered = false
 
 export function registerSessionStreamIpc(): void {
+  if (registered) return
+  registered = true
+
   ipcMain.handle(IpcChannel.AgentSessionStream_Subscribe, (_event, { sessionId }: { sessionId: string }) => {
     if (activeSubscriptions.has(sessionId)) return { success: true }
 

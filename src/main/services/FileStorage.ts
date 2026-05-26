@@ -174,6 +174,10 @@ class FileStorage {
       if (!fs.existsSync(this.notesDir)) {
         fs.mkdirSync(this.notesDir, { recursive: true })
       }
+      const customMinAppsPath = path.join(this.storageDir, 'custom-minapps.json')
+      if (!fs.existsSync(customMinAppsPath)) {
+        fs.writeFileSync(customMinAppsPath, '[]', 'utf8')
+      }
     } catch (error) {
       logger.error('Failed to initialize storage directories:', error as Error)
       throw error

@@ -43,14 +43,12 @@ export class SkillRepository extends BaseService {
 
   async insert(row: InsertSkillRow): Promise<InstalledSkill> {
     const db = await this.getDatabase()
-    await db.insert(skillsTable).values(row)
-
-    const inserted = await db.select().from(skillsTable).where(eq(skillsTable.id, row.id!)).limit(1)
+    const inserted = await db.insert(skillsTable).values(row).returning()
     if (!inserted[0]) {
       throw new Error(`Failed to insert skill: ${row.name}`)
     }
 
-    logger.info('Skill inserted', { id: row.id, name: row.name })
+    logger.info('Skill inserted', { id: inserted[0].id, name: row.name })
     return this.rowToInstalledSkill(inserted[0])
   }
 

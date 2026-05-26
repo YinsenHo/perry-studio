@@ -112,7 +112,7 @@ app.get('/health', (_req, res) => {
  *               properties:
  *                 name:
  *                   type: string
- *                   example: Cherry Studio API
+ *                   example: Perry Studio API
  *                 version:
  *                   type: string
  *                   example: 1.0.0
@@ -121,7 +121,7 @@ app.get('/health', (_req, res) => {
  */
 app.get('/', (_req, res) => {
   res.json({
-    name: 'Cherry Studio API',
+    name: 'Perry Studio API',
     version: '1.0.0',
     endpoints: {
       health: 'GET /health',

@@ -5,9 +5,12 @@ import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { getModelLogo, getModelLogoById } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
 import useAvatar from '@renderer/hooks/useAvatar'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { getAgentAvatar } from '@renderer/pages/settings/AgentSettings/shared'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { RootState } from '@renderer/store'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
@@ -84,10 +87,15 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
     borderColor = 'var(--color-primary)'
     backgroundColor = 'rgba(var(--color-primary-rgb), 0.03)'
     gradientColor = 'rgba(var(--color-primary-rgb), 0.08)'
-    title = `${data.model || t('chat.history.assistant_node')}`
+    title = `${data.agentName || data.model || t('chat.history.assistant_node')}`
 
-    // 模型头像
-    if (data.modelInfo) {
+    if (data.agentAvatar) {
+      if (isEmoji(data.agentAvatar)) {
+        avatar = <EmojiAvatar size={32}>{data.agentAvatar}</EmojiAvatar>
+      } else {
+        avatar = <Avatar src={data.agentAvatar} alt={title} />
+      }
+    } else if (data.modelInfo) {
       avatar = <ModelAvatar model={data.modelInfo} size={32} />
     } else if (data.modelId) {
       const modelLogo = getModelLogo(data.modelInfo) ?? getModelLogoById(data.modelId)
@@ -212,6 +220,10 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
   const [loading, setLoading] = useState(true)
   const { userName } = useSettings()
   const { settedTheme } = useTheme()
+  const isAgentView = window.location.hash.startsWith('#/agents')
+  const { chat } = useRuntime()
+  const { agent } = useAgent(isAgentView ? chat.activeAgentId : null)
+  const agentAvatar = getAgentAvatar(agent?.configuration)
 
   const topicId = conversationId
 
@@ -343,7 +355,9 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
             type: 'assistant',
             messageId: aMsg.id,
             modelId: modelId,
-            modelInfo
+            modelInfo,
+            agentName: isAgentView ? agent?.name : undefined,
+            agentAvatar: isAgentView ? agentAvatar : undefined
           },
           position: { x: assistantX, y: assistantY },
           sourcePosition: sourcePos,
@@ -434,7 +448,9 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
             type: 'assistant',
             messageId: aMsg.id,
             modelId: modelId,
-            modelInfo
+            modelInfo,
+            agentName: isAgentView ? agent?.name : undefined,
+            agentAvatar: isAgentView ? agentAvatar : undefined
           },
           position: { x: baseX, y: startY - index * verticalGap },
           sourcePosition: Position.Bottom,
@@ -455,7 +471,7 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
 
     return { nodes: flowNodes, edges: flowEdges }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topicId, messages, userMessages, assistantMessages, t])
+  }, [topicId, messages, userMessages, assistantMessages, isAgentView, agent?.name, agentAvatar, t])
 
   useEffect(() => {
     setLoading(true)

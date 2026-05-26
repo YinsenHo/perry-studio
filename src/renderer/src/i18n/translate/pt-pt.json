@@ -1839,6 +1839,9 @@
     "statusCode": "Código de status",
     "statusText": "Texto de estado",
     "stream_paused": "Interrompido",
+    "stream_paused_description": "[to be translated]:You stopped this response manually. The current content was kept, and you can continue typing or regenerate this response.",
+    "stream_paused_resume": "[to be translated]:Regenerate",
+    "stream_paused_title": "[to be translated]:Task paused",
     "text": "texto",
     "toolInput": "ferramenta de entrada",
     "toolName": "Nome da ferramenta",
@@ -2480,6 +2483,9 @@
     "tools": {
       "abort_failed": "Falha ao interromper a chamada da ferramenta",
       "aborted": "Chamada da ferramenta foi interrompida",
+      "activity": {
+        "running": "[to be translated]:Working"
+      },
       "approvalRequired": "Ferramenta \"{{tool}}\" requer aprovação",
       "autoApproveEnabled": "Esta ferramenta tem aprovação automática ativada",
       "cancelled": "Cancelado",
@@ -4645,6 +4651,28 @@
       "zoom": {
         "title": "Configurações de zoom"
       }
+    },
+    "environment": {
+      "dependencies": "[to be translated]:Dependency Status",
+      "description": "[to be translated]:Manage the integrated runtime and system dependencies used by agents.",
+      "install": "[to be translated]:Install",
+      "installSuccess": "[to be translated]:Environment dependencies updated",
+      "integratedRuntime": "[to be translated]:Integrated Runtime",
+      "notFound": "[to be translated]:Not found",
+      "openDir": "[to be translated]:Open Folder",
+      "refresh": "[to be translated]:Refresh",
+      "reinstall": "[to be translated]:Reinstall",
+      "source": {
+        "managed": "[to be translated]:Integrated",
+        "missing": "[to be translated]:Optional missing",
+        "requiredMissing": "[to be translated]:Required missing",
+        "runtime": "[to be translated]:Built in",
+        "system": "[to be translated]:System"
+      },
+      "title": "[to be translated]:Environment",
+      "uninstall": "[to be translated]:Uninstall",
+      "uninstallConfirm": "[to be translated]:Uninstall Perry Studio's integrated runtime? System dependencies will not be removed.",
+      "uninstallSuccess": "[to be translated]:Integrated runtime uninstalled"
     },
     "font_size": {
       "title": "Tamanho da fonte da mensagem"

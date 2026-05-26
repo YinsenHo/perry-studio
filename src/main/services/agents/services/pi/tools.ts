@@ -1,12 +1,15 @@
 import { execFile } from 'node:child_process'
 import { readdirSync } from 'node:fs'
 import fs from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
 import type { AgentTool, AgentToolResult } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
 import mcpService from '@main/services/MCPService'
+import getShellEnv from '@main/utils/shell-env'
+import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import type { MCPCallToolResponse, MCPTool, MCPToolResultContent } from '@types'
 import fg from 'fast-glob'
 
@@ -120,14 +123,17 @@ const agentToolPrefixForCwd = (cwd: string) => {
   return path.join(process.env.TMPDIR || '/tmp', 'cherry-studio-agent-tools', key)
 }
 
-const buildBashEnv = (cwd: string, extraEnv: NodeJS.ProcessEnv = {}) => {
+const buildBashEnv = async (cwd: string, extraEnv: NodeJS.ProcessEnv = {}) => {
+  const shellEnv = await getShellEnv().catch(() => process.env)
   const toolPrefix = agentToolPrefixForCwd(cwd)
   const toolBin = path.join(toolPrefix, 'bin')
+  const managedBin = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
   const workspaceBin = path.join(cwd, 'node_modules', '.bin')
-  const basePath = extraEnv.PATH ?? process.env.PATH ?? ''
+  const basePath = extraEnv.PATH ?? shellEnv.PATH ?? shellEnv.Path ?? process.env.PATH ?? ''
+  const nextPath = [toolBin, workspaceBin, managedBin, basePath].filter(Boolean).join(path.delimiter)
 
   return {
-    ...process.env,
+    ...shellEnv,
     ...extraEnv,
     HOME: cwd,
     PWD: cwd,
@@ -135,7 +141,8 @@ const buildBashEnv = (cwd: string, extraEnv: NodeJS.ProcessEnv = {}) => {
     npm_config_prefix: extraEnv.npm_config_prefix ?? toolPrefix,
     PNPM_HOME: extraEnv.PNPM_HOME ?? toolBin,
     YARN_PREFIX: extraEnv.YARN_PREFIX ?? toolPrefix,
-    PATH: [toolBin, workspaceBin, basePath].filter(Boolean).join(path.delimiter)
+    PATH: nextPath,
+    ...(process.platform === 'win32' ? { Path: nextPath } : {})
   }
 }
 
@@ -281,7 +288,7 @@ const runBash = async (
 ) => {
   assertCommandDoesNotReferenceOutsidePaths(command, roots)
 
-  const env = buildBashEnv(cwd, extraEnv)
+  const env = await buildBashEnv(cwd, extraEnv)
 
   if (process.platform === 'darwin') {
     return await execFileAsync(

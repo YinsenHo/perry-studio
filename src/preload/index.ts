@@ -7,6 +7,7 @@ import type { GitBashPathInfo, TerminalConfig, UpgradeChannel } from '@shared/co
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type {
   CodeToolsRunResult,
+  EnvironmentDependenciesStatus,
   FileChangeEvent,
   LanClientEvent,
   LanFileCompleteMessage,
@@ -160,6 +161,18 @@ const api = {
     getGitBashPathInfo: (): Promise<GitBashPathInfo> => ipcRenderer.invoke(IpcChannel.System_GetGitBashPathInfo),
     setGitBashPath: (newPath: string | null): Promise<boolean> =>
       ipcRenderer.invoke(IpcChannel.System_SetGitBashPath, newPath)
+  },
+  environmentDependencies: {
+    getStatus: (): Promise<EnvironmentDependenciesStatus> =>
+      ipcRenderer.invoke(IpcChannel.EnvironmentDependencies_GetStatus),
+    install: (): Promise<EnvironmentDependenciesStatus> =>
+      ipcRenderer.invoke(IpcChannel.EnvironmentDependencies_Install),
+    uninstall: (): Promise<EnvironmentDependenciesStatus> =>
+      ipcRenderer.invoke(IpcChannel.EnvironmentDependencies_Uninstall),
+    installUv: (): Promise<EnvironmentDependenciesStatus> =>
+      ipcRenderer.invoke(IpcChannel.EnvironmentDependencies_InstallUv),
+    installBun: (): Promise<EnvironmentDependenciesStatus> =>
+      ipcRenderer.invoke(IpcChannel.EnvironmentDependencies_InstallBun)
   },
   devTools: {
     toggle: () => ipcRenderer.invoke(IpcChannel.System_ToggleDevTools)

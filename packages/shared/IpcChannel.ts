@@ -283,6 +283,11 @@ export enum IpcChannel {
   System_GetGitBashPath = 'system:getGitBashPath',
   System_GetGitBashPathInfo = 'system:getGitBashPathInfo',
   System_SetGitBashPath = 'system:setGitBashPath',
+  EnvironmentDependencies_GetStatus = 'environment-dependencies:get-status',
+  EnvironmentDependencies_Install = 'environment-dependencies:install',
+  EnvironmentDependencies_Uninstall = 'environment-dependencies:uninstall',
+  EnvironmentDependencies_InstallUv = 'environment-dependencies:install-uv',
+  EnvironmentDependencies_InstallBun = 'environment-dependencies:install-bun',
 
   // DevTools
   System_ToggleDevTools = 'system:toggleDevTools',

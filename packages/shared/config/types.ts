@@ -16,6 +16,25 @@ export interface CodeToolsRunResult {
 
 export type OperationResult = { success: true } | { success: false; message: string }
 
+export type EnvironmentDependencySource = 'managed' | 'system' | 'runtime' | 'missing'
+
+export type EnvironmentDependencyStatus = {
+  id: string
+  name: string
+  command: string
+  required: boolean
+  installed: boolean
+  source: EnvironmentDependencySource
+  path: string | null
+  version?: string | null
+}
+
+export type EnvironmentDependenciesStatus = {
+  managedDir: string
+  managedRuntimeEnabled: boolean
+  dependencies: EnvironmentDependencyStatus[]
+}
+
 export type LoaderReturn = {
   entriesAdded: number
   uniqueId: string

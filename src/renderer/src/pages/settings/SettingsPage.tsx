@@ -20,6 +20,7 @@ import {
   Settings2,
   Sparkles,
   TextCursorInput,
+  Wrench,
   Zap
 } from 'lucide-react'
 import type { FC } from 'react'
@@ -32,6 +33,7 @@ import ChannelsSettings from './ChannelsSettings'
 import DataSettings from './DataSettings/DataSettings'
 import DisplaySettings from './DisplaySettings/DisplaySettings'
 import DocProcessSettings from './DocProcessSettings'
+import EnvironmentDependenciesSettings from './EnvironmentDependenciesSettings'
 import GeneralSettings from './GeneralSettings'
 import MCPSettings from './MCPSettings'
 import MemorySettings from './MemorySettings'
@@ -87,6 +89,12 @@ const SettingsPage: FC = () => {
             <MenuItem className={isRoute('/settings/data')}>
               <HardDrive size={18} />
               {t('settings.data.title')}
+            </MenuItem>
+          </MenuItemLink>
+          <MenuItemLink to="/settings/environment">
+            <MenuItem className={isRoute('/settings/environment')}>
+              <Wrench size={18} />
+              {t('settings.environment.title')}
             </MenuItem>
           </MenuItemLink>
           <Divider />
@@ -186,6 +194,7 @@ const SettingsPage: FC = () => {
             <Route path="memory" element={<MemorySettings />} />
             <Route path="general/*" element={<GeneralSettings />} />
             <Route path="display" element={<DisplaySettings />} />
+            <Route path="environment" element={<EnvironmentDependenciesSettings />} />
             <Route path="shortcut" element={<ShortcutSettings />} />
             <Route path="quickAssistant" element={<QuickAssistantSettings />} />
             <Route path="selectionAssistant" element={<SelectionAssistantSettings />} />

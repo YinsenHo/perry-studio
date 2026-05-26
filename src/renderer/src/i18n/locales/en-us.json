@@ -2483,15 +2483,15 @@
     "tools": {
       "abort_failed": "Tool call abort failed",
       "aborted": "Tool call aborted",
+      "activity": {
+        "running": "Working"
+      },
       "approvalRequired": "Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Auto-approve enabled for this tool",
       "cancelled": "Cancelled",
       "completed": "Completed",
       "error": "Error occurred",
       "groupHeader": "{{count}} tool calls",
-      "activity": {
-        "running": "Working"
-      },
       "invoking": "Invoking",
       "labels": {
         "bash": "Bash",
@@ -4651,6 +4651,28 @@
       "zoom": {
         "title": "Zoom Settings"
       }
+    },
+    "environment": {
+      "dependencies": "Dependency Status",
+      "description": "Manage the integrated runtime and system dependencies used by agents.",
+      "install": "Install",
+      "installSuccess": "Environment dependencies updated",
+      "integratedRuntime": "Integrated Runtime",
+      "notFound": "Not found",
+      "openDir": "Open Folder",
+      "refresh": "Refresh",
+      "reinstall": "Reinstall",
+      "source": {
+        "managed": "Integrated",
+        "missing": "Optional missing",
+        "requiredMissing": "Required missing",
+        "runtime": "Built in",
+        "system": "System"
+      },
+      "title": "Environment",
+      "uninstall": "Uninstall",
+      "uninstallConfirm": "Uninstall Perry Studio's integrated runtime? System dependencies will not be removed.",
+      "uninstallSuccess": "Integrated runtime uninstalled"
     },
     "font_size": {
       "title": "Message font size"

@@ -3427,6 +3427,37 @@ const migrateConfig = {
       logger.error('migrate 207 error', error as Error)
       return state
     }
+  },
+  '208': (state: RootState) => {
+    try {
+      const clearCherryAiModel = (model: any) => (model?.provider === 'cherryai' ? undefined : model)
+
+      ;(state.llm as any).defaultModel = clearCherryAiModel(state.llm.defaultModel)
+      ;(state.llm as any).topicNamingModel = clearCherryAiModel(state.llm.topicNamingModel)
+      ;(state.llm as any).quickModel = clearCherryAiModel(state.llm.quickModel)
+      ;(state.llm as any).translateModel = clearCherryAiModel(state.llm.translateModel)
+
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'cherryai') {
+          provider.models = []
+        }
+      })
+
+      const clearAssistantModel = (assistant: any) => {
+        assistant.model = clearCherryAiModel(assistant.model)
+        assistant.defaultModel = clearCherryAiModel(assistant.defaultModel)
+      }
+
+      clearAssistantModel(state.assistants.defaultAssistant)
+      state.assistants.assistants.forEach(clearAssistantModel)
+      state.settings.navbarPosition = 'left'
+
+      logger.info('migrate 208 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 208 error', error as Error)
+      return state
+    }
   }
 }
 

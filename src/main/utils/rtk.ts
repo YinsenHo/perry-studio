@@ -16,6 +16,7 @@ const logger = loggerService.withContext('Utils:Rtk')
 
 const RTK_BINARY = isWin ? 'rtk.exe' : 'rtk'
 const RTK_VERSION_FILE = '.rtk-version'
+const MANAGED_RUNTIME_DISABLED_FILE = '.managed-runtime-disabled'
 const RTK_MIN_VERSION = '0.23.0'
 const REWRITE_TIMEOUT_MS = 3000
 
@@ -38,8 +39,27 @@ function getBundledBinariesDir(): string {
   return toAsarUnpackedPath(dir)
 }
 
-function getUserBinDir(): string {
+export function getUserBinDir(): string {
   return path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
+}
+
+export function isManagedRuntimeDisabled(): boolean {
+  return fs.existsSync(path.join(getUserBinDir(), MANAGED_RUNTIME_DISABLED_FILE))
+}
+
+export function enableManagedRuntime(): void {
+  const markerPath = path.join(getUserBinDir(), MANAGED_RUNTIME_DISABLED_FILE)
+  if (fs.existsSync(markerPath)) {
+    fs.rmSync(markerPath, { force: true })
+  }
+}
+
+export function disableManagedRuntime(): void {
+  const userBinDir = getUserBinDir()
+  fs.mkdirSync(userBinDir, { recursive: true })
+  fs.writeFileSync(path.join(userBinDir, MANAGED_RUNTIME_DISABLED_FILE), new Date().toISOString(), 'utf8')
+  rtkPath = null
+  rtkAvailable = null
 }
 
 /**
@@ -47,6 +67,11 @@ function getUserBinDir(): string {
  * Called once at app startup.
  */
 export async function extractRtkBinaries(): Promise<void> {
+  if (isManagedRuntimeDisabled()) {
+    logger.debug('Managed runtime disabled by user, skipping rtk extraction')
+    return
+  }
+
   if (!isPlatformSupported()) {
     logger.debug('rtk not supported on this platform', { platform: getPlatformKey() })
     return

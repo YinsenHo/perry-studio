@@ -50,6 +50,7 @@ import { codeToolsService } from './services/CodeToolsService'
 import { ConfigKeys, configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
 import DxtService from './services/DxtService'
+import { environmentDependencyService } from './services/EnvironmentDependencyService'
 import { ExportService } from './services/ExportService'
 import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
@@ -858,6 +859,13 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.App_InstallUvBinary, () => runInstallScript('install-uv.js'))
   ipcMain.handle(IpcChannel.App_InstallBunBinary, () => runInstallScript('install-bun.js'))
   ipcMain.handle(IpcChannel.App_InstallOvmsBinary, () => runInstallScript('install-ovms.js'))
+  ipcMain.handle(IpcChannel.EnvironmentDependencies_GetStatus, () => environmentDependencyService.getStatus())
+  ipcMain.handle(IpcChannel.EnvironmentDependencies_Install, () => environmentDependencyService.installManagedRuntime())
+  ipcMain.handle(IpcChannel.EnvironmentDependencies_Uninstall, () =>
+    environmentDependencyService.uninstallManagedRuntime()
+  )
+  ipcMain.handle(IpcChannel.EnvironmentDependencies_InstallUv, () => environmentDependencyService.installUv())
+  ipcMain.handle(IpcChannel.EnvironmentDependencies_InstallBun, () => environmentDependencyService.installBun())
 
   //copilot
   ipcMain.handle(IpcChannel.Copilot_GetAuthMessage, CopilotService.getAuthMessage.bind(CopilotService))

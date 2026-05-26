@@ -8,16 +8,7 @@ export const qwenModel: Model = {
 }
 
 export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> = {
-  defaultModel: [
-    // Default assistant model
-    qwenModel,
-    // Default topic naming model
-    qwenModel,
-    // Default translation model
-    qwenModel,
-    // Default quick assistant model
-    qwenModel
-  ],
+  defaultModel: [],
   cherryin: [],
   vertexai: [],
   sophnet: [],

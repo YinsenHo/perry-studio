@@ -92,6 +92,7 @@ describe('rtk utils', () => {
     it('should copy binary when destination does not exist', async () => {
       mockFs.existsSync.mockImplementation((p: fs.PathLike) => {
         const filePath = String(p)
+        if (filePath.includes('.managed-runtime-disabled')) return false
         if (filePath.includes('resources/binaries')) return true
         if (filePath.includes('rtk') && filePath.includes('.cherrystudio')) return false
         if (filePath.includes('.rtk-version') && filePath.includes('resources')) return true

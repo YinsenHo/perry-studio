@@ -2483,15 +2483,15 @@
     "tools": {
       "abort_failed": "工具调用中断失败",
       "aborted": "工具调用已中断",
+      "activity": {
+        "running": "正在处理"
+      },
       "approvalRequired": "工具 \"{{tool}}\" 需要审批",
       "autoApproveEnabled": "此工具已启用自动批准",
       "cancelled": "已取消",
       "completed": "已完成",
       "error": "发生错误",
       "groupHeader": "{{count}} 个工具调用",
-      "activity": {
-        "running": "正在处理"
-      },
       "invoking": "调用中",
       "labels": {
         "bash": "执行命令",
@@ -4651,6 +4651,28 @@
       "zoom": {
         "title": "缩放设置"
       }
+    },
+    "environment": {
+      "dependencies": "依赖状态",
+      "description": "管理 Agent 执行任务时使用的集成运行时和系统依赖。",
+      "install": "安装",
+      "installSuccess": "环境依赖已更新",
+      "integratedRuntime": "集成运行时",
+      "notFound": "未找到",
+      "openDir": "打开目录",
+      "refresh": "刷新",
+      "reinstall": "重新安装",
+      "source": {
+        "managed": "已集成",
+        "missing": "可选缺失",
+        "requiredMissing": "必需缺失",
+        "runtime": "内置",
+        "system": "系统"
+      },
+      "title": "环境依赖",
+      "uninstall": "卸载",
+      "uninstallConfirm": "确定卸载 Perry Studio 的集成运行时吗？系统依赖不会被删除。",
+      "uninstallSuccess": "集成运行时已卸载"
     },
     "font_size": {
       "title": "消息字体大小"

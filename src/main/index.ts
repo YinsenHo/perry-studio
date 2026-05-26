@@ -44,7 +44,7 @@ import { windowService } from './services/WindowService'
 import { initWebviewHotkeys } from './services/WebviewService'
 import { runAsyncFunction } from './utils'
 import { isOvmsSupported } from './services/OvmsManager'
-import { extractRtkBinaries } from './utils/rtk'
+import { environmentDependencyService } from './services/EnvironmentDependencyService'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -172,9 +172,9 @@ if (!app.requestSingleInstanceLock()) {
     powerMonitorService.init()
     analyticsService.init()
 
-    // Extract bundled rtk binary to ~/.cherrystudio/bin/ on first run
-    extractRtkBinaries().catch((error) => {
-      logger.warn('Failed to extract rtk binaries (non-fatal)', {
+    // Prepare the bundled agent runtime in ~/.cherrystudio/bin/ on first run.
+    environmentDependencyService.ensureIntegratedRuntime().catch((error) => {
+      logger.warn('Failed to prepare integrated runtime (non-fatal)', {
         error: error instanceof Error ? error.message : String(error)
       })
     })

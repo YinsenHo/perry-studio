@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import type { FileMetadata } from '@renderer/types'
 import { getFileExtension, isSupportedFile } from '@renderer/utils'
+import { allFilesExt } from '@shared/config/constant'
 
 const logger = loggerService.withContext('PasteService')
 
@@ -36,6 +37,8 @@ export const handlePaste = async (
   t?: (key: string) => string
 ): Promise<boolean> => {
   try {
+    const supportAllFiles = supportExts.includes(allFilesExt)
+
     // 优先处理文本粘贴
     const clipboardText = event.clipboardData?.getData('text')
     if (clipboardText) {
@@ -69,7 +72,10 @@ export const handlePaste = async (
           // 如果没有路径，可能是剪贴板中的图像数据
           if (!filePath) {
             // 图像生成也支持图像编辑
-            if (file.type.startsWith('image/') && supportExts.includes(getFileExtension(file.name))) {
+            if (
+              file.type.startsWith('image/') &&
+              (supportAllFiles || supportExts.includes(getFileExtension(file.name)))
+            ) {
               const tempFilePath = await window.api.file.createTempFile(file.name)
               const arrayBuffer = await file.arrayBuffer()
               const uint8Array = new Uint8Array(arrayBuffer)

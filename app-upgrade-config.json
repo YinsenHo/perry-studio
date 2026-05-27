@@ -32,6 +32,25 @@
         }
       }
     },
+    "1.9.6": {
+      "metadata": {
+        "segmentId": "perry-studio-v1",
+        "segmentType": "stable"
+      },
+      "minCompatibleVersion": "1.7.0",
+      "description": "Perry Studio stable release channel",
+      "channels": {
+        "latest": {
+          "version": "1.9.6",
+          "feedUrls": {
+            "github": "https://github.com/YinsenW/perry-studio/releases/latest/download",
+            "gitcode": "https://github.com/YinsenW/perry-studio/releases/latest/download"
+          }
+        },
+        "rc": null,
+        "beta": null
+      }
+    },
     "2.0.0": {
       "metadata": {
         "segmentId": "gateway-v2",

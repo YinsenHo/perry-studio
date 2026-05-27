@@ -6,6 +6,7 @@ export const audioExts = ['.mp3', '.wav', '.ogg', '.flac', '.aac']
 export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.odt', '.odp', '.ods']
 export const thirdPartyApplicationExts = ['.draftsExport']
 export const bookExts = ['.epub']
+export const allFilesExt = '*'
 
 export const API_SERVER_DEFAULTS = {
   HOST: '127.0.0.1',
@@ -199,12 +200,12 @@ export const defaultLanguage = 'en-US'
 
 export enum FeedUrl {
   PRODUCTION = 'https://releases.cherry-ai.com',
-  GITHUB_LATEST = 'https://github.com/CherryHQ/cherry-studio/releases/latest/download'
+  GITHUB_LATEST = 'https://github.com/YinsenW/perry-studio/releases/latest/download'
 }
 
 export enum UpdateConfigUrl {
-  GITHUB = 'https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/x-files/app-upgrade-config/app-upgrade-config.json',
-  GITCODE = 'https://raw.gitcode.com/CherryHQ/cherry-studio/raw/x-files%2Fapp-upgrade-config/app-upgrade-config.json'
+  GITHUB = 'https://raw.githubusercontent.com/YinsenW/perry-studio/main/app-upgrade-config.json',
+  GITCODE = 'https://raw.githubusercontent.com/YinsenW/perry-studio/main/app-upgrade-config.json'
 }
 
 export enum UpgradeChannel {

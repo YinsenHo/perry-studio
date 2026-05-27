@@ -100,6 +100,7 @@ portable:
   buildUniversalInstaller: false
 mac:
   entitlementsInherit: build/entitlements.mac.plist
+  identity: null
   notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}
   extendInfo:
@@ -133,7 +134,7 @@ rpm:
   fpm: ["--rpm-rpmbuild-define=_build_id_links none"]
 publish:
   provider: generic
-  url: https://github.com/YinsenHo/perry-studio/releases/download/latest
+  url: https://github.com/YinsenW/perry-studio/releases/latest/download
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
 beforePack: scripts/before-pack.js

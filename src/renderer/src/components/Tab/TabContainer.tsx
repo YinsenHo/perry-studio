@@ -299,7 +299,11 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children, withSidebar = f
   return (
     <Container>
       <TabsBar $isFullscreen={isFullscreen} $withSidebar={withSidebar} style={tabsBarStyle}>
-        <HorizontalScrollContainer dependencies={[tabScrollKey]} gap="4px" className="tab-scroll-container">
+        <HorizontalScrollContainer
+          dependencies={[tabScrollKey]}
+          gap="4px"
+          className="tab-scroll-container"
+          classNames={{ content: 'tab-scroll-content' }}>
           {hasMultipleVisibleTabs && (
             <Sortable
               items={visibleTabs}
@@ -427,6 +431,10 @@ const TabsBar = styled.div<{ $isFullscreen: boolean; $withSidebar: boolean }>`
       -webkit-app-region: no-drag;
     }
   }
+
+  .tab-scroll-content {
+    overflow-y: visible;
+  }
 `
 
 const Tab = styled.div<{ active?: boolean }>`
@@ -439,43 +447,50 @@ const Tab = styled.div<{ active?: boolean }>`
   z-index: ${(props) => (props.active ? 2 : 1)};
   margin-bottom: -1px;
   background: ${(props) => (props.active ? 'var(--color-background)' : 'transparent')};
-  border: 0.5px solid ${(props) => (props.active ? 'var(--color-border)' : 'transparent')};
-  border-bottom: 0;
+  border: none;
   transition:
     background 0.2s,
-    border-color 0.2s,
     box-shadow 0.2s;
   border-radius: ${(props) => (props.active ? '9px 9px 0 0' : '7px')};
   user-select: none;
   height: 30px;
   min-width: 108px;
   max-width: 168px;
-  box-shadow: ${(props) => (props.active ? '0 -1px 2px rgba(0, 0, 0, 0.04)' : 'none')};
-  contain: layout paint;
+  box-shadow: none;
+  contain: layout;
 
   ${(props) =>
     props.active &&
     `
+      & {
+        isolation: isolate;
+      }
+
       &::before,
       &::after {
         content: '';
         position: absolute;
-        bottom: -0.5px;
-        width: 9px;
-        height: 9px;
         pointer-events: none;
       }
 
       &::before {
-        left: -9px;
-        border-bottom-right-radius: 9px;
-        box-shadow: 4px 4px 0 3px var(--color-background);
+        inset: 0;
+        z-index: -1;
+        border-radius: 9px 9px 0 0;
+        background:
+          linear-gradient(var(--color-background), var(--color-background)) padding-box,
+          linear-gradient(var(--color-border), var(--color-border)) border-box;
+        border: 0.5px solid transparent;
+        border-bottom: 0;
       }
 
       &::after {
-        right: -9px;
-        border-bottom-left-radius: 9px;
-        box-shadow: -4px 4px 0 3px var(--color-background);
+        left: -10px;
+        right: -10px;
+        bottom: -2px;
+        z-index: 1;
+        height: 3px;
+        background: var(--color-background);
       }
     `}
 

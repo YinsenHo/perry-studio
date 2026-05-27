@@ -1,161 +1,249 @@
 name: Release
 
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag (e.g. v1.0.0)"
+        description: "Release tag, for example v1.9.7"
         required: true
-        default: "v1.0.0"
+        default: "v1.9.7"
+        type: string
       platform:
-        description: "Build platform"
+        description: "Platform to build"
         required: true
         default: "all"
         type: choice
         options:
           - all
-          - windows
           - mac
+          - windows
           - linux
-  pull_request_target:
-    branches:
-      - main
-    types:
-      - closed
+      draft:
+        description: "Create or update the GitHub Release as a draft"
+        required: true
+        default: true
+        type: boolean
+      prerelease:
+        description: "Mark the GitHub Release as a prerelease"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
 
-jobs:
-  release:
-    # Only run for tag push, workflow_dispatch, or PR from release branches
-    if: |
-      github.event_name == 'push' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request_target' && github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'release/v'))
-    runs-on: ${{ matrix.os }}
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
-    strategy:
-      matrix:
-        os: ${{ fromJSON(
-          github.event_name == 'push' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
-          github.event_name == 'pull_request_target' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
-          github.event.inputs.platform == 'all' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
-          github.event.inputs.platform == 'linux' && '["ubuntu-latest"]' ||
-          github.event.inputs.platform == 'windows' && '["windows-latest"]' ||
-          github.event.inputs.platform == 'mac' && '["macos-latest"]' ||
-          '["macos-latest", "windows-latest", "ubuntu-latest"]'
-          ) }}
-      fail-fast: false
+jobs:
+  prepare:
+    name: Prepare release metadata
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+      draft: ${{ steps.release.outputs.draft }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
 
     steps:
-      - name: Check out Git repository
-        uses: actions/checkout@v6
+      - name: Check out repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
 
-      - name: Get release tag
-        id: get-tag
+      - name: Resolve release metadata
+        id: release
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event_name }}" = "pull_request_target" ]; then
-            # Extract version from branch name (release/v1.0.0 -> v1.0.0)
-            BRANCH="${{ github.event.pull_request.head.ref }}"
-            echo "tag=${BRANCH#release/}" >> $GITHUB_OUTPUT
+            TAG="${{ github.event.inputs.tag }}"
+            DRAFT="${{ inputs.draft }}"
+            PRERELEASE="${{ inputs.prerelease }}"
           else
-            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+            TAG="${GITHUB_REF_NAME}"
+            DRAFT="false"
+            PRERELEASE="false"
           fi
 
-      - name: Set package.json version
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag: $TAG"
+            echo "Expected a tag like v1.9.7, v1.9.7-rc.1, or v1.9.7-beta.1"
+            exit 1
+          fi
+
+          VERSION="${TAG#v}"
+          if [[ "$VERSION" == *-* ]]; then
+            PRERELEASE="true"
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "draft=$DRAFT" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+
+      - name: Create manual tag if needed
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
-          TAG="${{ steps.get-tag.outputs.tag }}"
-          VERSION="${TAG#v}"
-          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          TAG="${{ steps.release.outputs.tag }}"
 
-      - name: Install Node.js
-        uses: actions/setup-node@v6
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
+
+  build:
+    name: Build ${{ matrix.platform }}
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(github.event_name == 'push' && '[{"platform":"mac","os":"macos-latest","build":"npm run build && pnpm exec electron-builder --mac --arm64 --x64 --publish never"},{"platform":"windows","os":"windows-latest","build":"npm run build && pnpm exec electron-builder --win --x64 --arm64 --publish never"},{"platform":"linux","os":"ubuntu-latest","build":"npm run build && pnpm exec electron-builder --linux --x64 --arm64 --publish never"}]' || github.event.inputs.platform == 'all' && '[{"platform":"mac","os":"macos-latest","build":"npm run build && pnpm exec electron-builder --mac --arm64 --x64 --publish never"},{"platform":"windows","os":"windows-latest","build":"npm run build && pnpm exec electron-builder --win --x64 --arm64 --publish never"},{"platform":"linux","os":"ubuntu-latest","build":"npm run build && pnpm exec electron-builder --linux --x64 --arm64 --publish never"}]' || github.event.inputs.platform == 'mac' && '[{"platform":"mac","os":"macos-latest","build":"npm run build && pnpm exec electron-builder --mac --arm64 --x64 --publish never"}]' || github.event.inputs.platform == 'windows' && '[{"platform":"windows","os":"windows-latest","build":"npm run build && pnpm exec electron-builder --win --x64 --arm64 --publish never"}]' || github.event.inputs.platform == 'linux' && '[{"platform":"linux","os":"ubuntu-latest","build":"npm run build && pnpm exec electron-builder --linux --x64 --arm64 --publish never"}]' || '[]') }}
+
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
         with:
-          node-version-file: '.node-version'
+          fetch-depth: 0
+          ref: ${{ needs.prepare.outputs.tag }}
 
-      - name: macos-latest dependencies fix
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew install python-setuptools
+      - name: Set package version from release tag
+        shell: bash
+        run: npm version "${{ needs.prepare.outputs.version }}" --no-git-tag-version --allow-same-version
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v4
 
       - name: Get pnpm store directory
         id: pnpm-cache
         shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
       - name: Cache pnpm dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v4
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-
 
-      - name: Install Dependencies
-        run: pnpm install
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-      - name: Build Linux
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install Linux packaging dependencies
+        if: matrix.platform == 'linux'
         run: |
+          sudo apt-get update
           sudo apt-get install -y rpm libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
-          pnpm build:linux
 
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_OPTIONS: --max-old-space-size=8192
-          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
-          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
-          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
-          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
-
-      - name: Build Mac
-        if: matrix.os == 'macos-latest'
+      - name: Install macOS packaging dependencies
+        if: matrix.platform == 'mac'
         run: |
-          sudo -H pip install setuptools
-          pnpm build:mac
+          brew install python-setuptools
+          python3 -m pip install --break-system-packages setuptools || python3 -m pip install --user setuptools
+
+      - name: Build ${{ matrix.platform }} installers
+        shell: bash
+        run: ${{ matrix.build }}
         env:
-          CSC_FOR_PULL_REQUEST: true
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
+
+          # Optional app build-time secrets.
           MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
           MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
           RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
-      - name: Build Windows
-        if: matrix.os == 'windows-latest'
+          # macOS signing is disabled until valid CherryHQ signing secrets are configured together.
+          CSC_LINK: ""
+          CSC_KEY_PASSWORD: ""
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          APPLE_ID: ""
+          APPLE_APP_SPECIFIC_PASSWORD: ""
+          APPLE_TEAM_ID: ""
+
+          # Optional Windows signing. scripts/win-sign.js signs only when WIN_SIGN is set.
+          WIN_SIGN: ${{ secrets.WIN_SIGN }}
+          CHERRY_CERT_PATH: ${{ secrets.CHERRY_CERT_PATH }}
+          CHERRY_CERT_KEY: ${{ secrets.CHERRY_CERT_KEY }}
+          CHERRY_CERT_CSP: ${{ secrets.CHERRY_CERT_CSP }}
+          WIN_SIGN_TIMESTAMP_URLS: ${{ secrets.WIN_SIGN_TIMESTAMP_URLS }}
+
+      - name: Generate SHA256 checksums
+        shell: bash
         run: |
-          pnpm build:win
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_OPTIONS: --max-old-space-size=8192
-          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
-          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
-          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
-          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
+          cd dist
+          if command -v shasum >/dev/null 2>&1; then
+            shasum -a 256 \
+              *.exe *.zip *.dmg *.AppImage *.deb *.rpm *.tar.gz *.yml *.blockmap \
+              2>/dev/null > "SHA256SUMS-${{ matrix.platform }}.txt" || true
+          else
+            sha256sum \
+              *.exe *.zip *.dmg *.AppImage *.deb *.rpm *.tar.gz *.yml *.blockmap \
+              2>/dev/null > "SHA256SUMS-${{ matrix.platform }}.txt" || true
+          fi
+          cat "SHA256SUMS-${{ matrix.platform }}.txt"
 
-      - name: Release
-        uses: ncipollo/release-action@v1
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
         with:
-          draft: true
-          allowUpdates: true
-          makeLatest: false
-          tag: ${{ steps.get-tag.outputs.tag }}
-          artifacts: "dist/*.exe,dist/*.zip,dist/*.dmg,dist/*.AppImage,dist/*.snap,dist/*.deb,dist/*.rpm,dist/*.tar.gz,dist/latest*.yml,dist/rc*.yml,dist/beta*.yml,dist/*.blockmap"
-          token: ${{ secrets.GITHUB_TOKEN }}
+          name: release-${{ needs.prepare.outputs.tag }}-${{ matrix.platform }}
+          if-no-files-found: error
+          compression-level: 0
+          path: |
+            dist/*.exe
+            dist/*.zip
+            dist/*.dmg
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.rpm
+            dist/*.tar.gz
+            dist/*.yml
+            dist/*.blockmap
+            dist/SHA256SUMS-${{ matrix.platform }}.txt
+
+  publish:
+    name: Publish GitHub Release
+    needs:
+      - prepare
+      - build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-${{ needs.prepare.outputs.tag }}-*
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: List release artifacts
+        shell: bash
+        run: find release-artifacts -type f -maxdepth 2 -print | sort
+
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: Perry Studio ${{ needs.prepare.outputs.tag }}
+          draft: ${{ needs.prepare.outputs.draft }}
+          prerelease: ${{ needs.prepare.outputs.prerelease }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: release-artifacts/*

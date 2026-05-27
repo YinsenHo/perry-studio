@@ -2,7 +2,6 @@ import { loggerService } from '@logger'
 import { getAnthropicReasoningParams } from '@renderer/aiCore/utils/reasoning'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
-import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { useInputText } from '@renderer/hooks/useInputText'
@@ -38,7 +37,7 @@ import { abortCompletion } from '@renderer/utils/abortController'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { createMainTextBlock, createMessage } from '@renderer/utils/messageUtils/create'
-import { documentExts, imageExts, textExts } from '@shared/config/constant'
+import { allFilesExt } from '@shared/config/constant'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -48,6 +47,7 @@ import { v4 as uuid } from 'uuid'
 const logger = loggerService.withContext('AgentSessionInputbar')
 
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
+const AGENT_SUPPORTED_EXTS = [allFilesExt]
 
 const getAgentDraftCacheKey = (agentId: string) => `agent-session-draft-${agentId}`
 
@@ -204,26 +204,10 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   const topicMessages = useAppSelector((state) => selectMessagesForTopic(state, sessionTopicId))
   const loading = useAppSelector((state) => selectNewTopicLoading(state, sessionTopicId))
 
-  // Calculate vision and image generation support
-  const isVisionAssistant = useMemo(() => (assistant.model ? isVisionModel(assistant.model) : false), [assistant.model])
-  const isGenerateImageAssistant = useMemo(
-    () => (assistant.model ? isGenerateImageModel(assistant.model) : false),
-    [assistant.model]
-  )
-
-  // Agent sessions don't support model mentions yet, so we only check the assistant's model
-  const canAddImageFile = useMemo(() => {
-    return isVisionAssistant || isGenerateImageAssistant
-  }, [isVisionAssistant, isGenerateImageAssistant])
-
-  const canAddTextFile = useMemo(() => {
-    return isVisionAssistant || (!isVisionAssistant && !isGenerateImageAssistant)
-  }, [isVisionAssistant, isGenerateImageAssistant])
-
-  // Update the couldAddImageFile state when the model changes
+  // Agents can inspect arbitrary attachments through tools, so the inputbar should not inherit model-level file limits.
   useEffect(() => {
-    setCouldAddImageFile(canAddImageFile)
-  }, [canAddImageFile, setCouldAddImageFile])
+    setCouldAddImageFile(true)
+  }, [setCouldAddImageFile])
 
   const syncExpandedState = useCallback(
     (expanded: boolean) => {
@@ -526,22 +510,6 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     }
   }, [focusTextarea])
 
-  const supportedExts = useMemo(() => {
-    if (canAddImageFile && canAddTextFile) {
-      return [...imageExts, ...documentExts, ...textExts]
-    }
-
-    if (canAddImageFile) {
-      return [...imageExts]
-    }
-
-    if (canAddTextFile) {
-      return [...documentExts, ...textExts]
-    }
-
-    return []
-  }, [canAddImageFile, canAddTextFile])
-
   const toolsSession = useMemo(() => {
     if (!sessionData) return undefined
     return { ...sessionData, reasoningEffort, onReasoningEffortChange: setReasoningEffort }
@@ -577,7 +545,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
       resizeTextArea={resizeTextArea}
       focusTextarea={focusTextarea}
       placeholder={placeholderText}
-      supportedExts={supportedExts}
+      supportedExts={AGENT_SUPPORTED_EXTS}
       onPause={abortAgentSession}
       isLoading={canAbort}
       handleSendMessage={sendMessage}

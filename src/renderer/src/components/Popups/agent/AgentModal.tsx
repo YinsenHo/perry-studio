@@ -33,7 +33,7 @@ import {
 } from '@shared/agents/pi/constants'
 import type { GitBashPathInfo } from '@shared/config/constant'
 import { Button, Input, Modal, Select, Switch } from 'antd'
-import { CheckCircle2, ChevronLeft, Sparkles } from 'lucide-react'
+import { CheckCircle2, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -479,32 +479,20 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
 
   const stepCopy = {
     identity: {
-      title: t('agent.createWizard.identity.title', 'Name this agent'),
-      description: t(
-        'agent.createWizard.identity.description',
-        'Start with a clear identity. This name is how you will recognize and call this agent later.'
-      )
+      title: t('agent.createWizard.identity.title'),
+      description: t('agent.createWizard.identity.description')
     },
     instructions: {
-      title: t('agent.createWizard.instructions.title', 'Shape its role'),
-      description: t(
-        'agent.createWizard.instructions.description',
-        'These instructions become the agent system prompt and soul.md foundation. Keep them short, specific, and task-oriented.'
-      )
+      title: t('agent.createWizard.instructions.title'),
+      description: t('agent.createWizard.instructions.description')
     },
     model: {
-      title: t('agent.createWizard.model.title', 'Choose a model'),
-      description: t(
-        'agent.createWizard.model.description',
-        'The model decides how strong, fast, and costly this agent feels. You can change it later.'
-      )
+      title: t('agent.createWizard.model.title'),
+      description: t('agent.createWizard.model.description')
     },
     capabilities: {
-      title: t('agent.createWizard.capabilities.title', 'Choose what it can use'),
-      description: t(
-        'agent.createWizard.capabilities.description',
-        'Cherry Studio Pi starts with Soul Mode and built-in skills. Add workspace folders now, and tune advanced execution rules only when needed.'
-      )
+      title: t('agent.createWizard.capabilities.title'),
+      description: t('agent.createWizard.capabilities.description')
     }
   } satisfies Record<WizardStep, { title: string; description: string }>
 
@@ -522,28 +510,18 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                 onChange={onNameChange}
                 required
                 autoFocus
-                placeholder={t('agent.createWizard.identity.placeholder', 'e.g. Research Partner')}
+                placeholder={t('agent.createWizard.identity.placeholder')}
               />
-              <HelpText>
-                {t(
-                  'agent.createWizard.identity.helper',
-                  'A concrete name makes the agent easier to trust, find, and reuse.'
-                )}
-              </HelpText>
+              <HelpText>{t('agent.createWizard.identity.helper')}</HelpText>
             </FormItem>
           </>
         )
       case 'instructions':
         return (
           <FormItem>
-            <Label>{t('agent.createWizard.instructions.label', 'System prompt / soul.md')}</Label>
+            <Label>{t('agent.createWizard.instructions.label')}</Label>
             <TextArea rows={12} value={form.instructions ?? ''} onChange={onInstChange} />
-            <HelpText>
-              {t(
-                'agent.createWizard.instructions.helper',
-                'Describe the agent role, how it should work, and any boundaries it should respect.'
-              )}
-            </HelpText>
+            <HelpText>{t('agent.createWizard.instructions.helper')}</HelpText>
           </FormItem>
         )
       case 'model':
@@ -578,12 +556,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                 }}
                 containerClassName="flex items-center justify-between w-full"
               />
-              <HelpText>
-                {t(
-                  'agent.createWizard.model.helper',
-                  'Pick the model you would trust with the agent core work. Stronger models usually work better for long tasks.'
-                )}
-              </HelpText>
+              <HelpText>{t('agent.createWizard.model.helper')}</HelpText>
             </FormItem>
 
             {isWin && (
@@ -627,12 +600,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
             <CapabilityCard>
               <div>
                 <Label>{t('agent.settings.soulMode.title')}</Label>
-                <HelpText>
-                  {t(
-                    'agent.createWizard.soulMode.helper',
-                    'Enabled by default. The agent gets a persistent workspace and a soul.md-style identity foundation.'
-                  )}
-                </HelpText>
+                <HelpText>{t('agent.createWizard.soulMode.helper')}</HelpText>
               </div>
               <Switch checked={soulEnabled} size="small" onChange={onSoulModeChange} />
             </CapabilityCard>
@@ -666,7 +634,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
             </FormItem>
 
             <AdvancedBox>
-              <summary>{t('agent.createWizard.advanced.title', 'Advanced settings')}</summary>
+              <summary>{t('agent.createWizard.advanced.title')}</summary>
               <AdvancedContent>
                 <FormItem>
                   <Label>{t('agent.settings.tooling.permissionMode.title', 'Permission mode')}</Label>
@@ -723,20 +691,14 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
             <SuccessIcon>
               <CheckCircle2 size={34} />
             </SuccessIcon>
-            <DoneTitle>{t('agent.createWizard.done.title', 'Agent is ready')}</DoneTitle>
-            <DoneSubtitle>
-              {t(
-                'agent.createWizard.done.description',
-                '{{name}} has a model, a role, and a workspace. Give it the first task now.',
-                { name: createdAgent.name }
-              )}
-            </DoneSubtitle>
+            <DoneTitle>{t('agent.createWizard.done.title')}</DoneTitle>
+            <DoneSubtitle>{t('agent.createWizard.done.description', { name: createdAgent.name })}</DoneSubtitle>
             <AgentBadge>
               <Sparkles size={16} />
               <span>{createdAgent.name}</span>
             </AgentBadge>
             <Button type="primary" size="large" loading={startingTask} onClick={startTask}>
-              {t('agent.createWizard.done.startTask', 'Start first task')}
+              {t('agent.createWizard.done.startTask')}
             </Button>
           </DonePanel>
         ) : (
@@ -754,7 +716,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
               <WizardMain>
                 <StepHeader>
                   <StepEyebrow>
-                    {t('agent.createWizard.stepCounter', 'Step {{current}} of {{total}}', {
+                    {t('agent.createWizard.stepCounter', {
                       current: stepIndex + 1,
                       total: CREATE_STEPS.length
                     })}
@@ -767,14 +729,19 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
 
                 <FormFooter>
                   <Button onClick={onCancel}>{t('common.close')}</Button>
-                  {stepIndex > 0 && (
-                    <Button icon={<ChevronLeft size={15} />} onClick={onBack}>
-                      {t('common.back', 'Back')}
+                  <FooterNav>
+                    <Button icon={<ChevronLeft size={15} />} onClick={onBack} disabled={stepIndex === 0}>
+                      {t('agent.createWizard.actions.previous')}
                     </Button>
-                  )}
-                  <Button type="primary" htmlType="submit" disabled={!canGoNext}>
-                    {isLastStep ? (isCreating ? t('common.add') : t('common.confirm')) : t('common.next', 'Next')}
-                  </Button>
+                    <Button type="primary" htmlType="submit" disabled={!canGoNext}>
+                      {isLastStep
+                        ? isCreating
+                          ? t('agent.createWizard.actions.create')
+                          : t('common.confirm')
+                        : t('agent.createWizard.actions.next')}
+                      {!isLastStep && <ChevronRight size={15} />}
+                    </Button>
+                  </FooterNav>
                 </FormFooter>
               </WizardMain>
             </WizardShell>
@@ -814,20 +781,22 @@ export const AgentModal = AgentModalPopup
 const StyledForm = styled.form`
   display: flex;
   flex-direction: column;
-  min-height: 520px;
+  height: clamp(500px, calc(100vh - 160px), 600px);
 `
 
 const FormContent = styled(Scrollbar)`
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 16px;
-  max-height: 340px;
+  min-height: 0;
   padding-right: 8px;
 `
 
 const WizardShell = styled.div`
   display: flex;
-  min-height: 520px;
+  height: 100%;
+  min-height: 0;
 `
 
 const StepRail = styled.div`
@@ -869,6 +838,7 @@ const WizardMain = styled.div`
   flex: 1;
   min-width: 0;
   flex-direction: column;
+  min-height: 0;
   padding-left: 22px;
 `
 
@@ -999,10 +969,17 @@ const PathText = styled.span`
 
 const FormFooter = styled.div`
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
   margin-top: auto;
-  padding-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+`
+
+const FooterNav = styled.div`
+  display: flex;
+  gap: 8px;
 `
 
 const DonePanel = styled.div`

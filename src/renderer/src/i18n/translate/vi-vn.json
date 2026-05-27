@@ -4,7 +4,8 @@
       "description": "Xử lý các nhiệm vụ phức tạp với nhiều công cụ khác nhau",
       "error": {
         "failed": "Không thể thêm một đại lý",
-        "invalid_agent": "Đại lý không hợp lệ"
+        "invalid_agent": "Đại lý không hợp lệ",
+        "name_required": "Cần nhập tên"
       },
       "model": {
         "supported_providers": "Nhà cung cấp được hỗ trợ",
@@ -270,6 +271,46 @@
       "warning": {
         "bypassPermissions": "Các tác nhân CherryClaw hoạt động ở chế độ Tự động hoàn toàn theo mặc định. Mọi công cụ đều thực thi mà không yêu cầu phê duyệt."
       }
+    },
+    "createWizard": {
+      "actions": {
+        "create": "Tạo agent",
+        "next": "Tiếp theo",
+        "previous": "Trước"
+      },
+      "advanced": {
+        "title": "Cài đặt nâng cao"
+      },
+      "capabilities": {
+        "description": "Cherry Studio Pi bắt đầu với Soul Mode và các skill tích hợp. Thêm thư mục làm việc ngay bây giờ và chỉ tinh chỉnh quy tắc thực thi nâng cao khi cần.",
+        "title": "Chọn khả năng sử dụng"
+      },
+      "done": {
+        "description": "{{name}} đã có mô hình, vai trò và không gian làm việc. Hãy giao nhiệm vụ đầu tiên ngay.",
+        "startTask": "Bắt đầu nhiệm vụ đầu tiên",
+        "title": "Agent đã sẵn sàng"
+      },
+      "identity": {
+        "description": "Bắt đầu bằng một danh tính rõ ràng. Tên này giúp bạn nhận ra và gọi agent sau này.",
+        "helper": "Tên cụ thể giúp agent dễ được tin tưởng, tìm thấy và tái sử dụng hơn.",
+        "placeholder": "ví dụ: Cộng sự nghiên cứu",
+        "title": "Đặt tên cho agent"
+      },
+      "instructions": {
+        "description": "Những chỉ dẫn này trở thành system prompt của agent và nền tảng soul.md. Hãy ngắn gọn, cụ thể và hướng theo nhiệm vụ.",
+        "helper": "Mô tả vai trò của agent, cách nó nên làm việc và các giới hạn cần tuân thủ.",
+        "label": "System prompt / soul.md",
+        "title": "Định hình vai trò"
+      },
+      "model": {
+        "description": "Mô hình quyết định độ mạnh, tốc độ và chi phí cảm nhận của agent. Bạn có thể đổi sau.",
+        "helper": "Chọn mô hình bạn tin tưởng để giao phần việc cốt lõi của agent. Mô hình mạnh thường tốt hơn cho nhiệm vụ dài.",
+        "title": "Chọn mô hình"
+      },
+      "soulMode": {
+        "helper": "Bật mặc định. Agent có không gian làm việc lâu dài và nền tảng danh tính kiểu soul.md."
+      },
+      "stepCounter": "Bước {{current}} / {{total}}"
     },
     "delete": {
       "content": "Xóa tác nhân sẽ buộc dừng và xóa tất cả các phiên liên kết với tác nhân này. Bạn có chắc chắn không?",
@@ -1562,6 +1603,7 @@
     },
     "expand": "Mở rộng",
     "more": "Thêm",
+    "next": "[to be translated]:Next",
     "run": "Chạy",
     "split": {
       "label": "Chia đôi màn hình",

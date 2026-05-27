@@ -4,7 +4,8 @@
       "description": "さまざまなツールを使って複雑なタスクを処理する",
       "error": {
         "failed": "エージェントの追加に失敗しました",
-        "invalid_agent": "無効なエージェント"
+        "invalid_agent": "無効なエージェント",
+        "name_required": "名前を入力してください"
       },
       "model": {
         "supported_providers": "サポートされているプロバイダー",
@@ -270,6 +271,46 @@
       "warning": {
         "bypassPermissions": "CherryClaw エージェントはデフォルトでフルオートモードで実行されます。すべてのツールは承認なしで実行されます。"
       }
+    },
+    "createWizard": {
+      "actions": {
+        "create": "エージェントを作成",
+        "next": "次へ",
+        "previous": "前へ"
+      },
+      "advanced": {
+        "title": "詳細設定"
+      },
+      "capabilities": {
+        "description": "Cherry Studio Pi は Soul Mode と組み込みスキルを既定で有効にします。必要に応じてワークスペースフォルダーを追加し、詳細な実行ルールを調整できます。",
+        "title": "利用できる能力を選択"
+      },
+      "done": {
+        "description": "{{name}} にはモデル、役割、ワークスペースが設定されました。最初のタスクを始めましょう。",
+        "startTask": "最初のタスクを開始",
+        "title": "エージェントの準備ができました"
+      },
+      "identity": {
+        "description": "まず明確な名前を付けます。この名前で後からエージェントを識別して呼び出せます。",
+        "helper": "具体的な名前にすると、信頼しやすく、見つけやすく、再利用しやすくなります。",
+        "placeholder": "例：リサーチパートナー",
+        "title": "エージェントに名前を付ける"
+      },
+      "instructions": {
+        "description": "これらの指示はエージェントのシステムプロンプトと soul.md の基盤になります。短く、具体的で、タスク志向にしてください。",
+        "helper": "エージェントの役割、作業方法、守るべき境界を説明します。",
+        "label": "システムプロンプト / soul.md",
+        "title": "役割を形づくる"
+      },
+      "model": {
+        "description": "モデルは、このエージェントの強さ、速さ、コスト感を左右します。後から変更できます。",
+        "helper": "中核作業を任せたいモデルを選びます。長いタスクには通常、より強力なモデルが適しています。",
+        "title": "モデルを選択"
+      },
+      "soulMode": {
+        "helper": "既定で有効です。エージェントは永続ワークスペースと soul.md 風のアイデンティティ基盤を持ちます。"
+      },
+      "stepCounter": "{{total}} 中 {{current}} ステップ"
     },
     "delete": {
       "content": "このエージェントを削除すると、このエージェントのすべてのセッションが強制的に終了し、削除されます。本当によろしいですか？",
@@ -1562,6 +1603,7 @@
     },
     "expand": "展開する",
     "more": "もっと",
+    "next": "[to be translated]:Next",
     "run": "コードを実行",
     "split": {
       "label": "分割視圖",

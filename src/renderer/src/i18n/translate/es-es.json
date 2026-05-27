@@ -4,7 +4,8 @@
       "description": "Maneja tareas complejas con varias herramientas",
       "error": {
         "failed": "Error al añadir agente",
-        "invalid_agent": "Agent inválido"
+        "invalid_agent": "Agent inválido",
+        "name_required": "El nombre es obligatorio"
       },
       "model": {
         "supported_providers": "Proveedores Admitidos",
@@ -270,6 +271,46 @@
       "warning": {
         "bypassPermissions": "Los agentes CherryClaw se ejecutan en modo automático completo por defecto. Todas las herramientas se ejecutan sin pedir aprobación."
       }
+    },
+    "createWizard": {
+      "actions": {
+        "create": "Crear agente",
+        "next": "Siguiente",
+        "previous": "Anterior"
+      },
+      "advanced": {
+        "title": "Configuración avanzada"
+      },
+      "capabilities": {
+        "description": "Cherry Studio Pi empieza con Soul Mode y habilidades integradas. Añade carpetas de trabajo ahora y ajusta las reglas avanzadas solo cuando haga falta.",
+        "title": "Elegir qué puede usar"
+      },
+      "done": {
+        "description": "{{name}} ya tiene modelo, rol y espacio de trabajo. Dale ahora su primera tarea.",
+        "startTask": "Iniciar primera tarea",
+        "title": "El agente está listo"
+      },
+      "identity": {
+        "description": "Empieza con una identidad clara. Este nombre te ayudará a reconocer y llamar al agente más adelante.",
+        "helper": "Un nombre concreto hace que el agente sea más fácil de confiar, encontrar y reutilizar.",
+        "placeholder": "p. ej., Socio de investigación",
+        "title": "Nombrar este agente"
+      },
+      "instructions": {
+        "description": "Estas instrucciones serán el prompt de sistema del agente y la base de soul.md. Mantenlas breves, específicas y orientadas a tareas.",
+        "helper": "Describe el rol del agente, cómo debe trabajar y qué límites debe respetar.",
+        "label": "Prompt de sistema / soul.md",
+        "title": "Definir su rol"
+      },
+      "model": {
+        "description": "El modelo determina la fuerza, velocidad y coste percibido del agente. Puedes cambiarlo después.",
+        "helper": "Elige el modelo al que confiarías el trabajo principal del agente. Los modelos más fuertes suelen ir mejor para tareas largas.",
+        "title": "Elegir modelo"
+      },
+      "soulMode": {
+        "helper": "Activado por defecto. El agente obtiene un espacio de trabajo persistente y una base de identidad tipo soul.md."
+      },
+      "stepCounter": "Paso {{current}} de {{total}}"
     },
     "delete": {
       "content": "Eliminar este Agente forzará la terminación y eliminación de todas las sesiones bajo este Agente. ¿Está seguro?",
@@ -1562,6 +1603,7 @@
     },
     "expand": "Expandir",
     "more": "Más",
+    "next": "[to be translated]:Next",
     "run": "Ejecutar código",
     "split": {
       "label": "Dividir vista",

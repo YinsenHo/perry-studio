@@ -4,7 +4,8 @@
       "description": "Gestionează sarcini complexe cu diverse instrumente",
       "error": {
         "failed": "Nu s-a putut adăuga un agent",
-        "invalid_agent": "Agent invalid"
+        "invalid_agent": "Agent invalid",
+        "name_required": "Numele este obligatoriu"
       },
       "model": {
         "supported_providers": "Furnizori acceptați",
@@ -270,6 +271,46 @@
       "warning": {
         "bypassPermissions": "Agenții CherryClaw rulează în mod automat complet în mod implicit. Toate instrumentele se execută fără a solicita aprobare."
       }
+    },
+    "createWizard": {
+      "actions": {
+        "create": "Creează agentul",
+        "next": "Următorul",
+        "previous": "Înapoi"
+      },
+      "advanced": {
+        "title": "Setări avansate"
+      },
+      "capabilities": {
+        "description": "Cherry Studio Pi pornește cu Soul Mode și abilități integrate. Adaugă acum foldere de lucru și ajustează regulile avansate doar când este necesar.",
+        "title": "Alege ce poate folosi"
+      },
+      "done": {
+        "description": "{{name}} are acum model, rol și spațiu de lucru. Dă-i prima sarcină.",
+        "startTask": "Pornește prima sarcină",
+        "title": "Agentul este gata"
+      },
+      "identity": {
+        "description": "Începe cu o identitate clară. Acest nume te va ajuta să recunoști și să apelezi agentul mai târziu.",
+        "helper": "Un nume concret face agentul mai ușor de încredințat, găsit și reutilizat.",
+        "placeholder": "ex.: Partener de cercetare",
+        "title": "Numește agentul"
+      },
+      "instructions": {
+        "description": "Aceste instrucțiuni devin promptul de sistem al agentului și baza soul.md. Păstrează-le scurte, specifice și orientate spre sarcină.",
+        "helper": "Descrie rolul agentului, cum trebuie să lucreze și ce limite să respecte.",
+        "label": "Prompt de sistem / soul.md",
+        "title": "Conturează rolul"
+      },
+      "model": {
+        "description": "Modelul decide cât de puternic, rapid și costisitor se simte agentul. Îl poți schimba ulterior.",
+        "helper": "Alege modelul căruia i-ai încredința munca de bază a agentului. Modelele mai puternice merg de obicei mai bine pentru sarcini lungi.",
+        "title": "Alege modelul"
+      },
+      "soulMode": {
+        "helper": "Activat implicit. Agentul primește un spațiu de lucru persistent și o bază de identitate de tip soul.md."
+      },
+      "stepCounter": "Pasul {{current}} din {{total}}"
     },
     "delete": {
       "content": "Ștergerea agentului va opri forțat și va șterge toate sesiunile asociate cu agentul. Ești sigur?",
@@ -1562,6 +1603,7 @@
     },
     "expand": "Extinde",
     "more": "Mai mult",
+    "next": "[to be translated]:Next",
     "run": "Rulează",
     "split": {
       "label": "Vizualizare divizată",

@@ -4,7 +4,8 @@
       "description": "Gérez des tâches complexes avec divers outils",
       "error": {
         "failed": "Échec de l'ajout de l'agent",
-        "invalid_agent": "Agent invalide"
+        "invalid_agent": "Agent invalide",
+        "name_required": "Le nom est requis"
       },
       "model": {
         "supported_providers": "Fournisseurs pris en charge",
@@ -270,6 +271,46 @@
       "warning": {
         "bypassPermissions": "Les agents CherryClaw fonctionnent en mode automatique complet par défaut. Tous les outils s'exécutent sans demander d'approbation."
       }
+    },
+    "createWizard": {
+      "actions": {
+        "create": "Créer l'agent",
+        "next": "Suivant",
+        "previous": "Précédent"
+      },
+      "advanced": {
+        "title": "Paramètres avancés"
+      },
+      "capabilities": {
+        "description": "Cherry Studio Pi démarre avec Soul Mode et les compétences intégrées. Ajoutez des dossiers de travail maintenant, puis ajustez les règles avancées seulement si nécessaire.",
+        "title": "Choisir ses capacités"
+      },
+      "done": {
+        "description": "{{name}} a maintenant un modèle, un rôle et un espace de travail. Donnez-lui sa première tâche.",
+        "startTask": "Démarrer la première tâche",
+        "title": "L'agent est prêt"
+      },
+      "identity": {
+        "description": "Commencez par une identité claire. Ce nom vous aidera à reconnaître et appeler cet agent plus tard.",
+        "helper": "Un nom concret rend l’agent plus facile à faire confiance, retrouver et réutiliser.",
+        "placeholder": "ex. Partenaire de recherche",
+        "title": "Nommer l'agent"
+      },
+      "instructions": {
+        "description": "Ces instructions deviennent le prompt système de l’agent et la base de soul.md. Restez bref, précis et orienté tâche.",
+        "helper": "Décrivez le rôle de l’agent, sa façon de travailler et les limites à respecter.",
+        "label": "Prompt système / soul.md",
+        "title": "Définir son rôle"
+      },
+      "model": {
+        "description": "Le modèle détermine la puissance, la vitesse et le coût ressenti de cet agent. Vous pourrez le changer plus tard.",
+        "helper": "Choisissez le modèle auquel vous confieriez le travail principal de l’agent. Les modèles plus forts conviennent souvent mieux aux longues tâches.",
+        "title": "Choisir un modèle"
+      },
+      "soulMode": {
+        "helper": "Activé par défaut. L’agent obtient un espace de travail persistant et une identité de base de type soul.md."
+      },
+      "stepCounter": "Étape {{current}} sur {{total}}"
     },
     "delete": {
       "content": "La suppression de cet Agent entraînera la terminaison forcée et la suppression de toutes les sessions associées. Êtes-vous certain ?",
@@ -1562,6 +1603,7 @@
     },
     "expand": "Développer",
     "more": "Plus",
+    "next": "[to be translated]:Next",
     "run": "Exécuter le code",
     "split": {
       "label": "Fractionner la vue",

@@ -4,7 +4,8 @@
       "description": "呼叫各種工具處理複雜任務",
       "error": {
         "failed": "無法新增 Agent",
-        "invalid_agent": "無效的 Agent"
+        "invalid_agent": "無效的 Agent",
+        "name_required": "請輸入名稱"
       },
       "model": {
         "supported_providers": "支援的服務商",
@@ -270,6 +271,46 @@
       "warning": {
         "bypassPermissions": "CherryClaw Agent 預設以全自動模式執行。所有工具執行時不會請求批准。"
       }
+    },
+    "createWizard": {
+      "actions": {
+        "create": "完成建立",
+        "next": "下一步",
+        "previous": "上一步"
+      },
+      "advanced": {
+        "title": "進階設定"
+      },
+      "capabilities": {
+        "description": "Cherry Studio Pi 預設啟用 Soul Mode 和內建技能。你可以現在加入工作區資料夾，需要時再調整進階執行規則。",
+        "title": "選擇可用能力"
+      },
+      "done": {
+        "description": "{{name}} 已經具備模型、角色和工作區。現在給它第一個任務吧。",
+        "startTask": "立即開始任務",
+        "title": "智能體已就緒"
+      },
+      "identity": {
+        "description": "先給它一個清晰的身份。這個名稱會幫助你之後識別和呼叫它。",
+        "helper": "具體的名稱會讓智能體更容易被信任、查找和重複使用。",
+        "placeholder": "例如：研究夥伴",
+        "title": "為智能體命名"
+      },
+      "instructions": {
+        "description": "這些內容會作為智能體的系統提示詞和 soul.md 基礎。建議保持簡短、明確、面向任務。",
+        "helper": "描述智能體的角色、工作方式，以及需要遵守的邊界。",
+        "label": "系統提示詞 / soul.md",
+        "title": "塑造它的角色"
+      },
+      "model": {
+        "description": "模型決定了這個智能體的能力、速度和成本體感。之後也可以隨時修改。",
+        "helper": "選擇一個你願意託付核心工作的模型。更強的模型通常更適合長任務。",
+        "title": "選擇模型"
+      },
+      "soulMode": {
+        "helper": "預設開啟。智能體會取得持久工作區，以及類似 soul.md 的身份基礎。"
+      },
+      "stepCounter": "第 {{current}} / {{total}} 步"
     },
     "delete": {
       "content": "刪除該 Agent 會強制停止並刪除該 Agent 的所有工作階段。確定要刪除嗎？",
@@ -1562,6 +1603,7 @@
     },
     "expand": "展開",
     "more": "更多",
+    "next": "[to be translated]:Next",
     "run": "執行",
     "split": {
       "label": "分割檢視",

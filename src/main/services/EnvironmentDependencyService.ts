@@ -287,7 +287,7 @@ class EnvironmentDependencyService {
         fs.chmodSync(wrapperPath, 0o755)
       }
     }
-    logger.debug('Installed Perry CLI tools', { tools: MANAGED_CLI_TOOL_NAMES })
+    logger.debug('Installed Cherry Studio Pi CLI tools', { tools: MANAGED_CLI_TOOL_NAMES })
   }
 }
 

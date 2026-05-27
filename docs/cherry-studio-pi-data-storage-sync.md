@@ -1,4 +1,4 @@
-# Perry Studio Data Storage And Sync
+# Cherry Studio Pi Data Storage And Sync
 
 ## Goals
 

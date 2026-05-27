@@ -164,7 +164,7 @@ export const useNavbarPosition = () => {
   return {
     navbarPosition,
     isLeftNavbar,
-    // Perry keeps the primary navigation on the left, while tabs are always handled by the top tab shell.
+    // Cherry Studio Pi keeps the primary navigation on the left, while tabs are always handled by the top tab shell.
     isTopNavbar: navbarPosition === 'top' || isLeftNavbar,
     setNavbarPosition: (position: 'left' | 'top') => dispatch(setNavbarPosition(position))
   }

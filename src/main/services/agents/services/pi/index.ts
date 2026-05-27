@@ -270,7 +270,7 @@ class PiAgentService implements AgentServiceInterface {
         : 'Pi is only your internal agent runtime. Do not introduce yourself as Pi unless the user explicitly asks about the underlying engine or runtime.'
 
     return [
-      `You are ${quotedName}, an AI agent running inside Perry Studio.`,
+      `You are ${quotedName}, an AI agent running inside Cherry Studio Pi.`,
       `Your configured display name is ${quotedName}. When the user asks your name or identity, answer with this name.`,
       runtimeLine,
       'Help the user complete coding, workspace, and agent tasks.'
@@ -279,7 +279,7 @@ class PiAgentService implements AgentServiceInterface {
 
   private getAgentDisplayName(name?: string | null): string {
     const normalized = (name ?? '').replace(/\s+/g, ' ').trim()
-    return normalized || 'Perry Studio Agent'
+    return normalized || 'Cherry Studio Pi Agent'
   }
 
   private buildPiToolGuidance(tools: AgentTool<any>[]): string {
@@ -306,9 +306,9 @@ Use the least expensive tool first:
 - Use Read with offset/limit for large files.
 - Use Edit only after confirming the exact target text; if an edit is ambiguous, read more context and retry once.
 - Batch related shell checks into one Bash command when safe, but make diagnostic checks tolerate misses (for example append "|| true") and avoid speculative commands.
-- For dependency installs, inspect the package manager files first, then run the one matching install command. CLI packages may be installed with npm install -g; Perry Studio maps global npm installs to an agent-scoped tool prefix on PATH, so do not convert a CLI install into a project dependency. Prefer npm metadata/install for npm-distributed CLIs; do not try Homebrew unless the user explicitly asked for Homebrew. If an install script, binary download, or native package fetch fails because of SSL/certificate/network restrictions, stop. Do not manually download binaries with Node/curl/wget, do not switch to a local/global install workaround, and do not repeat variants. Briefly report the dependency/environment blocker only if it prevents the requested task.
+- For dependency installs, inspect the package manager files first, then run the one matching install command. CLI packages may be installed with npm install -g; Cherry Studio Pi maps global npm installs to an agent-scoped tool prefix on PATH, so do not convert a CLI install into a project dependency. Prefer npm metadata/install for npm-distributed CLIs; do not try Homebrew unless the user explicitly asked for Homebrew. If an install script, binary download, or native package fetch fails because of SSL/certificate/network restrictions, stop. Do not manually download binaries with Node/curl/wget, do not switch to a local/global install workaround, and do not repeat variants. Briefly report the dependency/environment blocker only if it prevents the requested task.
 - Path restrictions are final boundaries, not problems to bypass. If a path is outside accessible directories, do not retry from another directory, copy global files into the project, locally install a CLI as a workaround, or ask the user to expose /opt/homebrew/bin or /usr/local/bin. Use only the current workspace, injected MCP tools, or ask the user to add a task-relevant project path.
-- Never repair or mutate system/global SSL, certificate, curl, keychain, trust-store, npm, git, or Node TLS settings. Do not run commands such as security add-trusted-cert, update-ca-certificates, brew reinstall ca-certificates, npm config set strict-ssl false, git config --global http.sslVerify false, or NODE_TLS_REJECT_UNAUTHORIZED=0. If curl reports an SSL/certificate problem while fetching public documentation, do not narrate that failure or try another downloader; continue only if package metadata or local knowledge is enough. Do not tell the user that Perry Studio, Node, or Homebrew is broadly sandbox-limited unless the exact requested action is still blocked after the single appropriate install path.
+- Never repair or mutate system/global SSL, certificate, curl, keychain, trust-store, npm, git, or Node TLS settings. Do not run commands such as security add-trusted-cert, update-ca-certificates, brew reinstall ca-certificates, npm config set strict-ssl false, git config --global http.sslVerify false, or NODE_TLS_REJECT_UNAUTHORIZED=0. If curl reports an SSL/certificate problem while fetching public documentation, do not narrate that failure or try another downloader; continue only if package metadata or local knowledge is enough. Do not tell the user that Cherry Studio Pi, Node, or Homebrew is broadly sandbox-limited unless the exact requested action is still blocked after the single appropriate install path.
 - Keep tool outputs small: prefer commands like rg, git status --short, and targeted test commands over full-directory dumps.`
   }
 

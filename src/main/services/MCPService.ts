@@ -303,7 +303,7 @@ class McpService {
     const initPromise = (async () => {
       try {
         // Create new client instance for each connection
-        const client = new Client({ name: 'Perry Studio', version: app.getVersion() }, { capabilities: {} })
+        const client = new Client({ name: 'Cherry Studio Pi', version: app.getVersion() }, { capabilities: {} })
 
         let args = [...(server.args || [])]
 
@@ -337,7 +337,7 @@ class McpService {
               requestInit: {
                 headers: {
                   ...defaultAppHeaders(),
-                  APP: 'Perry Studio'
+                  APP: 'Cherry Studio Pi'
                 }
               },
               authProvider

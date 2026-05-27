@@ -26,7 +26,7 @@ export default abstract class BaseWebSearchProvider {
   public defaultHeaders() {
     return {
       'HTTP-Referer': 'https://github.com/CherryHQ/cherry-studio-pi',
-      'X-Title': 'Perry Studio'
+      'X-Title': 'Cherry Studio Pi'
     }
   }
 

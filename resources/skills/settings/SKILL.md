@@ -1,14 +1,14 @@
 ---
 name: settings
-description: Perry Studio 设置菜单 CLI。用户想查看、打开或调整服务商、模型、通用、显示、数据、环境依赖、MCP、Skills、联网搜索、记忆、API Server、快捷短语、快捷键等设置时使用。
+description: Cherry Studio Pi 设置菜单 CLI。用户想查看、打开或调整服务商、模型、通用、显示、数据、环境依赖、MCP、Skills、联网搜索、记忆、API Server、快捷短语、快捷键等设置时使用。
 tags:
-  - perry-studio
+  - cherry-studio-pi
   - settings
 ---
 
 # Settings Skill
 
-Use the `perry-settings` CLI before giving UI-only instructions. It talks to the running Perry Studio API and uses the current agent API key automatically.
+Use the `perry-settings` CLI before giving UI-only instructions. It talks to the running Cherry Studio Pi API and uses the current agent API key automatically.
 
 ## Commands
 

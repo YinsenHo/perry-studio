@@ -23,7 +23,7 @@ export function setupOpenAPIDocumentation(app: Express) {
         .swagger-ui .topbar { display: none; }
         .swagger-ui .info .title { color: #1890ff; }
       `,
-        customSiteTitle: 'Perry Studio API Documentation'
+        customSiteTitle: 'Cherry Studio Pi API Documentation'
       })
     )
 

@@ -1210,9 +1210,9 @@ class CodeToolsService {
         const batContent = [
           '@echo off',
           'chcp 65001 >nul 2>&1', // Switch to UTF-8 code page for international path support
-          `title ${cliTool} - Perry Studio`,
+          `title ${cliTool} - Cherry Studio Pi`,
           'echo ================================================',
-          'echo Perry Studio CLI Tool Launcher',
+          'echo Cherry Studio Pi CLI Tool Launcher',
           `echo Tool: ${CodeToolsService.escapeBatchTextForEcho(cliTool)}`,
           `echo Directory: ${CodeToolsService.escapeBatchTextForEcho(directory)}`,
           `echo Time: ${new Date().toLocaleString()}`,

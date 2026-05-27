@@ -66,7 +66,7 @@ const DataSyncSettings: FC = () => {
     dispatch(setDataSyncWebdavHost(webdavHost || ''))
     dispatch(setDataSyncWebdavUser(webdavUser || ''))
     dispatch(setDataSyncWebdavPass(webdavPass || ''))
-    dispatch(setDataSyncWebdavPath(webdavPath || '/perry-studio'))
+    dispatch(setDataSyncWebdavPath(webdavPath || '/cherry-studio-pi'))
 
     setSyncing(true)
     try {
@@ -93,7 +93,7 @@ const DataSyncSettings: FC = () => {
     dispatch(setDataSyncWebdavHost(webdavHost || ''))
     dispatch(setDataSyncWebdavUser(webdavUser || ''))
     dispatch(setDataSyncWebdavPass(webdavPass || ''))
-    dispatch(setDataSyncWebdavPath(webdavPath || '/perry-studio'))
+    dispatch(setDataSyncWebdavPath(webdavPath || '/cherry-studio-pi'))
     dispatch(setDataSyncSyncInterval(value))
     dispatch(setDataSyncAutoSync(value > 0))
 
@@ -158,10 +158,10 @@ const DataSyncSettings: FC = () => {
       <SettingRow>
         <SettingRowTitle>同步目录</SettingRowTitle>
         <Input
-          placeholder="/perry-studio"
+          placeholder="/cherry-studio-pi"
           value={webdavPath}
           onChange={(event) => setWebdavPath(event.target.value)}
-          onBlur={() => dispatch(setDataSyncWebdavPath(webdavPath || '/perry-studio'))}
+          onBlur={() => dispatch(setDataSyncWebdavPath(webdavPath || '/cherry-studio-pi'))}
           style={{ width: 280 }}
         />
       </SettingRow>

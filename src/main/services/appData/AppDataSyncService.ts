@@ -57,7 +57,7 @@ function recordPath(record: Pick<AppDataRecord, 'scope' | 'key'>) {
 }
 
 function normalizeBasePath(webdavPath?: string) {
-  const basePath = webdavPath?.trim() || '/perry-studio'
+  const basePath = webdavPath?.trim() || '/cherry-studio-pi'
   return path.posix.join(basePath.startsWith('/') ? basePath : `/${basePath}`, 'sync', 'v1')
 }
 

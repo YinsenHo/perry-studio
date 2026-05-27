@@ -264,7 +264,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
-          name: Perry Studio ${{ needs.prepare.outputs.tag }}
+          name: Cherry Studio Pi ${{ needs.prepare.outputs.tag }}
           draft: ${{ needs.prepare.outputs.draft }}
           prerelease: ${{ needs.prepare.outputs.prerelease }}
           generate_release_notes: true

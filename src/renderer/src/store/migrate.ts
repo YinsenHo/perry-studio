@@ -3482,7 +3482,7 @@ const migrateConfig = {
       state.settings.dataSyncWebdavHost ??= ''
       state.settings.dataSyncWebdavUser ??= ''
       state.settings.dataSyncWebdavPass ??= ''
-      state.settings.dataSyncWebdavPath ??= '/perry-studio'
+      state.settings.dataSyncWebdavPath ??= '/cherry-studio-pi'
       state.settings.dataSyncAutoSync ??= false
       state.settings.dataSyncSyncInterval ??= 0
 

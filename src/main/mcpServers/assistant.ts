@@ -29,7 +29,8 @@ const ALLOWED_ROUTES = [
 
 const NAVIGATE_TOOL: Tool = {
   name: 'navigate',
-  description: 'Navigate Perry Studio to a specific page. Refer to the route table in your skills for available paths.',
+  description:
+    'Navigate Cherry Studio Pi to a specific page. Refer to the route table in your skills for available paths.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -50,7 +51,7 @@ const NAVIGATE_TOOL: Tool = {
 const DIAGNOSE_TOOL: Tool = {
   name: 'diagnose',
   description:
-    'Read Perry Studio runtime state for troubleshooting. Use this to inspect app info, provider config, connectivity, logs, and MCP server status.',
+    'Read Cherry Studio Pi runtime state for troubleshooting. Use this to inspect app info, provider config, connectivity, logs, and MCP server status.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -586,7 +587,7 @@ class AssistantServer {
 
       const response = await fetch('https://api.github.com/repos/CherryHQ/cherry-studio-pi/releases/latest', {
         method: 'GET',
-        headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'PerryStudio' },
+        headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'CherryStudioPi' },
         signal: controller.signal
       })
       clearTimeout(timeout)

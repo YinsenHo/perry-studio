@@ -344,7 +344,7 @@ export const initialState: SettingsState = {
   dataSyncWebdavHost: '',
   dataSyncWebdavUser: '',
   dataSyncWebdavPass: '',
-  dataSyncWebdavPath: '/perry-studio',
+  dataSyncWebdavPath: '/cherry-studio-pi',
   dataSyncAutoSync: false,
   dataSyncSyncInterval: 0,
   translateModelPrompt: TRANSLATE_PROMPT,

@@ -10,11 +10,11 @@ const swaggerOptions: swaggerJSDoc.Options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'Perry Studio API',
+      title: 'Cherry Studio Pi API',
       version: '1.0.0',
-      description: 'OpenAI-compatible API for Perry Studio with additional Perry-specific endpoints',
+      description: 'OpenAI-compatible API for Cherry Studio Pi with additional Pi-specific endpoints',
       contact: {
-        name: 'Perry Studio',
+        name: 'Cherry Studio Pi',
         url: 'https://github.com/CherryHQ/cherry-studio-pi'
       }
     },
@@ -30,7 +30,7 @@ const swaggerOptions: swaggerJSDoc.Options = {
           type: 'http',
           scheme: 'bearer',
           bearerFormat: 'JWT',
-          description: 'Use the API key from Perry Studio settings'
+          description: 'Use the API key from Cherry Studio Pi settings'
         }
       },
       schemas: {

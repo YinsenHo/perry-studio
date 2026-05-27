@@ -34,17 +34,17 @@
     },
     "1.9.6": {
       "metadata": {
-        "segmentId": "perry-studio-v1",
+        "segmentId": "cherry-studio-pi-v1",
         "segmentType": "stable"
       },
       "minCompatibleVersion": "1.7.0",
-      "description": "Perry Studio stable release channel",
+      "description": "Cherry Studio Pi stable release channel",
       "channels": {
         "latest": {
           "version": "1.9.6",
           "feedUrls": {
-            "github": "https://github.com/YinsenW/perry-studio/releases/latest/download",
-            "gitcode": "https://github.com/YinsenW/perry-studio/releases/latest/download"
+            "github": "https://github.com/CherryHQ/cherry-studio-pi/releases/latest/download",
+            "gitcode": "https://github.com/CherryHQ/cherry-studio-pi/releases/latest/download"
           }
         },
         "rc": null,

@@ -36,7 +36,7 @@ async function discoverBase(opts = {}) {
       // try the next candidate
     }
   }
-  throw new Error('Perry Studio API server is not reachable. Open Perry Studio or enable the API server.')
+  throw new Error('Cherry Studio Pi API server is not reachable. Open Cherry Studio Pi or enable the API server.')
 }
 
 async function api(path, { method = 'GET', body, opts = {} } = {}) {

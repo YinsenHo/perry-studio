@@ -1,6 +1,6 @@
-# Perry Studio
+# Cherry Studio Pi
 
-Perry Studio is a fork of [Cherry Studio](https://github.com/CherryHQ/cherry-studio), a cross-platform desktop client for working with multiple LLM providers on macOS, Windows, and Linux.
+Cherry Studio Pi is a fork of [Cherry Studio](https://github.com/CherryHQ/cherry-studio), a cross-platform desktop client for working with multiple LLM providers on macOS, Windows, and Linux.
 
 This fork keeps Cherry Studio's application foundation and AGPL-3.0 license, while replacing the agent runtime with [pi](https://github.com/earendil-works/pi). The goal is to keep the familiar Cherry Studio experience, but make agent execution feel calmer, more autonomous, and better suited to long-running workspace tasks.
 
@@ -11,7 +11,7 @@ This fork keeps Cherry Studio's application foundation and AGPL-3.0 license, whi
 - Improved agent task rendering so tool activity is summarized instead of flooding the chat.
 - Softened transient tool errors and retry states in the conversation UI.
 - Injected the configured agent display name into the runtime identity prompt.
-- Updated the application name, package metadata, deep-link protocol, and app icon for Perry Studio.
+- Updated the application name, package metadata, deep-link protocol, and app icon for Cherry Studio Pi.
 
 ## Features
 
@@ -39,7 +39,7 @@ Use the platform-specific build script that matches your target environment.
 
 ## Upstream
 
-Perry Studio is based on Cherry Studio. The original project, documentation, contributors, and ecosystem remain available at:
+Cherry Studio Pi is based on Cherry Studio. The original project, documentation, contributors, and ecosystem remain available at:
 
 - Upstream repository: <https://github.com/CherryHQ/cherry-studio>
 - Upstream documentation: <https://docs.cherry-ai.com>
@@ -48,4 +48,4 @@ Perry Studio is based on Cherry Studio. The original project, documentation, con
 
 This project keeps the original open-source license unchanged.
 
-Perry Studio is licensed under the GNU Affero General Public License v3.0. See [LICENSE](./LICENSE) for details.
+Cherry Studio Pi is licensed under the GNU Affero General Public License v3.0. See [LICENSE](./LICENSE) for details.

@@ -1,6 +1,6 @@
 # GitHub Release Build
 
-The `Release` workflow builds Perry Studio installers for macOS, Windows, and Linux, then uploads them to a GitHub Release.
+The `Release` workflow builds Cherry Studio Pi installers for macOS, Windows, and Linux, then uploads them to a GitHub Release.
 
 ## Trigger
 

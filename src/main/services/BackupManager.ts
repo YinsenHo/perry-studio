@@ -149,7 +149,7 @@ class BackupManager {
     return {
       version: 6,
       timestamp: Date.now(),
-      appName: 'Perry Studio',
+      appName: 'Cherry Studio Pi',
       appVersion: app.getVersion(),
       platform: process.platform,
       arch: process.arch
@@ -581,8 +581,8 @@ class BackupManager {
       const metadata = await fs.readJson(metadataPath)
 
       // Validate appName while keeping compatibility with upstream Cherry Studio backups.
-      if (!['Perry Studio', 'Cherry Studio'].includes(metadata.appName)) {
-        throw new Error('This backup file is not from Perry Studio and cannot be restored')
+      if (!['Cherry Studio Pi', 'Perry Studio', 'Cherry Studio'].includes(metadata.appName)) {
+        throw new Error('This backup file is not from Cherry Studio Pi and cannot be restored')
       }
 
       // Warn about cross-platform restore

@@ -105,7 +105,7 @@ const PausedResumeButton: React.FC<{ message: Message; topic: Topic; assistant: 
   return (
     <button
       type="button"
-      className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border px-2.5 text-xs transition-all duration-150 hover:-translate-y-px"
+      className="hover:-translate-y-px inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border px-2.5 text-xs transition-all duration-150"
       style={{
         borderColor: 'color-mix(in srgb, var(--color-primary) 22%, transparent)',
         background: 'color-mix(in srgb, var(--color-primary) 7%, transparent)',

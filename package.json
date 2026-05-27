@@ -1,11 +1,11 @@
 {
-  "name": "PerryStudio",
+  "name": "CherryStudioPi",
   "version": "1.9.6",
   "private": true,
   "description": "A powerful AI desktop client with the pi agent runtime.",
-  "desktopName": "PerryStudio.desktop",
+  "desktopName": "CherryStudioPi.desktop",
   "main": "./out/main/index.js",
-  "author": "YinsenHo",
+  "author": "CherryHQ",
   "homepage": "https://github.com/CherryHQ/cherry-studio-pi",
   "engines": {
     "node": ">=24.11.1"

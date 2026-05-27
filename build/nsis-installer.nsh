@@ -116,8 +116,8 @@
       Your system: $1$\r$\n\
       App architecture: $3$\r$\n$\r$\n\
       Please download the correct version from:$\r$\n\
-      https://github.com/YinsenHo/perry-studio/releases"
-    ExecShell "open" "https://github.com/YinsenHo/perry-studio/releases"
+      https://github.com/CherryHQ/cherry-studio-pi/releases"
+    ExecShell "open" "https://github.com/CherryHQ/cherry-studio-pi/releases"
     Abort
   ${EndIf}
 

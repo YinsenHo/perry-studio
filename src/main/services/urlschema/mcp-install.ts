@@ -52,7 +52,7 @@ export function handleMcpProtocolUrl(url: URL) {
       //     }
       //   }
       // }
-      // perrystudio://mcp/install?servers={base64Encode(JSON.stringify(jsonConfig))}
+      // cherrystudiopi://mcp/install?servers={base64Encode(JSON.stringify(jsonConfig))}
 
       const data = params.get('servers')
 

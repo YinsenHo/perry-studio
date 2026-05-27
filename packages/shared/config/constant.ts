@@ -200,12 +200,12 @@ export const defaultLanguage = 'en-US'
 
 export enum FeedUrl {
   PRODUCTION = 'https://releases.cherry-ai.com',
-  GITHUB_LATEST = 'https://github.com/YinsenW/perry-studio/releases/latest/download'
+  GITHUB_LATEST = 'https://github.com/CherryHQ/cherry-studio-pi/releases/latest/download'
 }
 
 export enum UpdateConfigUrl {
-  GITHUB = 'https://raw.githubusercontent.com/YinsenW/perry-studio/main/app-upgrade-config.json',
-  GITCODE = 'https://raw.githubusercontent.com/YinsenW/perry-studio/main/app-upgrade-config.json'
+  GITHUB = 'https://raw.githubusercontent.com/CherryHQ/cherry-studio-pi/main/app-upgrade-config.json',
+  GITCODE = 'https://raw.githubusercontent.com/CherryHQ/cherry-studio-pi/main/app-upgrade-config.json'
 }
 
 export enum UpgradeChannel {

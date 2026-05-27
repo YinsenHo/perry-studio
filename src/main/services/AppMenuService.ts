@@ -99,7 +99,7 @@ export class AppMenuService {
           {
             label: appMenu.website,
             click: () => {
-              void shell.openExternal('https://github.com/YinsenHo/perry-studio')
+              void shell.openExternal('https://github.com/CherryHQ/cherry-studio-pi')
             }
           },
           {
@@ -111,13 +111,13 @@ export class AppMenuService {
           {
             label: appMenu.feedback,
             click: () => {
-              void shell.openExternal('https://github.com/YinsenHo/perry-studio/issues/new/choose')
+              void shell.openExternal('https://github.com/CherryHQ/cherry-studio-pi/issues/new/choose')
             }
           },
           {
             label: appMenu.releases,
             click: () => {
-              void shell.openExternal('https://github.com/YinsenHo/perry-studio/releases')
+              void shell.openExternal('https://github.com/CherryHQ/cherry-studio-pi/releases')
             }
           }
         ]

@@ -5,7 +5,7 @@ export * from './pdf'
 
 export const defaultAppHeaders = () => {
   return {
-    'HTTP-Referer': 'https://github.com/YinsenHo/perry-studio',
+    'HTTP-Referer': 'https://github.com/CherryHQ/cherry-studio-pi',
     'X-Title': 'Perry Studio'
   }
 }

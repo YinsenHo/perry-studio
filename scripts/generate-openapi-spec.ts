@@ -15,7 +15,7 @@ const swaggerOptions: swaggerJSDoc.Options = {
       description: 'OpenAI-compatible API for Perry Studio with additional Perry-specific endpoints',
       contact: {
         name: 'Perry Studio',
-        url: 'https://github.com/YinsenHo/perry-studio'
+        url: 'https://github.com/CherryHQ/cherry-studio-pi'
       }
     },
     servers: [

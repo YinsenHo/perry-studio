@@ -157,6 +157,29 @@ jobs:
           brew install python-setuptools
           python3 -m pip install --break-system-packages setuptools || python3 -m pip install --user setuptools
 
+      - name: Verify macOS signing secrets
+        if: matrix.platform == 'mac'
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          missing=()
+          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!name}" ]; then
+              missing+=("$name")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing macOS signing secrets: %s\n' "${missing[*]}"
+            printf 'Grant CherryHQ organization secrets to this repository or add repo-level secrets.\n'
+            exit 1
+          fi
+
       - name: Build ${{ matrix.platform }} installers
         shell: bash
         run: ${{ matrix.build }}
@@ -170,13 +193,13 @@ jobs:
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
           RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
-          # macOS signing is disabled until valid CherryHQ signing secrets are configured together.
-          CSC_LINK: ""
-          CSC_KEY_PASSWORD: ""
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          APPLE_ID: ""
-          APPLE_APP_SPECIFIC_PASSWORD: ""
-          APPLE_TEAM_ID: ""
+          # macOS signing and notarization. These names match Cherry Studio's release workflow.
+          CSC_FOR_PULL_REQUEST: true
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
           # Optional Windows signing. scripts/win-sign.js signs only when WIN_SIGN is set.
           WIN_SIGN: ${{ secrets.WIN_SIGN }}

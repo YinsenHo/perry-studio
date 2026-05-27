@@ -100,8 +100,6 @@ portable:
   buildUniversalInstaller: false
 mac:
   entitlementsInherit: build/entitlements.mac.plist
-  identity: null
-  notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
@@ -134,7 +132,7 @@ rpm:
   fpm: ["--rpm-rpmbuild-define=_build_id_links none"]
 publish:
   provider: generic
-  url: https://github.com/YinsenW/perry-studio/releases/latest/download
+  url: https://github.com/CherryHQ/cherry-studio-pi/releases/latest/download
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
 beforePack: scripts/before-pack.js

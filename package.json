@@ -6,7 +6,7 @@
   "desktopName": "PerryStudio.desktop",
   "main": "./out/main/index.js",
   "author": "YinsenHo",
-  "homepage": "https://github.com/YinsenHo/perry-studio",
+  "homepage": "https://github.com/CherryHQ/cherry-studio-pi",
   "engines": {
     "node": ">=24.11.1"
   },

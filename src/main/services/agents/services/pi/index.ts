@@ -15,6 +15,12 @@ import { loggerService } from '@logger'
 import { validateModelId } from '@main/apiServer/utils'
 import { agentMessageRepository } from '@main/services/agents/database/sessionMessageRepository'
 import { getProxyEnvironment } from '@main/services/proxy/nodeProxy'
+import {
+  buildCherryStudioPiAgentInstructions,
+  CHERRY_STUDIO_PI_AGENT_FALLBACK_NAME,
+  isDefaultCherryStudioPiAgentInstructions,
+  normalizeAgentInstructions
+} from '@shared/agents/pi/constants'
 import { formatApiHost, hasAPIVersion, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils'
 import type { AgentPersistedMessage, MessageBlock, Model, Provider } from '@types'
 
@@ -256,30 +262,31 @@ class PiAgentService implements AgentServiceInterface {
 
   private buildSystemPrompt(session: Parameters<AgentServiceInterface['invoke']>[1], tools: AgentTool<any>[]): string {
     const agentName = this.getAgentDisplayName(session.name)
+    const identityPrompt = this.buildIdentityPrompt(agentName)
+    const sessionInstructions = (session.instructions ?? '').trim()
+    const hasDefaultIdentityInstructions = isDefaultCherryStudioPiAgentInstructions(sessionInstructions, agentName)
+    const hasExtendedIdentityInstructions =
+      normalizeAgentInstructions(sessionInstructions).startsWith(normalizeAgentInstructions(identityPrompt)) &&
+      !hasDefaultIdentityInstructions
 
-    return [this.buildIdentityPrompt(agentName), this.buildPiToolGuidance(tools), session.instructions]
+    return [
+      hasExtendedIdentityInstructions ? sessionInstructions : identityPrompt,
+      this.buildPiToolGuidance(tools),
+      sessionInstructions && !hasDefaultIdentityInstructions && !hasExtendedIdentityInstructions
+        ? sessionInstructions
+        : undefined
+    ]
       .filter(Boolean)
       .join('\n\n')
   }
 
   private buildIdentityPrompt(agentName: string): string {
-    const quotedName = JSON.stringify(agentName)
-    const runtimeLine =
-      agentName.toLowerCase() === 'pi'
-        ? 'Use this configured display name as your user-facing identity.'
-        : 'Pi is only your internal agent runtime. Do not introduce yourself as Pi unless the user explicitly asks about the underlying engine or runtime.'
-
-    return [
-      `You are ${quotedName}, an AI agent running inside Cherry Studio Pi.`,
-      `Your configured display name is ${quotedName}. When the user asks your name or identity, answer with this name.`,
-      runtimeLine,
-      'Help the user complete coding, workspace, and agent tasks.'
-    ].join('\n')
+    return buildCherryStudioPiAgentInstructions(agentName)
   }
 
   private getAgentDisplayName(name?: string | null): string {
     const normalized = (name ?? '').replace(/\s+/g, ' ').trim()
-    return normalized || 'Cherry Studio Pi Agent'
+    return normalized || CHERRY_STUDIO_PI_AGENT_FALLBACK_NAME
   }
 
   private buildPiToolGuidance(tools: AgentTool<any>[]): string {

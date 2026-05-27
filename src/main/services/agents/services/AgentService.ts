@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { modelsService } from '@main/apiServer/services/models'
+import { buildCherryStudioPiAgentInstructions } from '@shared/agents/pi/constants'
 import type {
   AgentEntity,
   CreateAgentRequest,
@@ -38,6 +39,8 @@ const getFirstModelId = async (): Promise<string> => {
   return modelsRes.data?.[0]?.id ?? ''
 }
 
+const getDefaultAgentInstructions = (name?: string | null): string => buildCherryStudioPiAgentInstructions(name)
+
 export class AgentService extends BaseService {
   static readonly DEFAULT_AGENT_ID = CHERRY_CLAW_AGENT_ID
 
@@ -71,7 +74,7 @@ export class AgentService extends BaseService {
       type: req.type,
       name: req.name || 'New Agent',
       description: req.description,
-      instructions: req.instructions || 'You are a helpful assistant.',
+      instructions: req.instructions || getDefaultAgentInstructions(req.name || 'New Agent'),
       model: req.model,
       plan_model: req.plan_model,
       small_model: req.small_model,
@@ -258,7 +261,7 @@ export class AgentService extends BaseService {
         type: 'claude-code',
         name: agentConfig?.name || builtinRole,
         description: agentConfig?.description || `Built-in ${builtinRole} agent`,
-        instructions: agentConfig?.instructions || 'You are a helpful assistant.',
+        instructions: agentConfig?.instructions || getDefaultAgentInstructions(agentConfig?.name || builtinRole),
         model: modelId,
         accessible_paths: resolvedPaths,
         configuration
@@ -274,7 +277,7 @@ export class AgentService extends BaseService {
         type: req.type,
         name: req.name || builtinRole,
         description: req.description,
-        instructions: req.instructions || 'You are a helpful assistant.',
+        instructions: req.instructions || getDefaultAgentInstructions(req.name || builtinRole),
         model: req.model,
         configuration: serialized.configuration,
         accessible_paths: serialized.accessible_paths,
@@ -367,7 +370,7 @@ export class AgentService extends BaseService {
         type: req.type,
         name: req.name || 'CherryClaw',
         description: req.description,
-        instructions: 'You are a helpful assistant.',
+        instructions: getDefaultAgentInstructions(req.name || 'CherryClaw'),
         model: req.model,
         configuration: serialized.configuration,
         accessible_paths: serialized.accessible_paths,

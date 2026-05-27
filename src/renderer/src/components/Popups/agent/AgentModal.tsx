@@ -21,6 +21,12 @@ import type {
 import { AgentConfigurationSchema, isAgentType } from '@renderer/types'
 import { parseKeyValueString, serializeKeyValueString } from '@renderer/utils/env'
 import { getAnthropicSupportedProviders } from '@renderer/utils/provider'
+import {
+  buildCherryStudioPiAgentInstructions,
+  CHERRY_STUDIO_PI_AGENT_FALLBACK_NAME,
+  isDefaultCherryStudioPiAgentInstructions,
+  isLegacyAgentDefaultInstructions
+} from '@shared/agents/pi/constants'
 import type { GitBashPathInfo } from '@shared/config/constant'
 import { Button, Input, Modal, Select, Switch, Tooltip } from 'antd'
 import { Info } from 'lucide-react'
@@ -35,11 +41,22 @@ const logger = loggerService.withContext('AddAgentPopup')
 
 type AgentWithTools = AgentEntity & { tools?: Tool[] }
 
+const getInitialAgentInstructions = (existing?: AgentWithTools): string => {
+  const name = existing?.name ?? CHERRY_STUDIO_PI_AGENT_FALLBACK_NAME
+  const instructions = existing?.instructions?.trim()
+
+  if (!instructions || isLegacyAgentDefaultInstructions(instructions)) {
+    return buildCherryStudioPiAgentInstructions(name)
+  }
+
+  return instructions
+}
+
 const buildAgentForm = (existing?: AgentWithTools): BaseAgentForm => ({
   type: existing?.type ?? 'claude-code',
-  name: existing?.name ?? 'Agent',
+  name: existing?.name ?? CHERRY_STUDIO_PI_AGENT_FALLBACK_NAME,
   description: existing?.description,
-  instructions: existing?.instructions,
+  instructions: getInitialAgentInstructions(existing),
   model: existing?.model ?? '',
   accessible_paths: existing?.accessible_paths ? [...existing.accessible_paths] : [],
   allowed_tools: existing?.allowed_tools ? [...existing.allowed_tools] : [],
@@ -174,9 +191,15 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
   }, [])
 
   const onNameChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    const name = e.target.value
     setForm((prev) => ({
       ...prev,
-      name: e.target.value
+      name,
+      instructions:
+        isDefaultCherryStudioPiAgentInstructions(prev.instructions, prev.name) ||
+        isLegacyAgentDefaultInstructions(prev.instructions)
+          ? buildCherryStudioPiAgentInstructions(name)
+          : prev.instructions
     }))
   }, [])
 

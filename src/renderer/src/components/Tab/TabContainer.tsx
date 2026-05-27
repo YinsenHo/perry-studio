@@ -408,6 +408,7 @@ const TabsBar = styled.div<{ $isFullscreen: boolean; $withSidebar: boolean }>`
   min-height: ${({ $isFullscreen, $withSidebar }) =>
     !$isFullscreen && isMac && !$withSidebar ? 'env(titlebar-area-height)' : 'var(--navbar-height)'};
   position: relative;
+  z-index: 2;
   border-bottom: none;
   background: var(--tabs-bar-background, var(--navbar-background));
   -webkit-app-region: drag;
@@ -456,41 +457,26 @@ const Tab = styled.div<{ active?: boolean }>`
   height: 30px;
   min-width: 108px;
   max-width: 168px;
-  box-shadow: none;
+  box-shadow: ${(props) =>
+    props.active
+      ? `inset 0 0.5px 0 var(--color-border),
+         inset 0.5px 0 0 var(--color-border),
+         inset -0.5px 0 0 var(--color-border)`
+      : 'none'};
   contain: layout;
 
   ${(props) =>
     props.active &&
     `
-      & {
-        isolation: isolate;
-      }
-
-      &::before,
       &::after {
         content: '';
         position: absolute;
-        pointer-events: none;
-      }
-
-      &::before {
-        inset: 0;
-        z-index: -1;
-        border-radius: 9px 9px 0 0;
-        background:
-          linear-gradient(var(--color-background), var(--color-background)) padding-box,
-          linear-gradient(var(--color-border), var(--color-border)) border-box;
-        border: 0.5px solid transparent;
-        border-bottom: 0;
-      }
-
-      &::after {
-        left: -10px;
-        right: -10px;
+        left: 0;
+        right: 0;
         bottom: -2px;
-        z-index: 1;
         height: 3px;
         background: var(--color-background);
+        pointer-events: none;
       }
     `}
 
@@ -612,11 +598,13 @@ const TabContent = styled.div<{ $withSidebar: boolean }>`
   overflow: hidden;
   width: ${({ $withSidebar }) => ($withSidebar ? '100%' : 'calc(100% - 12px)')};
   margin: ${({ $withSidebar }) => ($withSidebar ? '0' : '6px')};
-  margin-top: 0;
+  margin-top: -1px;
+  padding-top: 1px;
   border-radius: ${({ $withSidebar }) => ($withSidebar ? '10px 0 0 0' : '8px')};
   background: var(--color-background);
   overflow: hidden;
   position: relative; /* 约束 MinAppTabsPool 绝对定位范围 */
+  z-index: 1;
 `
 
 export default TabsContainer

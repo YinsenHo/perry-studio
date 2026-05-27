@@ -54,7 +54,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }
   const handleReset = async () => {
     try {
-      await ImageStorage.set('avatar', DefaultAvatar)
+      await ImageStorage.remove('avatar')
       dispatch(setAvatar(DefaultAvatar))
       setDropdownOpen(false)
     } catch (error: any) {

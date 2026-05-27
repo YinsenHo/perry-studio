@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
-import { isLocalAi } from '@renderer/config/env'
+import { isLocalAi, UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
@@ -30,6 +30,9 @@ import { useNavbarPosition, useSettings } from './useSettings'
 import useUpdateHandler from './useUpdateHandler'
 
 const logger = loggerService.withContext('useAppInit')
+const builtinAvatarPattern = /(?:\/src\/assets\/images\/avatar\.png|\/assets\/avatar-[\w-]+\.png)(?:\?.*)?$/
+
+const isBuiltinAvatarValue = (value?: string) => Boolean(value && builtinAvatarPattern.test(value))
 
 export function useAppInit() {
   const { t } = useTranslation()
@@ -78,7 +81,15 @@ export function useAppInit() {
   useFullScreenNotice()
 
   useEffect(() => {
-    avatar?.value && dispatch(setAvatar(avatar.value))
+    if (!avatar?.value) return
+
+    if (isBuiltinAvatarValue(avatar.value)) {
+      void db.settings.delete('image://avatar')
+      dispatch(setAvatar(UserAvatar))
+      return
+    }
+
+    dispatch(setAvatar(avatar.value))
   }, [avatar, dispatch])
 
   useEffect(() => {

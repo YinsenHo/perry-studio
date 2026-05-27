@@ -4,7 +4,8 @@
       "description": "调用各种工具处理复杂任务",
       "error": {
         "failed": "添加 Agent 失败",
-        "invalid_agent": "无效的 Agent"
+        "invalid_agent": "无效的 Agent",
+        "name_required": "请输入名称"
       },
       "model": {
         "supported_providers": "支持的服务商",
@@ -15,6 +16,41 @@
       "type": {
         "placeholder": "选择 Agent 类型"
       }
+    },
+    "createWizard": {
+      "advanced": {
+        "title": "高级设置"
+      },
+      "capabilities": {
+        "description": "Cherry Studio Pi 默认启用 Soul Mode 和内置技能。你可以现在添加工作区文件夹，需要时再调整高级执行规则。",
+        "title": "选择可用能力"
+      },
+      "done": {
+        "description": "{{name}} 已经拥有模型、角色和工作区。现在给它第一个任务吧。",
+        "startTask": "立即开始任务",
+        "title": "智能体已就绪"
+      },
+      "identity": {
+        "description": "先给它一个清晰的身份。这个名字会帮助你之后识别和调用它。",
+        "helper": "具体的名字会让智能体更容易被信任、查找和复用。",
+        "placeholder": "例如：研究伙伴",
+        "title": "给智能体命名"
+      },
+      "instructions": {
+        "description": "这些内容会作为智能体的系统提示词和 soul.md 基础。建议保持简短、明确、面向任务。",
+        "helper": "描述智能体的角色、工作方式，以及需要遵守的边界。",
+        "label": "系统提示词 / soul.md",
+        "title": "塑造它的角色"
+      },
+      "model": {
+        "description": "模型决定了这个智能体的能力、速度和成本体感。之后也可以随时修改。",
+        "helper": "选择一个你愿意托付核心工作的模型。更强的模型通常更适合长任务。",
+        "title": "选择模型"
+      },
+      "soulMode": {
+        "helper": "默认开启。智能体会获得持久工作区，以及类似 soul.md 的身份基础。"
+      },
+      "stepCounter": "第 {{current}} / {{total}} 步"
     },
     "askUserQuestion": {
       "answered": "已回答",
@@ -1562,6 +1598,7 @@
     },
     "expand": "展开",
     "more": "更多",
+    "next": "下一步",
     "run": "运行代码",
     "split": {
       "label": "分割视图",

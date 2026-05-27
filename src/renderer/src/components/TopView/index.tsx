@@ -1,4 +1,5 @@
 // import { loggerService } from '@logger'
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import TopViewMinappContainer from '@renderer/components/MinApp/TopViewMinappContainer'
 import { useAppInit } from '@renderer/hooks/useAppInit'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
@@ -104,7 +105,7 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
       <TopViewMinappContainer />
       {elements.map(({ element: Element, id }) => (
         <FullScreenContainer key={`TOPVIEW_${id}`}>
-          {typeof Element === 'function' ? <Element /> : Element}
+          <ErrorBoundary>{typeof Element === 'function' ? <Element /> : Element}</ErrorBoundary>
         </FullScreenContainer>
       ))}
     </>

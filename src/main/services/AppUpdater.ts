@@ -241,7 +241,7 @@ export default class AppUpdater {
     this.autoUpdater.disableDifferentialDownload = true
   }
 
-  private async _setFeedUrl() {
+  private async _setFeedUrl(): Promise<boolean> {
     const currentVersion = app.getVersion()
     const testPlan = configManager.getTestPlan()
     const requestedChannel = testPlan ? this._getTestChannel() : UpgradeChannel.LATEST
@@ -263,13 +263,23 @@ export default class AppUpdater {
 
       if (result) {
         const { config: channelConfig, channel: actualChannel } = result
+        if (!semver.gt(channelConfig.version, currentVersion)) {
+          logger.info(
+            `Configured ${actualChannel} channel version ${channelConfig.version} is not newer than current version ${currentVersion}; skipping update check`
+          )
+          return false
+        }
+
         const feedUrl = channelConfig.feedUrls[mirror]
         logger.info(
           `Using config-based feed URL: ${feedUrl} for channel ${actualChannel} (requested: ${requestedChannel}, mirror: ${mirror})`
         )
         this._setChannel(actualChannel, feedUrl)
-        return
+        return true
       }
+
+      logger.info('No configured update newer than current version; skipping update check')
+      return false
     }
 
     logger.info('Failed to fetch update config, falling back to default feed URL')
@@ -278,6 +288,7 @@ export default class AppUpdater {
 
     logger.info(`Using fallback feed URL: ${defaultFeedUrl}`)
     this._setChannel(UpgradeChannel.LATEST, defaultFeedUrl)
+    return true
   }
 
   public cancelDownload() {
@@ -299,7 +310,13 @@ export default class AppUpdater {
     }
 
     try {
-      await this._setFeedUrl()
+      const shouldCheckForUpdates = await this._setFeedUrl()
+      if (!shouldCheckForUpdates) {
+        return {
+          currentVersion: app.getVersion(),
+          updateInfo: null
+        }
+      }
 
       this.updateCheckResult = await this.autoUpdater.checkForUpdates()
       logger.info(

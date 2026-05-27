@@ -4,7 +4,8 @@
       "description": "Handle complex tasks with various tools",
       "error": {
         "failed": "Failed to add a agent",
-        "invalid_agent": "Invalid Agent"
+        "invalid_agent": "Invalid Agent",
+        "name_required": "Name is required"
       },
       "model": {
         "supported_providers": "Supported Providers",
@@ -15,6 +16,41 @@
       "type": {
         "placeholder": "Select an agent type"
       }
+    },
+    "createWizard": {
+      "advanced": {
+        "title": "Advanced settings"
+      },
+      "capabilities": {
+        "description": "Cherry Studio Pi starts with Soul Mode and built-in skills. Add workspace folders now, and tune advanced execution rules only when needed.",
+        "title": "Choose what it can use"
+      },
+      "done": {
+        "description": "{{name}} has a model, a role, and a workspace. Give it the first task now.",
+        "startTask": "Start first task",
+        "title": "Agent is ready"
+      },
+      "identity": {
+        "description": "Start with a clear identity. This name is how you will recognize and call this agent later.",
+        "helper": "A concrete name makes the agent easier to trust, find, and reuse.",
+        "placeholder": "e.g. Research Partner",
+        "title": "Name this agent"
+      },
+      "instructions": {
+        "description": "These instructions become the agent system prompt and soul.md foundation. Keep them short, specific, and task-oriented.",
+        "helper": "Describe the agent role, how it should work, and any boundaries it should respect.",
+        "label": "System prompt / soul.md",
+        "title": "Shape its role"
+      },
+      "model": {
+        "description": "The model decides how strong, fast, and costly this agent feels. You can change it later.",
+        "helper": "Pick the model you would trust with the agent core work. Stronger models usually work better for long tasks.",
+        "title": "Choose a model"
+      },
+      "soulMode": {
+        "helper": "Enabled by default. The agent gets a persistent workspace and a soul.md-style identity foundation."
+      },
+      "stepCounter": "Step {{current}} of {{total}}"
     },
     "askUserQuestion": {
       "answered": "answered",
@@ -1562,6 +1598,7 @@
     },
     "expand": "Expand",
     "more": "More",
+    "next": "Next",
     "run": "Run",
     "split": {
       "label": "Split View",

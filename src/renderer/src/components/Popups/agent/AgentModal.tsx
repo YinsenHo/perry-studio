@@ -37,7 +37,6 @@ import { CheckCircle2, ChevronLeft, Sparkles } from 'lucide-react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 const { TextArea } = Input
@@ -100,7 +99,6 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
   const { updateAgent } = useUpdateAgent()
   const client = useAgentClient()
   const dispatch = useAppDispatch()
-  const navigate = useNavigate()
   const isEditing = (agent?: AgentWithTools) => agent !== undefined
 
   const [form, setForm] = useState<BaseAgentForm>(() => buildAgentForm(agent))
@@ -467,7 +465,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
       const created = await client.createSession(createdAgent.id, session)
       dispatch(setActiveAgentId(createdAgent.id))
       dispatch(setActiveSessionIdAction({ agentId: createdAgent.id, sessionId: created.id }))
-      navigate('/agents')
+      window.navigate?.('/agents')
       setOpen(false)
     } catch (error) {
       logger.error('Failed to start first agent task', error as Error)
@@ -475,7 +473,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     } finally {
       setStartingTask(false)
     }
-  }, [client, createdAgent, dispatch, navigate, startingTask, t])
+  }, [client, createdAgent, dispatch, startingTask, t])
 
   AgentModalPopup.hide = onCancel
 

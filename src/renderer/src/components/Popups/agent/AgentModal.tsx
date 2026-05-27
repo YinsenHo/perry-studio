@@ -6,14 +6,18 @@ import { HelpTooltip } from '@renderer/components/TooltipIcons'
 import { TopView } from '@renderer/components/TopView'
 import { permissionModeCards } from '@renderer/config/agent'
 import { isWin } from '@renderer/config/constant'
+import { useAgentClient } from '@renderer/hooks/agents/useAgentClient'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import SelectAgentBaseModelButton from '@renderer/pages/agents/components/SelectAgentBaseModelButton'
+import { useAppDispatch } from '@renderer/store'
+import { setActiveAgentId, setActiveSessionIdAction } from '@renderer/store/runtime'
 import type {
   AddAgentForm,
   AgentEntity,
   ApiModel,
   BaseAgentForm,
+  CreateSessionForm,
   PermissionMode,
   Tool,
   UpdateAgentForm
@@ -28,11 +32,12 @@ import {
   isLegacyAgentDefaultInstructions
 } from '@shared/agents/pi/constants'
 import type { GitBashPathInfo } from '@shared/config/constant'
-import { Button, Input, Modal, Select, Switch, Tooltip } from 'antd'
-import { Info } from 'lucide-react'
+import { Button, Input, Modal, Select, Switch } from 'antd'
+import { CheckCircle2, ChevronLeft, Sparkles } from 'lucide-react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 const { TextArea } = Input
@@ -40,6 +45,20 @@ const { TextArea } = Input
 const logger = loggerService.withContext('AddAgentPopup')
 
 type AgentWithTools = AgentEntity & { tools?: Tool[] }
+type WizardStep = 'identity' | 'instructions' | 'model' | 'capabilities'
+
+const CREATE_STEPS: WizardStep[] = ['identity', 'instructions', 'model', 'capabilities']
+
+const DEFAULT_CREATE_CONFIGURATION = AgentConfigurationSchema.parse({
+  permission_mode: 'bypassPermissions',
+  max_turns: 100,
+  env_vars: {},
+  soul_enabled: true,
+  scheduler_enabled: false,
+  scheduler_type: 'interval',
+  heartbeat_enabled: true,
+  heartbeat_interval: 30
+})
 
 const getInitialAgentInstructions = (existing?: AgentWithTools): string => {
   const name = existing?.name ?? CHERRY_STUDIO_PI_AGENT_FALLBACK_NAME
@@ -61,7 +80,7 @@ const buildAgentForm = (existing?: AgentWithTools): BaseAgentForm => ({
   accessible_paths: existing?.accessible_paths ? [...existing.accessible_paths] : [],
   allowed_tools: existing?.allowed_tools ? [...existing.allowed_tools] : [],
   mcps: existing?.mcps ? [...existing.mcps] : [],
-  configuration: AgentConfigurationSchema.parse(existing?.configuration ?? {})
+  configuration: AgentConfigurationSchema.parse(existing?.configuration ?? DEFAULT_CREATE_CONFIGURATION)
 })
 
 interface ShowParams {
@@ -79,14 +98,23 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
   const loadingRef = useRef(false)
   const { addAgent } = useAgents()
   const { updateAgent } = useUpdateAgent()
+  const client = useAgentClient()
+  const dispatch = useAppDispatch()
+  const navigate = useNavigate()
   const isEditing = (agent?: AgentWithTools) => agent !== undefined
 
   const [form, setForm] = useState<BaseAgentForm>(() => buildAgentForm(agent))
+  const [currentStep, setCurrentStep] = useState<WizardStep>('identity')
+  const [createdAgent, setCreatedAgent] = useState<AgentEntity | null>(null)
+  const [startingTask, setStartingTask] = useState(false)
   const [gitBashPathInfo, setGitBashPathInfo] = useState<GitBashPathInfo>({ path: null, source: null })
 
   useEffect(() => {
     if (open) {
       setForm(buildAgentForm(agent))
+      setCurrentStep('identity')
+      setCreatedAgent(null)
+      setStartingTask(false)
     }
   }, [agent, open])
 
@@ -105,6 +133,15 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
   }, [checkGitBash])
 
   const selectedPermissionMode = form.configuration?.permission_mode ?? 'default'
+  const stepIndex = CREATE_STEPS.indexOf(currentStep)
+  const isLastStep = stepIndex === CREATE_STEPS.length - 1
+  const isCreating = !isEditing(agent)
+  const canGoNext =
+    currentStep === 'identity'
+      ? !!form.name.trim()
+      : currentStep === 'model'
+        ? !!form.model && (!isWin || !!gitBashPathInfo.path)
+        : true
 
   const handlePickGitBash = useCallback(async () => {
     try {
@@ -297,121 +334,223 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     resolve({})
   }
 
-  const onSubmit = useCallback(
-    async (e: FormEvent<HTMLFormElement>) => {
-      e.preventDefault()
-      if (loadingRef.current) {
-        return
-      }
+  const submitAgent = useCallback(async () => {
+    if (loadingRef.current) return
 
-      loadingRef.current = true
+    loadingRef.current = true
 
-      // Additional validation check besides native HTML validation to ensure security
-      if (!isAgentType(form.type)) {
-        window.toast.error(t('agent.add.error.invalid_agent'))
+    if (!isAgentType(form.type)) {
+      window.toast.error(t('agent.add.error.invalid_agent'))
+      loadingRef.current = false
+      return
+    }
+    if (!form.name.trim()) {
+      window.toast.error(t('agent.add.error.name_required', 'Name is required'))
+      loadingRef.current = false
+      return
+    }
+    if (!form.model) {
+      window.toast.error(t('error.model.not_exists'))
+      loadingRef.current = false
+      return
+    }
+
+    if (isWin && !gitBashPathInfo.path) {
+      window.toast.error(t('agent.gitBash.error.required', 'Git Bash path is required on Windows'))
+      loadingRef.current = false
+      return
+    }
+
+    if (isEditing(agent)) {
+      if (!agent) {
         loadingRef.current = false
-        return
-      }
-      if (!form.model) {
-        window.toast.error(t('error.model.not_exists'))
-        loadingRef.current = false
-        return
+        throw new Error('Agent is required for editing mode')
       }
 
-      if (isWin && !gitBashPathInfo.path) {
-        window.toast.error(t('agent.gitBash.error.required', 'Git Bash path is required on Windows'))
-        loadingRef.current = false
-        return
-      }
+      const updatePayload = {
+        id: agent.id,
+        name: form.name,
+        description: form.description,
+        instructions: form.instructions,
+        model: form.model,
+        accessible_paths: [...form.accessible_paths],
+        allowed_tools: [...form.allowed_tools],
+        configuration: form.configuration ? { ...form.configuration } : undefined
+      } satisfies UpdateAgentForm
 
-      if (isEditing(agent)) {
-        if (!agent) {
-          loadingRef.current = false
-          throw new Error('Agent is required for editing mode')
-        }
-
-        const updatePayload = {
-          id: agent.id,
-          name: form.name,
-          description: form.description,
-          instructions: form.instructions,
-          model: form.model,
-          accessible_paths: [...form.accessible_paths],
-          allowed_tools: [...form.allowed_tools],
-          configuration: form.configuration ? { ...form.configuration } : undefined
-        } satisfies UpdateAgentForm
-
-        const result = await updateAgent(updatePayload)
-        if (result) {
-          logger.debug('Updated agent', result)
-          afterSubmit?.(result)
-        } else {
-          logger.error('Update failed.')
-        }
+      const result = await updateAgent(updatePayload)
+      if (result) {
+        logger.debug('Updated agent', result)
+        afterSubmit?.(result)
       } else {
-        const newAgent = {
-          type: form.type,
-          name: form.name,
-          description: form.description,
-          instructions: form.instructions,
-          model: form.model,
-          accessible_paths: [...form.accessible_paths],
-          allowed_tools: [...form.allowed_tools],
-          configuration: form.configuration ? { ...form.configuration } : undefined
-        } satisfies AddAgentForm
-        const result = await addAgent(newAgent)
-
-        if (!result.success) {
-          loadingRef.current = false
-          throw result.error
-        }
-        afterSubmit?.(result.data)
+        logger.error('Update failed.')
       }
       loadingRef.current = false
       setOpen(false)
+      return
+    }
+
+    const newAgent = {
+      type: form.type,
+      name: form.name,
+      description: form.description,
+      instructions: form.instructions,
+      model: form.model,
+      accessible_paths: [...form.accessible_paths],
+      allowed_tools: [...form.allowed_tools],
+      configuration: form.configuration ? { ...form.configuration } : undefined
+    } satisfies AddAgentForm
+    const result = await addAgent(newAgent)
+
+    if (!result.success) {
+      loadingRef.current = false
+      throw result.error
+    }
+    setCreatedAgent(result.data)
+    afterSubmit?.(result.data)
+    loadingRef.current = false
+  }, [
+    form.type,
+    form.model,
+    form.accessible_paths,
+    form.name,
+    form.description,
+    form.instructions,
+    form.allowed_tools,
+    form.configuration,
+    agent,
+    t,
+    updateAgent,
+    afterSubmit,
+    addAgent,
+    gitBashPathInfo.path
+  ])
+
+  const onSubmit = useCallback(
+    async (e: FormEvent<HTMLFormElement>) => {
+      e.preventDefault()
+
+      if (!isLastStep) {
+        if (!canGoNext) {
+          if (currentStep === 'identity') {
+            window.toast.error(t('agent.add.error.name_required', 'Name is required'))
+          } else if (currentStep === 'model') {
+            window.toast.error(!form.model ? t('error.model.not_exists') : t('agent.gitBash.error.required'))
+          }
+          return
+        }
+        setCurrentStep(CREATE_STEPS[stepIndex + 1])
+        return
+      }
+
+      await submitAgent()
     },
-    [
-      form.type,
-      form.model,
-      form.accessible_paths,
-      form.name,
-      form.description,
-      form.instructions,
-      form.allowed_tools,
-      form.configuration,
-      agent,
-      t,
-      updateAgent,
-      afterSubmit,
-      addAgent,
-      gitBashPathInfo.path
-    ]
+    [canGoNext, currentStep, form.model, isLastStep, stepIndex, submitAgent, t]
   )
+
+  const onBack = useCallback(() => {
+    if (stepIndex > 0) {
+      setCurrentStep(CREATE_STEPS[stepIndex - 1])
+    }
+  }, [stepIndex])
+
+  const startTask = useCallback(async () => {
+    if (!createdAgent || startingTask) return
+
+    setStartingTask(true)
+    try {
+      const session = {
+        ...createdAgent,
+        id: undefined,
+        name: t('common.unnamed')
+      } satisfies CreateSessionForm
+      const created = await client.createSession(createdAgent.id, session)
+      dispatch(setActiveAgentId(createdAgent.id))
+      dispatch(setActiveSessionIdAction({ agentId: createdAgent.id, sessionId: created.id }))
+      navigate('/agents')
+      setOpen(false)
+    } catch (error) {
+      logger.error('Failed to start first agent task', error as Error)
+      window.toast.error(t('agent.session.create.error.failed'))
+    } finally {
+      setStartingTask(false)
+    }
+  }, [client, createdAgent, dispatch, navigate, startingTask, t])
 
   AgentModalPopup.hide = onCancel
 
-  return (
-    <ErrorBoundary>
-      <Modal
-        title={isEditing(agent) ? t('agent.edit.title') : t('agent.add.title')}
-        open={open}
-        onCancel={onCancel}
-        afterClose={onClose}
-        transitionName="animation-move-down"
-        centered
-        width={500}
-        footer={null}>
-        <StyledForm onSubmit={onSubmit}>
-          <FormContent>
-            <FormRow>
-              <FormItem style={{ flex: 1 }}>
-                <Label>
-                  {t('common.name')} <RequiredMark>*</RequiredMark>
-                </Label>
-                <Input value={form.name} onChange={onNameChange} required />
-              </FormItem>
-            </FormRow>
+  const stepCopy = {
+    identity: {
+      title: t('agent.createWizard.identity.title', 'Name this agent'),
+      description: t(
+        'agent.createWizard.identity.description',
+        'Start with a clear identity. This name is how you will recognize and call this agent later.'
+      )
+    },
+    instructions: {
+      title: t('agent.createWizard.instructions.title', 'Shape its role'),
+      description: t(
+        'agent.createWizard.instructions.description',
+        'These instructions become the agent system prompt and soul.md foundation. Keep them short, specific, and task-oriented.'
+      )
+    },
+    model: {
+      title: t('agent.createWizard.model.title', 'Choose a model'),
+      description: t(
+        'agent.createWizard.model.description',
+        'The model decides how strong, fast, and costly this agent feels. You can change it later.'
+      )
+    },
+    capabilities: {
+      title: t('agent.createWizard.capabilities.title', 'Choose what it can use'),
+      description: t(
+        'agent.createWizard.capabilities.description',
+        'Cherry Studio Pi starts with Soul Mode and built-in skills. Add workspace folders now, and tune advanced execution rules only when needed.'
+      )
+    }
+  } satisfies Record<WizardStep, { title: string; description: string }>
 
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 'identity':
+        return (
+          <>
+            <FormItem>
+              <Label>
+                {t('common.name')} <RequiredMark>*</RequiredMark>
+              </Label>
+              <Input
+                value={form.name}
+                onChange={onNameChange}
+                required
+                autoFocus
+                placeholder={t('agent.createWizard.identity.placeholder', 'e.g. Research Partner')}
+              />
+              <HelpText>
+                {t(
+                  'agent.createWizard.identity.helper',
+                  'A concrete name makes the agent easier to trust, find, and reuse.'
+                )}
+              </HelpText>
+            </FormItem>
+          </>
+        )
+      case 'instructions':
+        return (
+          <FormItem>
+            <Label>{t('agent.createWizard.instructions.label', 'System prompt / soul.md')}</Label>
+            <TextArea rows={12} value={form.instructions ?? ''} onChange={onInstChange} />
+            <HelpText>
+              {t(
+                'agent.createWizard.instructions.helper',
+                'Describe the agent role, how it should work, and any boundaries it should respect.'
+              )}
+            </HelpText>
+          </FormItem>
+        )
+      case 'model':
+        return (
+          <>
             <FormItem>
               <div className="flex items-center gap-2">
                 <Label>
@@ -441,6 +580,12 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                 }}
                 containerClassName="flex items-center justify-between w-full"
               />
+              <HelpText>
+                {t(
+                  'agent.createWizard.model.helper',
+                  'Pick the model you would trust with the agent core work. Stronger models usually work better for long tasks.'
+                )}
+              </HelpText>
             </FormItem>
 
             {isWin && (
@@ -476,44 +621,23 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                 )}
               </FormItem>
             )}
-
-            <FormItem>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Label>{t('agent.settings.soulMode.title')}</Label>
-                  <Tooltip title={t('agent.settings.soulMode.description')} placement="right">
-                    <Info size={16} className="text-foreground-400" />
-                  </Tooltip>
-                </div>
-                <Switch checked={soulEnabled} size="small" onChange={onSoulModeChange} />
-              </div>
-            </FormItem>
-
-            {!soulEnabled && (
-              <FormItem>
-                <Label>
-                  {t('agent.settings.tooling.permissionMode.title', 'Permission mode')} <RequiredMark>*</RequiredMark>
-                </Label>
-                <Select
-                  value={selectedPermissionMode}
-                  onChange={onPermissionModeChange}
-                  style={{ width: '100%' }}
-                  placeholder={t('agent.settings.tooling.permissionMode.placeholder', 'Select permission mode')}
-                  optionLabelProp="label">
-                  {permissionModeCards.map((item) => (
-                    <Select.Option key={item.mode} value={item.mode} label={t(item.titleKey, item.titleFallback)}>
-                      <PermissionOptionWrapper>
-                        <div className="title">{t(item.titleKey, item.titleFallback)}</div>
-                        <div className="description">{t(item.descriptionKey, item.descriptionFallback)}</div>
-                      </PermissionOptionWrapper>
-                    </Select.Option>
-                  ))}
-                </Select>
+          </>
+        )
+      case 'capabilities':
+        return (
+          <>
+            <CapabilityCard>
+              <div>
+                <Label>{t('agent.settings.soulMode.title')}</Label>
                 <HelpText>
-                  {t('agent.settings.tooling.permissionMode.helper', 'Choose how the agent handles tool approvals.')}
+                  {t(
+                    'agent.createWizard.soulMode.helper',
+                    'Enabled by default. The agent gets a persistent workspace and a soul.md-style identity foundation.'
+                  )}
                 </HelpText>
-              </FormItem>
-            )}
+              </div>
+              <Switch checked={soulEnabled} size="small" onChange={onSoulModeChange} />
+            </CapabilityCard>
 
             <FormItem>
               <LabelWithButton>
@@ -543,39 +667,121 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
               )}
             </FormItem>
 
-            <FormItem>
-              <Label>{t('common.prompt')}</Label>
-              <TextArea rows={3} value={form.instructions ?? ''} onChange={onInstChange} />
-            </FormItem>
+            <AdvancedBox>
+              <summary>{t('agent.createWizard.advanced.title', 'Advanced settings')}</summary>
+              <AdvancedContent>
+                <FormItem>
+                  <Label>{t('agent.settings.tooling.permissionMode.title', 'Permission mode')}</Label>
+                  <Select
+                    value={selectedPermissionMode}
+                    onChange={onPermissionModeChange}
+                    style={{ width: '100%' }}
+                    placeholder={t('agent.settings.tooling.permissionMode.placeholder', 'Select permission mode')}
+                    optionLabelProp="label">
+                    {permissionModeCards.map((item) => (
+                      <Select.Option key={item.mode} value={item.mode} label={t(item.titleKey, item.titleFallback)}>
+                        <PermissionOptionWrapper>
+                          <div className="title">{t(item.titleKey, item.titleFallback)}</div>
+                          <div className="description">{t(item.descriptionKey, item.descriptionFallback)}</div>
+                        </PermissionOptionWrapper>
+                      </Select.Option>
+                    ))}
+                  </Select>
+                  <HelpText>
+                    {t('agent.settings.tooling.permissionMode.helper', 'Choose how the agent handles tool approvals.')}
+                  </HelpText>
+                </FormItem>
 
-            <FormItem>
-              <Label>{t('agent.settings.advance.envVars.label')}</Label>
-              <TextArea
-                rows={3}
-                value={envVarsText}
-                onChange={onEnvVarsChange}
-                placeholder={'API_KEY=xxx\nDEBUG=true'}
-              />
-              <HelpText>{t('agent.settings.advance.envVars.helper')}</HelpText>
-            </FormItem>
+                <FormItem>
+                  <Label>{t('agent.settings.advance.envVars.label')}</Label>
+                  <TextArea
+                    rows={3}
+                    value={envVarsText}
+                    onChange={onEnvVarsChange}
+                    placeholder={'API_KEY=xxx\nDEBUG=true'}
+                  />
+                  <HelpText>{t('agent.settings.advance.envVars.helper')}</HelpText>
+                </FormItem>
+              </AdvancedContent>
+            </AdvancedBox>
+          </>
+        )
+    }
+  }
 
-            {/* <FormItem>
-              <Label>{t('common.description')}</Label>
-              <TextArea rows={1} value={form.description ?? ''} onChange={onDescChange} />
-            </FormItem> */}
-          </FormContent>
-
-          <FormFooter>
-            <Button onClick={onCancel}>{t('common.close')}</Button>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={loadingRef.current}
-              disabled={isWin && !gitBashPathInfo.path}>
-              {isEditing(agent) ? t('common.confirm') : t('common.add')}
+  return (
+    <ErrorBoundary>
+      <Modal
+        title={createdAgent ? null : isEditing(agent) ? t('agent.edit.title') : t('agent.add.title')}
+        open={open}
+        onCancel={onCancel}
+        afterClose={onClose}
+        transitionName="animation-move-down"
+        centered
+        width={720}
+        footer={null}>
+        {createdAgent ? (
+          <DonePanel>
+            <SuccessIcon>
+              <CheckCircle2 size={34} />
+            </SuccessIcon>
+            <DoneTitle>{t('agent.createWizard.done.title', 'Agent is ready')}</DoneTitle>
+            <DoneSubtitle>
+              {t(
+                'agent.createWizard.done.description',
+                '{{name}} has a model, a role, and a workspace. Give it the first task now.',
+                { name: createdAgent.name }
+              )}
+            </DoneSubtitle>
+            <AgentBadge>
+              <Sparkles size={16} />
+              <span>{createdAgent.name}</span>
+            </AgentBadge>
+            <Button type="primary" size="large" loading={startingTask} onClick={startTask}>
+              {t('agent.createWizard.done.startTask', 'Start first task')}
             </Button>
-          </FormFooter>
-        </StyledForm>
+          </DonePanel>
+        ) : (
+          <StyledForm onSubmit={onSubmit}>
+            <WizardShell>
+              <StepRail>
+                {CREATE_STEPS.map((step, index) => (
+                  <StepItem key={step} $active={step === currentStep} $done={index < stepIndex}>
+                    <StepNumber>{index + 1}</StepNumber>
+                    <span>{stepCopy[step].title}</span>
+                  </StepItem>
+                ))}
+              </StepRail>
+
+              <WizardMain>
+                <StepHeader>
+                  <StepEyebrow>
+                    {t('agent.createWizard.stepCounter', 'Step {{current}} of {{total}}', {
+                      current: stepIndex + 1,
+                      total: CREATE_STEPS.length
+                    })}
+                  </StepEyebrow>
+                  <StepTitle>{stepCopy[currentStep].title}</StepTitle>
+                  <StepDescription>{stepCopy[currentStep].description}</StepDescription>
+                </StepHeader>
+
+                <FormContent>{renderStepContent()}</FormContent>
+
+                <FormFooter>
+                  <Button onClick={onCancel}>{t('common.close')}</Button>
+                  {stepIndex > 0 && (
+                    <Button icon={<ChevronLeft size={15} />} onClick={onBack}>
+                      {t('common.back', 'Back')}
+                    </Button>
+                  )}
+                  <Button type="primary" htmlType="submit" disabled={!canGoNext}>
+                    {isLastStep ? (isCreating ? t('common.add') : t('common.confirm')) : t('common.next', 'Next')}
+                  </Button>
+                </FormFooter>
+              </WizardMain>
+            </WizardShell>
+          </StyledForm>
+        )}
       </Modal>
     </ErrorBoundary>
   )
@@ -610,20 +816,86 @@ export const AgentModal = AgentModalPopup
 const StyledForm = styled.form`
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  min-height: 520px;
 `
 
 const FormContent = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-height: 60vh;
+  max-height: 340px;
   padding-right: 8px;
 `
 
-const FormRow = styled.div`
+const WizardShell = styled.div`
   display: flex;
-  gap: 12px;
+  min-height: 520px;
+`
+
+const StepRail = styled.div`
+  display: flex;
+  flex: 0 0 210px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 18px 8px 0;
+  border-right: 1px solid var(--color-border);
+`
+
+const StepItem = styled.div<{ $active: boolean; $done: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: ${({ $active, $done }) =>
+    $active ? 'var(--color-primary)' : $done ? 'var(--color-text-1)' : 'var(--color-text-3)'};
+  background: ${({ $active }) => ($active ? 'color-mix(in srgb, var(--color-primary) 10%, transparent)' : 'transparent')};
+  font-size: 13px;
+  font-weight: ${({ $active }) => ($active ? 600 : 500)};
+`
+
+const StepNumber = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 13%, transparent);
+  font-size: 12px;
+`
+
+const WizardMain = styled.div`
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  padding-left: 22px;
+`
+
+const StepHeader = styled.div`
+  padding: 4px 0 18px;
+`
+
+const StepEyebrow = styled.div`
+  color: var(--color-text-3);
+  font-size: 12px;
+`
+
+const StepTitle = styled.div`
+  margin-top: 6px;
+  color: var(--color-text-1);
+  font-size: 20px;
+  font-weight: 650;
+`
+
+const StepDescription = styled.div`
+  margin-top: 8px;
+  max-width: 460px;
+  color: var(--color-text-2);
+  font-size: 13px;
+  line-height: 1.5;
 `
 
 const FormItem = styled.div`
@@ -669,6 +941,38 @@ const LabelWithButton = styled.div`
   align-items: center;
 `
 
+const CapabilityCard = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-1);
+`
+
+const AdvancedBox = styled.details`
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-1);
+
+  summary {
+    cursor: pointer;
+    padding: 12px;
+    color: var(--color-text-1);
+    font-size: 13px;
+    font-weight: 600;
+  }
+`
+
+const AdvancedContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 0 12px 12px;
+`
+
 const PathList = styled.div`
   display: flex;
   flex-direction: column;
@@ -699,7 +1003,66 @@ const FormFooter = styled.div`
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  padding: 10px;
+  margin-top: auto;
+  padding-top: 18px;
+`
+
+const DonePanel = styled.div`
+  display: flex;
+  min-height: 360px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  text-align: center;
+`
+
+const SuccessIcon = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  height: 68px;
+  border-radius: 999px;
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  animation: agentDonePop 360ms cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  @keyframes agentDonePop {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.86);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+`
+
+const DoneTitle = styled.div`
+  color: var(--color-text-1);
+  font-size: 22px;
+  font-weight: 700;
+`
+
+const DoneSubtitle = styled.div`
+  max-width: 420px;
+  color: var(--color-text-2);
+  font-size: 14px;
+  line-height: 1.5;
+`
+
+const AgentBadge = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-text-1);
+  background: var(--color-bg-1);
+  font-size: 13px;
 `
 
 const PermissionOptionWrapper = styled.div`

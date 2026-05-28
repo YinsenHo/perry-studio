@@ -28,6 +28,8 @@ let localStorageMirrorRetryTimer: ReturnType<typeof setTimeout> | null = null
 let localStorageMirrorInflight: Promise<void> | null = null
 let localStorageMirrorNeedsFollowUp = false
 let lastLocalStorageMirrorSnapshotJson = ''
+let lastLocalStorageMirrorError: unknown = null
+let localStorageMirrorSuspended = false
 
 export type StorageV2LocalStorageSnapshot = {
   clearedMcpProviderTokenKeys: string[]
@@ -88,6 +90,7 @@ export function applyStorageV2LocalStorageSnapshot(snapshot: Partial<StorageV2Lo
 }
 
 export function scheduleStorageV2LocalStorageMirror(debounceMs = DEFAULT_LOCAL_STORAGE_MIRROR_DEBOUNCE_MS) {
+  if (localStorageMirrorSuspended) return
   if (typeof window === 'undefined' || !window.api?.storageV2) return
 
   clearLocalStorageMirrorRetryTimer()
@@ -109,6 +112,7 @@ export function scheduleStorageV2LocalStorageMirror(debounceMs = DEFAULT_LOCAL_S
 }
 
 export async function flushStorageV2LocalStorageMirror() {
+  if (localStorageMirrorSuspended) return
   if (typeof window === 'undefined' || !window.api?.storageV2) return
 
   clearLocalStorageMirrorRetryTimer()
@@ -130,7 +134,10 @@ export async function flushStorageV2LocalStorageMirror() {
 
   const snapshot = getStorageV2LocalStorageSnapshot()
   const snapshotJson = JSON.stringify(snapshot)
-  if (snapshotJson === lastLocalStorageMirrorSnapshotJson) return
+  if (snapshotJson === lastLocalStorageMirrorSnapshotJson) {
+    lastLocalStorageMirrorError = null
+    return
+  }
 
   localStorageMirrorInflight = window.api.storageV2
     .importLegacyReduxSnapshot(
@@ -141,9 +148,11 @@ export async function flushStorageV2LocalStorageMirror() {
     )
     .then(() => {
       lastLocalStorageMirrorSnapshotJson = snapshotJson
+      lastLocalStorageMirrorError = null
       logger.debug('Mirrored durable localStorage values to Storage v2')
     })
     .catch((error) => {
+      lastLocalStorageMirrorError = error
       scheduleLocalStorageMirrorRetry()
       logger.warn('Failed to mirror durable localStorage values to Storage v2', error as Error)
     })
@@ -152,6 +161,29 @@ export async function flushStorageV2LocalStorageMirror() {
     })
 
   await localStorageMirrorInflight
+}
+
+export async function flushStorageV2LocalStorageMirrorStrict() {
+  await flushStorageV2LocalStorageMirror()
+
+  if (localStorageMirrorRetryTimer && lastLocalStorageMirrorError) {
+    throw lastLocalStorageMirrorError instanceof Error
+      ? lastLocalStorageMirrorError
+      : new Error('Failed to mirror durable localStorage values to Storage v2')
+  }
+}
+
+export function suspendStorageV2LocalStorageMirrorUntilReload() {
+  localStorageMirrorSuspended = true
+  localStorageMirrorNeedsFollowUp = false
+  lastLocalStorageMirrorError = null
+
+  if (localStorageMirrorTimer) {
+    clearTimeout(localStorageMirrorTimer)
+    localStorageMirrorTimer = null
+  }
+
+  clearLocalStorageMirrorRetryTimer()
 }
 
 function clearLocalStorageMirrorRetryTimer() {

@@ -8,7 +8,11 @@ import { storageV2ConversationMirrorService } from './StorageV2ConversationMirro
 import { storageV2DexieSettingsMirrorService } from './StorageV2DexieSettingsMirrorService'
 import { STORAGE_V2_DEXIE_TABLE_NAMES, storageV2DexieTableMirrorService } from './StorageV2DexieTableMirrorService'
 import { storageV2FileMirrorService } from './StorageV2FileMirrorService'
-import { flushStorageV2LocalStorageMirror, getStorageV2LocalStorageSnapshot } from './StorageV2LocalStorageSnapshot'
+import {
+  flushStorageV2LocalStorageMirrorStrict,
+  getStorageV2LocalStorageSnapshot,
+  suspendStorageV2LocalStorageMirrorUntilReload
+} from './StorageV2LocalStorageSnapshot'
 import { storageV2MirrorService } from './StorageV2MirrorService'
 
 export type StorageV2LegacyImportOptions = {
@@ -476,13 +480,13 @@ export function deleteStorageV2File(fileId: string): Promise<{ deleted: boolean 
 }
 
 async function flushStorageV2RuntimeMirrors() {
-  await storageV2MirrorService.flush()
-  await flushStorageV2LocalStorageMirror()
-  await storageV2ConversationMirrorService.flush()
-  await storageV2FileMirrorService.flush()
-  await storageV2DexieSettingsMirrorService.flush()
-  await storageV2DexieTableMirrorService.flush()
-  await storageV2AgentMirrorService.flush()
+  await storageV2MirrorService.flushStrict()
+  await flushStorageV2LocalStorageMirrorStrict()
+  await storageV2ConversationMirrorService.flushStrict()
+  await storageV2FileMirrorService.flushStrict()
+  await storageV2DexieSettingsMirrorService.flushStrict()
+  await storageV2DexieTableMirrorService.flushStrict()
+  await storageV2AgentMirrorService.flushStrict()
 }
 
 export async function createStorageV2Backup(reason?: string) {
@@ -505,6 +509,7 @@ export async function restoreStorageV2Backup(backupPath: string): Promise<Storag
   storageV2DexieSettingsMirrorService.suspendUntilReload()
   storageV2DexieTableMirrorService.suspendUntilReload()
   storageV2AgentMirrorService.suspendUntilReload()
+  suspendStorageV2LocalStorageMirrorUntilReload()
 
   return result
 }

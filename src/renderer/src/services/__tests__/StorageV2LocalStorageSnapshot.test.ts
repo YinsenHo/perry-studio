@@ -3,8 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   applyStorageV2LocalStorageSnapshot,
   flushStorageV2LocalStorageMirror,
+  flushStorageV2LocalStorageMirrorStrict,
   getStorageV2LocalStorageSnapshot,
-  scheduleStorageV2LocalStorageMirror
+  scheduleStorageV2LocalStorageMirror,
+  suspendStorageV2LocalStorageMirrorUntilReload
 } from '../StorageV2LocalStorageSnapshot'
 
 describe('StorageV2LocalStorageSnapshot', () => {
@@ -161,5 +163,50 @@ describe('StorageV2LocalStorageSnapshot', () => {
       },
       { dryRun: false }
     )
+  })
+
+  it('rejects strict durable localStorage flushes while a failed mirror is pending retry', async () => {
+    vi.useFakeTimers()
+    const importLegacyReduxSnapshot = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('database busy'))
+      .mockResolvedValueOnce({ dryRun: false })
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        storageV2: {
+          importLegacyReduxSnapshot
+        }
+      }
+    })
+    localStorage.setItem('language', 'strict-zh')
+
+    await expect(flushStorageV2LocalStorageMirrorStrict()).rejects.toThrow('database busy')
+    expect(importLegacyReduxSnapshot).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(5000)
+
+    expect(importLegacyReduxSnapshot).toHaveBeenCalledTimes(2)
+  })
+
+  it('suspends scheduled durable localStorage mirrors until reload after restore', async () => {
+    vi.useFakeTimers()
+    const importLegacyReduxSnapshot = vi.fn().mockResolvedValue({ dryRun: false })
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        storageV2: {
+          importLegacyReduxSnapshot
+        }
+      }
+    })
+    localStorage.setItem('privacy-popup-accepted', 'restore-safe')
+
+    scheduleStorageV2LocalStorageMirror(1000)
+    suspendStorageV2LocalStorageMirrorUntilReload()
+    await vi.advanceTimersByTimeAsync(1000)
+    await flushStorageV2LocalStorageMirrorStrict()
+
+    expect(importLegacyReduxSnapshot).not.toHaveBeenCalled()
   })
 })

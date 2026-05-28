@@ -27,7 +27,7 @@ import { storageV2DexieSettingsMirrorService } from '../services/StorageV2DexieS
 import { storageV2DexieTableMirrorService } from '../services/StorageV2DexieTableMirrorService'
 import { storageV2FileMirrorService } from '../services/StorageV2FileMirrorService'
 import { maybeHydrateRuntimeCacheFromStorageV2 } from '../services/StorageV2HydrationService'
-import { flushStorageV2LocalStorageMirror } from '../services/StorageV2LocalStorageSnapshot'
+import { flushStorageV2LocalStorageMirrorStrict } from '../services/StorageV2LocalStorageSnapshot'
 import { storageV2MirrorService } from '../services/StorageV2MirrorService'
 import storeSyncService from '../services/StoreSyncService'
 import assistants from './assistants'
@@ -191,7 +191,7 @@ export async function handleSaveData() {
   logger.info('Flushing redux persistor data')
   await persistor.flush()
   await storageV2MirrorService.flushStrict()
-  await flushStorageV2LocalStorageMirror()
+  await flushStorageV2LocalStorageMirrorStrict()
   await storageV2ConversationMirrorService.flushStrict()
   await storageV2FileMirrorService.flushStrict()
   await storageV2DexieSettingsMirrorService.flushStrict()

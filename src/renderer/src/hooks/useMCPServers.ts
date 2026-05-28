@@ -1,5 +1,6 @@
 import { createSelector } from '@reduxjs/toolkit'
 import NavigationService from '@renderer/services/NavigationService'
+import { flushStorageV2ReduxMirror } from '@renderer/services/StorageV2ReduxMirrorFlush'
 import type { RootState } from '@renderer/store'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { addMCPServer, deleteMCPServer, setMCPServers, updateMCPServer } from '@renderer/store/mcp'
@@ -22,6 +23,15 @@ const selectActiveMcpServers = createSelector([selectMcpServers], (servers) =>
   servers.filter((server) => server.isActive)
 )
 
+function flushMcpMirror(reason: string): void
+function flushMcpMirror(reason: string, options: { strict: true }): Promise<void>
+function flushMcpMirror(reason: string, options?: { strict?: boolean }) {
+  const task = flushStorageV2ReduxMirror(reason, options)
+  if (options?.strict) return task
+  void task
+  return undefined
+}
+
 export const useMCPServers = () => {
   const mcpServers = useAppSelector(selectMcpServers)
   const activedMcpServers = useAppSelector(selectActiveMcpServers)
@@ -30,12 +40,27 @@ export const useMCPServers = () => {
   return {
     mcpServers,
     activedMcpServers,
-    addMCPServer: (server: MCPServer) => dispatch(addMCPServer(server)),
-    updateMCPServer: (server: MCPServer) => dispatch(updateMCPServer(server)),
-    deleteMCPServer: (id: string) => dispatch(deleteMCPServer(id)),
-    setMCPServerActive: (server: MCPServer, isActive: boolean) => dispatch(updateMCPServer({ ...server, isActive })),
+    addMCPServer: (server: MCPServer) => {
+      dispatch(addMCPServer(server))
+      flushMcpMirror('mcp-add-server')
+    },
+    updateMCPServer: (server: MCPServer) => {
+      dispatch(updateMCPServer(server))
+      flushMcpMirror('mcp-update-server')
+    },
+    deleteMCPServer: async (id: string) => {
+      dispatch(deleteMCPServer(id))
+      await flushMcpMirror('mcp-delete-server', { strict: true })
+    },
+    setMCPServerActive: (server: MCPServer, isActive: boolean) => {
+      dispatch(updateMCPServer({ ...server, isActive }))
+      flushMcpMirror('mcp-set-server-active')
+    },
     getActiveMCPServers: () => mcpServers.filter((server) => server.isActive),
-    updateMcpServers: (servers: MCPServer[]) => dispatch(setMCPServers(servers))
+    updateMcpServers: (servers: MCPServer[]) => {
+      dispatch(setMCPServers(servers))
+      flushMcpMirror('mcp-update-servers')
+    }
   }
 }
 
@@ -45,8 +70,17 @@ export const useMCPServer = (id: string) => {
 
   return {
     server,
-    updateMCPServer: (server: MCPServer) => dispatch(updateMCPServer(server)),
-    setMCPServerActive: (server: MCPServer, isActive: boolean) => dispatch(updateMCPServer({ ...server, isActive })),
-    deleteMCPServer: (id: string) => dispatch(deleteMCPServer(id))
+    updateMCPServer: (server: MCPServer) => {
+      dispatch(updateMCPServer(server))
+      flushMcpMirror('mcp-update-server')
+    },
+    setMCPServerActive: (server: MCPServer, isActive: boolean) => {
+      dispatch(updateMCPServer({ ...server, isActive }))
+      flushMcpMirror('mcp-set-server-active')
+    },
+    deleteMCPServer: async (id: string) => {
+      dispatch(deleteMCPServer(id))
+      await flushMcpMirror('mcp-delete-server', { strict: true })
+    }
   }
 }

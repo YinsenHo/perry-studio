@@ -285,7 +285,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
             }
 
             setSelectedProvider(providers.filter((p) => isSystemProvider(p))[0])
-            removeProvider(provider)
+            await removeProvider(provider)
           }
         })
       }

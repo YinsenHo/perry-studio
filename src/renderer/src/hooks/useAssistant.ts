@@ -61,8 +61,13 @@ const flushStorageV2TopicMirrors = (topicIds: Iterable<string | undefined>) => {
   void storageV2ConversationMirrorService.flushTopics(topicIds, () => store.getState())
 }
 
-const flushAssistantMirror = (reason: string) => {
-  void flushStorageV2ReduxMirror(reason)
+function flushAssistantMirror(reason: string): void
+function flushAssistantMirror(reason: string, options: { strict: true }): Promise<void>
+function flushAssistantMirror(reason: string, options?: { strict?: boolean }) {
+  const task = flushStorageV2ReduxMirror(reason, options)
+  if (options?.strict) return task
+  void task
+  return undefined
 }
 
 const pickFallbackModel = (providers: Provider[]): Model | undefined => {
@@ -127,7 +132,7 @@ export function useAssistants() {
         'assistant removal'
       )
       dispatch(removeAssistant({ id }))
-      flushAssistantMirror('assistants-remove')
+      await flushAssistantMirror('assistants-remove', { strict: true })
     }
   }
 }
@@ -221,7 +226,7 @@ export function useAssistant(id: string) {
     removeTopic: async (topic: Topic) => {
       await removeTopicsFromRuntime([topic.id], 'topic removal')
       dispatch(removeTopic({ assistantId: assistant.id, topic }))
-      flushAssistantMirror('assistant-topic-remove')
+      await flushAssistantMirror('assistant-topic-remove', { strict: true })
     },
     moveTopic: (topic: Topic, toAssistant: Assistant) => {
       dispatch(addTopic({ assistantId: toAssistant.id, topic: { ...topic, assistantId: toAssistant.id } }))
@@ -258,7 +263,7 @@ export function useAssistant(id: string) {
       )
       await db.topics.put({ id: replacementTopic.id, messages: [] })
       dispatch(removeAllTopics({ assistantId: assistant.id, replacementTopic }))
-      flushAssistantMirror('assistant-topics-reset')
+      await flushAssistantMirror('assistant-topics-reset', { strict: true })
       flushStorageV2TopicMirror(replacementTopic.id)
     },
     setModel: useCallback(

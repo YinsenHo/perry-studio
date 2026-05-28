@@ -32,8 +32,13 @@ function normalizeProvider<T extends Provider>(provider: T): T {
   }
 }
 
-const flushProviderMirror = (reason: string) => {
-  void flushStorageV2ReduxMirror(reason)
+function flushProviderMirror(reason: string): void
+function flushProviderMirror(reason: string, options: { strict: true }): Promise<void>
+function flushProviderMirror(reason: string, options?: { strict?: boolean }) {
+  const task = flushStorageV2ReduxMirror(reason, options)
+  if (options?.strict) return task
+  void task
+  return undefined
 }
 
 const selectProviders = (state: RootState) => state.llm.providers
@@ -69,9 +74,9 @@ export function useProviders() {
       dispatch(addProvider(provider))
       flushProviderMirror('llm-add-provider')
     },
-    removeProvider: (provider: Provider) => {
+    removeProvider: async (provider: Provider) => {
       dispatch(removeProvider(provider))
-      flushProviderMirror('llm-remove-provider')
+      await flushProviderMirror('llm-remove-provider', { strict: true })
     },
     updateProvider: (updates: Partial<Provider> & { id: string }) => {
       dispatch(updateProvider(updates))

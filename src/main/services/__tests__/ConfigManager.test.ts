@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   storeData: {} as Record<string, unknown>,
@@ -52,14 +52,47 @@ describe('ConfigManager Storage v2 mirror', () => {
     mocks.settingsRepository.set.mockResolvedValue(undefined)
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('mirrors config set operations into Storage v2', async () => {
     const manager = new ConfigManager()
 
     manager.set('tray', false)
-    await Promise.resolve()
+
+    await vi.waitFor(() => {
+      expect(mocks.settingsRepository.set).toHaveBeenCalledWith('config.tray', false, 'config')
+    })
 
     expect(mocks.storeData.tray).toBe(false)
-    expect(mocks.settingsRepository.set).toHaveBeenCalledWith('config.tray', false, 'config')
+  })
+
+  it('retries failed config mirrors on a timer', async () => {
+    vi.useFakeTimers()
+    mocks.settingsRepository.set.mockRejectedValueOnce(new Error('storage locked')).mockResolvedValueOnce(undefined)
+    const manager = new ConfigManager()
+
+    manager.set('tray', false)
+
+    await vi.waitFor(() => {
+      expect(mocks.settingsRepository.set).toHaveBeenCalledTimes(1)
+    })
+
+    await vi.advanceTimersByTimeAsync(5000)
+
+    expect(mocks.settingsRepository.set).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects strict config flushes while mirror writes are still failing', async () => {
+    vi.useFakeTimers()
+    mocks.settingsRepository.set.mockRejectedValue(new Error('storage locked'))
+    const manager = new ConfigManager()
+
+    manager.set('tray', false)
+
+    await expect(manager.flushPendingStorageV2ConfigStrict()).rejects.toThrow('storage locked')
+    expect(mocks.settingsRepository.set).toHaveBeenCalledTimes(2)
   })
 
   it('hydrates missing electron-store settings from Storage v2 without overwriting local values by default', async () => {

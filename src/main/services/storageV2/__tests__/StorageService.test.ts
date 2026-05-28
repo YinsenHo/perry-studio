@@ -2,12 +2,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   agentDbMirrorService: {
-    flush: vi.fn()
+    flush: vi.fn(),
+    flushStrict: vi.fn()
   },
   backupService: {
     createBackup: vi.fn(),
     restoreBackup: vi.fn(),
     validateBackup: vi.fn()
+  },
+  configManager: {
+    flushPendingStorageV2ConfigStrict: vi.fn(),
+    mirrorAllToStorageV2: vi.fn()
   },
   dataRootService: {
     resolveDataRoot: vi.fn()
@@ -88,6 +93,10 @@ vi.mock('../BackupService', () => ({
   storageV2BackupService: mocks.backupService
 }))
 
+vi.mock('../../ConfigManager', () => ({
+  configManager: mocks.configManager
+}))
+
 vi.mock('../DataRootService', () => ({
   storageV2DataRootService: mocks.dataRootService
 }))
@@ -147,6 +156,9 @@ describe('StorageV2Service', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.settingsRepository.list.mockResolvedValue([])
+    mocks.configManager.flushPendingStorageV2ConfigStrict.mockResolvedValue(undefined)
+    mocks.configManager.mirrorAllToStorageV2.mockResolvedValue({ mirroredCount: 0 })
+    mocks.agentDbMirrorService.flushStrict.mockResolvedValue(undefined)
     mocks.providerRepository.list.mockResolvedValue([])
     mocks.providerRepository.listCredentialRefs.mockResolvedValue(new Map())
     mocks.assistantRepository.list.mockResolvedValue([])
@@ -154,6 +166,17 @@ describe('StorageV2Service', () => {
     mocks.fileRepository.get.mockResolvedValue(null)
     mocks.fileRepository.list.mockResolvedValue([])
     mocks.knowledgeRepository.listBases.mockResolvedValue([])
+  })
+
+  it('strictly flushes main-process config and agent mirrors before snapshots', async () => {
+    mocks.database.createSnapshot.mockResolvedValue({ path: '/tmp/main.db' })
+
+    await expect(new StorageV2Service().createSnapshot('manual')).resolves.toEqual({ path: '/tmp/main.db' })
+
+    expect(mocks.configManager.flushPendingStorageV2ConfigStrict).toHaveBeenCalledTimes(1)
+    expect(mocks.configManager.mirrorAllToStorageV2).toHaveBeenCalledTimes(1)
+    expect(mocks.agentDbMirrorService.flushStrict).toHaveBeenCalledTimes(1)
+    expect(mocks.database.createSnapshot).toHaveBeenCalledWith('manual')
   })
 
   it('projects legacy Dexie auxiliary table rows into core snapshots', async () => {

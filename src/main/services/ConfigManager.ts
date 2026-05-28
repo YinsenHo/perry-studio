@@ -29,6 +29,7 @@ import { storageV2SettingsRepository } from './storageV2/StorageV2Repositories'
 const logger = loggerService.withContext('ConfigManager')
 const STORAGE_V2_CONFIG_SCOPE = 'config'
 const STORAGE_V2_CONFIG_PREFIX = 'config.'
+const STORAGE_V2_CONFIG_RETRY_MS = 5000
 
 export enum ConfigKeys {
   Language = 'language',
@@ -62,6 +63,11 @@ export enum ConfigKeys {
 export class ConfigManager {
   private store: Store
   private subscribers: Map<string, Array<(newValue: any) => void>> = new Map()
+  private pendingStorageV2Config = new Map<string, unknown>()
+  private storageV2ConfigTimer: ReturnType<typeof setTimeout> | null = null
+  private storageV2ConfigInflight: Promise<void> | null = null
+  private storageV2ConfigNeedsFollowUp = false
+  private lastStorageV2ConfigError: unknown = null
 
   constructor() {
     this.store = new Store()
@@ -324,7 +330,22 @@ export class ConfigManager {
   async mirrorAllToStorageV2(): Promise<{ mirroredCount: number }> {
     const entries = Object.entries(this.store.store)
 
-    await Promise.all(entries.map(([key, value]) => this.setStorageV2Config(key, value)))
+    try {
+      await Promise.all(entries.map(([key, value]) => this.setStorageV2Config(key, value)))
+      for (const [key] of entries) {
+        this.pendingStorageV2Config.delete(key)
+      }
+      this.lastStorageV2ConfigError = null
+    } catch (error) {
+      for (const [key, value] of entries) {
+        if (!this.pendingStorageV2Config.has(key)) {
+          this.pendingStorageV2Config.set(key, value)
+        }
+      }
+      this.lastStorageV2ConfigError = error
+      this.scheduleStorageV2ConfigRetry()
+      throw error
+    }
 
     return {
       mirroredCount: entries.length
@@ -333,17 +354,78 @@ export class ConfigManager {
 
   set(key: string, value: unknown, isNotify: boolean = false) {
     this.store.set(key, value)
-    void this.setStorageV2Config(key, value).catch((error) => {
-      logger.warn('Failed to mirror config setting to Storage v2', {
-        key,
-        error: error instanceof Error ? error.message : String(error)
-      })
-    })
+    this.pendingStorageV2Config.set(key, value)
+    void this.flushPendingStorageV2Config()
     isNotify && this.notifySubscribers(key, value)
   }
 
   get<T>(key: string, defaultValue?: T) {
     return this.store.get(key, defaultValue) as T
+  }
+
+  async flushPendingStorageV2Config() {
+    if (this.storageV2ConfigTimer) {
+      clearTimeout(this.storageV2ConfigTimer)
+      this.storageV2ConfigTimer = null
+    }
+
+    if (this.storageV2ConfigInflight) {
+      this.storageV2ConfigNeedsFollowUp = true
+      await this.storageV2ConfigInflight
+      if (this.storageV2ConfigNeedsFollowUp) {
+        this.storageV2ConfigNeedsFollowUp = false
+        await this.flushPendingStorageV2Config()
+      }
+      return
+    }
+
+    if (this.pendingStorageV2Config.size === 0) return
+
+    const entries = Array.from(this.pendingStorageV2Config.entries())
+    this.pendingStorageV2Config.clear()
+    this.storageV2ConfigInflight = this.mirrorPendingStorageV2Config(entries).finally(() => {
+      this.storageV2ConfigInflight = null
+    })
+
+    await this.storageV2ConfigInflight
+  }
+
+  async flushPendingStorageV2ConfigStrict() {
+    await this.flushPendingStorageV2Config()
+
+    if (this.pendingStorageV2Config.size > 0 && this.lastStorageV2ConfigError) {
+      throw this.lastStorageV2ConfigError instanceof Error
+        ? this.lastStorageV2ConfigError
+        : new Error('Failed to mirror config settings to Storage v2')
+    }
+  }
+
+  private async mirrorPendingStorageV2Config(entries: Array<[string, unknown]>) {
+    try {
+      await Promise.all(entries.map(([key, value]) => this.setStorageV2Config(key, value)))
+      this.lastStorageV2ConfigError = null
+    } catch (error) {
+      for (const [key, value] of entries) {
+        if (!this.pendingStorageV2Config.has(key)) {
+          this.pendingStorageV2Config.set(key, value)
+        }
+      }
+      this.lastStorageV2ConfigError = error
+      this.scheduleStorageV2ConfigRetry()
+      logger.warn('Failed to mirror config settings to Storage v2', {
+        count: entries.length,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+
+  private scheduleStorageV2ConfigRetry() {
+    if (this.storageV2ConfigTimer) return
+
+    this.storageV2ConfigTimer = setTimeout(() => {
+      this.storageV2ConfigTimer = null
+      void this.flushPendingStorageV2Config()
+    }, STORAGE_V2_CONFIG_RETRY_MS)
   }
 
   private async setStorageV2Config(key: string, value: unknown) {

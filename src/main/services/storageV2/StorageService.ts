@@ -1,5 +1,6 @@
 import type { Assistant, Provider } from '@types'
 
+import { configManager } from '../ConfigManager'
 import { storageV2AgentDbMirrorService } from './AgentDbMirrorService'
 import { storageV2BackupService } from './BackupService'
 import { storageV2DataRootService } from './DataRootService'
@@ -476,7 +477,9 @@ function assignSettingRecord(
 
 export class StorageV2Service {
   private async flushPendingRuntimeMirrors() {
-    await storageV2AgentDbMirrorService.flush()
+    await configManager.flushPendingStorageV2ConfigStrict()
+    await configManager.mirrorAllToStorageV2()
+    await storageV2AgentDbMirrorService.flushStrict()
   }
 
   getDataRoot() {

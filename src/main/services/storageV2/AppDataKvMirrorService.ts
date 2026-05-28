@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import type { Client } from '@libsql/client'
-import type { AppDataRecord } from '@main/services/appData/AppDataDatabase'
+import type { AppDataRecord, WorkbenchShortcut } from '@main/services/appData/AppDataDatabase'
 
 import { storageV2SecretVaultService } from './SecretVaultService'
 import { storageV2Database } from './StorageV2Database'
@@ -198,25 +198,41 @@ export class StorageV2AppDataKvMirrorService {
     return this.restoreSecrets(payload.value)
   }
 
-  async listWorkbenchShortcuts(): Promise<Array<Record<string, unknown>>> {
+  async listWorkbenchShortcuts(includeDeleted = false): Promise<WorkbenchShortcut[]> {
     const client = await storageV2Database.getClient()
     const result = await client.execute({
       sql: `
-        SELECT value_json
+        SELECT key, value_json, updated_at, deleted_at
         FROM kv_records
         WHERE scope = 'workbench.shortcuts'
           AND source IN (${WORKBENCH_SHORTCUT_SOURCES.map(() => '?').join(', ')})
-          AND deleted_at IS NULL
+          ${includeDeleted ? '' : 'AND deleted_at IS NULL'}
         ORDER BY updated_at DESC
       `,
       args: [...WORKBENCH_SHORTCUT_SOURCES]
     })
-    const shortcuts: Array<Record<string, unknown>> = []
+    const shortcuts: WorkbenchShortcut[] = []
 
     for (const row of result.rows) {
       const shortcut = await this.restoreSecrets(parseJson<Record<string, unknown>>(row.value_json, {}))
+      const key = typeof row.key === 'string' ? row.key : null
       if (isRecord(shortcut)) {
-        shortcuts.push(shortcut)
+        const updatedAt = typeof shortcut.updatedAt === 'number' ? shortcut.updatedAt : epochMs(row.updated_at)
+        const deletedAt = row.deleted_at ? epochMs(row.deleted_at) : null
+        const id = typeof shortcut.id === 'string' && shortcut.id ? shortcut.id : key
+        if (!id) continue
+
+        shortcuts.push({
+          id,
+          name: typeof shortcut.name === 'string' ? shortcut.name : id,
+          url: typeof shortcut.url === 'string' ? shortcut.url : '',
+          sourcePath: typeof shortcut.sourcePath === 'string' ? shortcut.sourcePath : null,
+          kind: shortcut.kind === 'html' || shortcut.kind === 'file' || shortcut.kind === 'url' ? shortcut.kind : 'url',
+          metadata: isRecord(shortcut.metadata) ? shortcut.metadata : null,
+          createdAt: typeof shortcut.createdAt === 'number' ? shortcut.createdAt : updatedAt,
+          updatedAt,
+          deletedAt
+        })
       }
     }
 

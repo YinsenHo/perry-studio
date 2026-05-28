@@ -417,13 +417,83 @@ describe('AppDataIpcService', () => {
   })
 
   it('does not resurrect deleted workbench shortcuts from Storage v2', async () => {
-    mocks.db.listWorkbenchShortcuts.mockResolvedValueOnce([])
+    const legacyTombstone = {
+      id: 'stale',
+      name: 'Deleted Shortcut',
+      url: 'https://example.com',
+      kind: 'url',
+      metadata: null,
+      createdAt: 1760000000000,
+      updatedAt: 1760000001000,
+      deletedAt: 1760000001000
+    }
+    const staleStorageShortcut = {
+      ...legacyTombstone,
+      updatedAt: 1760000000000,
+      deletedAt: null
+    }
+
+    mocks.db.listWorkbenchShortcuts.mockResolvedValueOnce([]).mockResolvedValueOnce([legacyTombstone])
     mocks.db.hasWorkbenchShortcutRows.mockResolvedValueOnce(true)
-    mocks.storageV2.listWorkbenchShortcuts.mockResolvedValue([{ id: 'stale' }])
+    mocks.storageV2.listWorkbenchShortcuts.mockResolvedValueOnce([staleStorageShortcut])
 
     await expect(getHandler(IpcChannel.WorkbenchShortcut_List)(null)).resolves.toEqual([])
-    expect(mocks.storageV2.listWorkbenchShortcuts).not.toHaveBeenCalled()
+    expect(mocks.storageV2.listWorkbenchShortcuts).toHaveBeenCalledWith(true)
     expect(mocks.recovery.projectIfLegacyWorkbenchShortcutListEmpty).not.toHaveBeenCalled()
+  })
+
+  it('merges Storage v2 workbench shortcuts into non-empty legacy shortcut lists', async () => {
+    const legacyShortcut = {
+      id: 'legacy-shortcut',
+      name: 'Legacy',
+      url: 'https://legacy.example.com',
+      kind: 'url',
+      metadata: null,
+      createdAt: 1760000000000,
+      updatedAt: 1760000000000,
+      deletedAt: null
+    }
+    const storageShortcut = {
+      id: 'storage-shortcut',
+      name: 'Storage',
+      url: 'https://storage.example.com',
+      kind: 'url',
+      metadata: null,
+      createdAt: 1760000001000,
+      updatedAt: 1760000001000,
+      deletedAt: null
+    }
+
+    mocks.db.listWorkbenchShortcuts.mockResolvedValueOnce([legacyShortcut]).mockResolvedValueOnce([legacyShortcut])
+    mocks.storageV2.listWorkbenchShortcuts.mockResolvedValueOnce([storageShortcut])
+
+    await expect(getHandler(IpcChannel.WorkbenchShortcut_List)(null)).resolves.toEqual(
+      expect.arrayContaining([legacyShortcut, storageShortcut])
+    )
+    expect(mocks.storageV2.listWorkbenchShortcuts).toHaveBeenCalledWith(true)
+  })
+
+  it('does not resurrect legacy workbench shortcuts deleted by a newer Storage v2 tombstone', async () => {
+    const legacyShortcut = {
+      id: 'legacy-shortcut',
+      name: 'Legacy',
+      url: 'https://legacy.example.com',
+      kind: 'url',
+      metadata: null,
+      createdAt: 1760000000000,
+      updatedAt: 1760000000000,
+      deletedAt: null
+    }
+    const storageTombstone = {
+      ...legacyShortcut,
+      updatedAt: 1760000001000,
+      deletedAt: 1760000001000
+    }
+
+    mocks.db.listWorkbenchShortcuts.mockResolvedValueOnce([legacyShortcut]).mockResolvedValueOnce([legacyShortcut])
+    mocks.storageV2.listWorkbenchShortcuts.mockResolvedValueOnce([storageTombstone])
+
+    await expect(getHandler(IpcChannel.WorkbenchShortcut_List)(null)).resolves.toEqual([])
   })
 
   it('projects Storage v2 workbench shortcuts before returning an empty legacy list', async () => {

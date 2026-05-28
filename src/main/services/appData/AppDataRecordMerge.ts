@@ -1,4 +1,4 @@
-import type { AppDataRecord } from './AppDataDatabase'
+import type { AppDataRecord, WorkbenchShortcut } from './AppDataDatabase'
 
 function recordId(record: Pick<AppDataRecord, 'scope' | 'key'>) {
   return `${record.scope}:${record.key}`
@@ -29,4 +29,22 @@ export function mergeAppDataRecords(primary: AppDataRecord[], secondary: AppData
 
 export function filterAppDataRecords(records: AppDataRecord[], includeDeleted = false) {
   return includeDeleted ? records : records.filter((record) => record.deletedAt == null)
+}
+
+export function mergeWorkbenchShortcuts(primary: WorkbenchShortcut[], secondary: WorkbenchShortcut[]) {
+  const shortcuts = new Map<string, WorkbenchShortcut>()
+
+  for (const shortcut of [...secondary, ...primary]) {
+    const existing = shortcuts.get(shortcut.id)
+
+    if (!existing || existing.updatedAt <= shortcut.updatedAt) {
+      shortcuts.set(shortcut.id, shortcut)
+    }
+  }
+
+  return Array.from(shortcuts.values())
+}
+
+export function filterWorkbenchShortcuts(shortcuts: WorkbenchShortcut[], includeDeleted = false) {
+  return includeDeleted ? shortcuts : shortcuts.filter((shortcut) => shortcut.deletedAt == null)
 }

@@ -6,7 +6,12 @@ import type { WebDavConfig } from '@types'
 import { ipcMain } from 'electron'
 
 import { createWorkbenchShortcutRecord, getAppDataDatabase } from './AppDataDatabase'
-import { filterAppDataRecords, mergeAppDataRecords } from './AppDataRecordMerge'
+import {
+  filterAppDataRecords,
+  filterWorkbenchShortcuts,
+  mergeAppDataRecords,
+  mergeWorkbenchShortcuts
+} from './AppDataRecordMerge'
 import { appDataSyncService } from './AppDataSyncService'
 
 const logger = loggerService.withContext('AppDataIpcService')
@@ -94,11 +99,25 @@ export function registerAppDataIpcHandlers() {
     let db = await getAppDataDatabase()
     const shortcuts = await db.listWorkbenchShortcuts()
     if (shortcuts.length > 0) {
-      return shortcuts
+      try {
+        const legacyShortcuts = await db.listWorkbenchShortcuts(true)
+        const storageShortcuts = await storageV2AppDataKvMirrorService.listWorkbenchShortcuts(true)
+        return filterWorkbenchShortcuts(mergeWorkbenchShortcuts(legacyShortcuts, storageShortcuts))
+      } catch (error) {
+        logger.warn('Failed to merge Storage v2 workbench shortcuts into shortcut list', error as Error)
+        return shortcuts
+      }
     }
 
     if (await db.hasWorkbenchShortcutRows()) {
-      return shortcuts
+      try {
+        const legacyShortcuts = await db.listWorkbenchShortcuts(true)
+        const storageShortcuts = await storageV2AppDataKvMirrorService.listWorkbenchShortcuts(true)
+        return filterWorkbenchShortcuts(mergeWorkbenchShortcuts(legacyShortcuts, storageShortcuts))
+      } catch (error) {
+        logger.warn('Failed to merge Storage v2 workbench shortcuts into tombstoned shortcut list', error as Error)
+        return shortcuts
+      }
     }
 
     if (

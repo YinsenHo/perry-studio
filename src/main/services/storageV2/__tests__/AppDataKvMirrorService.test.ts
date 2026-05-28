@@ -56,6 +56,47 @@ function createMockClient() {
       }
     }
 
+    if (sql.includes("scope = 'workbench.shortcuts'")) {
+      return {
+        rows: [
+          {
+            key: 'docs',
+            value_json: JSON.stringify({
+              id: 'docs',
+              name: 'Docs',
+              url: 'https://docs.example.com',
+              sourcePath: null,
+              kind: 'url',
+              metadata: null,
+              createdAt: 1767225600000,
+              updatedAt: 1767225600000,
+              deletedAt: null
+            }),
+            updated_at: '2026-01-01T00:00:00.000Z',
+            deleted_at: null
+          },
+          {
+            key: 'old-docs',
+            value_json: JSON.stringify({
+              id: 'old-docs',
+              name: 'Old Docs',
+              url: 'https://old.example.com',
+              sourcePath: null,
+              kind: 'url',
+              metadata: null,
+              createdAt: 1767312000000,
+              updatedAt: 1767312000000,
+              deletedAt: 1767312000000
+            }),
+            updated_at: '2026-01-02T00:00:00.000Z',
+            deleted_at: '2026-01-02T00:00:00.000Z'
+          }
+        ],
+        columns: [],
+        columnTypes: []
+      }
+    }
+
     if (sql.includes('FROM sync_conflicts') && sql.includes("entity_type = 'app-record'")) {
       return {
         rows: [
@@ -243,6 +284,36 @@ describe('StorageV2AppDataKvMirrorService', () => {
         deletedAt: 1767312000000,
         deviceId: 'device-1',
         version: 4
+      }
+    ])
+  })
+
+  it('lists workbench shortcuts from Storage v2 with tombstones', async () => {
+    const { client } = createMockClient()
+    vi.spyOn(storageV2Database, 'getClient').mockResolvedValue(client)
+
+    await expect(new StorageV2AppDataKvMirrorService().listWorkbenchShortcuts(true)).resolves.toEqual([
+      {
+        id: 'docs',
+        name: 'Docs',
+        url: 'https://docs.example.com',
+        sourcePath: null,
+        kind: 'url',
+        metadata: null,
+        createdAt: 1767225600000,
+        updatedAt: 1767225600000,
+        deletedAt: null
+      },
+      {
+        id: 'old-docs',
+        name: 'Old Docs',
+        url: 'https://old.example.com',
+        sourcePath: null,
+        kind: 'url',
+        metadata: null,
+        createdAt: 1767312000000,
+        updatedAt: 1767312000000,
+        deletedAt: 1767312000000
       }
     ])
   })

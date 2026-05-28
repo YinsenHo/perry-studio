@@ -533,10 +533,10 @@ export class AppDataDatabase {
     return fullShortcut
   }
 
-  async listWorkbenchShortcuts() {
+  async listWorkbenchShortcuts(includeDeleted = false) {
     const client = await this.getClient()
     const result = await client.execute({
-      sql: 'SELECT * FROM workbench_shortcuts WHERE deleted_at IS NULL ORDER BY updated_at DESC',
+      sql: `SELECT * FROM workbench_shortcuts${includeDeleted ? '' : ' WHERE deleted_at IS NULL'} ORDER BY updated_at DESC`,
       args: []
     })
     return result.rows.map((row) => toShortcut(row as Row))

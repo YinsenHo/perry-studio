@@ -106,6 +106,18 @@ function collectFilesFromBlocks(blocks: MessageBlock[]) {
   return Array.from(filesById.values())
 }
 
+function collectFileIdsFromBlocks(blocks: MessageBlock[]) {
+  const fileIds = new Set<string>()
+
+  for (const block of blocks) {
+    if (isFileBlock(block)) {
+      fileIds.add(block.file.id)
+    }
+  }
+
+  return fileIds
+}
+
 async function getFilesPath() {
   if (!filesPathPromise) {
     filesPathPromise = window.api
@@ -219,9 +231,12 @@ async function seedDexieTopic(
   await db.transaction('rw', db.topics, db.message_blocks, db.files, async () => {
     const existingTopic = await db.topics.get(topicId)
     const nextBlockIds = new Set(blocks.map((block) => block.id))
+    const nextFileIds = collectFileIdsFromBlocks(blocks)
     const oldBlockIds = (existingTopic?.messages ?? [])
       .flatMap((message) => message.blocks ?? [])
       .filter((blockId) => !nextBlockIds.has(blockId))
+    const oldBlocks = oldBlockIds.length > 0 ? await db.message_blocks.where('id').anyOf(oldBlockIds).toArray() : []
+    const removedFileIds = Array.from(collectFileIdsFromBlocks(oldBlocks)).filter((fileId) => !nextFileIds.has(fileId))
 
     if (oldBlockIds.length > 0) {
       await db.message_blocks.bulkDelete(oldBlockIds)
@@ -233,6 +248,16 @@ async function seedDexieTopic(
 
     if (files.length > 0) {
       await db.files.bulkPut(files)
+    }
+
+    if (removedFileIds.length > 0) {
+      const remainingFileBlocks = await db.message_blocks.where('file.id').anyOf(removedFileIds).toArray()
+      const stillReferencedFileIds = collectFileIdsFromBlocks(remainingFileBlocks)
+      const orphanedFileIds = removedFileIds.filter((fileId) => !stillReferencedFileIds.has(fileId))
+
+      if (orphanedFileIds.length > 0) {
+        await db.files.bulkDelete(orphanedFileIds)
+      }
     }
 
     await db.topics.put(toDexieTopic(topicId, messages, conversation))

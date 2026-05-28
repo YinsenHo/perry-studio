@@ -8,10 +8,13 @@ const mocks = vi.hoisted(() => ({
   topicsGet: vi.fn(),
   topicsPut: vi.fn(),
   topicsToArray: vi.fn(),
+  messageBlocksAnyOf: vi.fn(),
   messageBlocksCount: vi.fn(),
   messageBlocksBulkPut: vi.fn(),
   messageBlocksBulkDelete: vi.fn(),
+  messageBlocksWhere: vi.fn(),
   filesBulkPut: vi.fn(),
+  filesBulkDelete: vi.fn(),
   transaction: vi.fn(async (...args: unknown[]) => {
     const callback = args.at(-1)
     if (typeof callback === 'function') {
@@ -40,10 +43,12 @@ vi.mock('@renderer/databases', () => ({
     message_blocks: {
       count: mocks.messageBlocksCount,
       bulkPut: mocks.messageBlocksBulkPut,
-      bulkDelete: mocks.messageBlocksBulkDelete
+      bulkDelete: mocks.messageBlocksBulkDelete,
+      where: mocks.messageBlocksWhere
     },
     files: {
-      bulkPut: mocks.filesBulkPut
+      bulkPut: mocks.filesBulkPut,
+      bulkDelete: mocks.filesBulkDelete
     },
     transaction: mocks.transaction
   }
@@ -81,6 +86,12 @@ describe('StorageV2ConversationHydrationService', () => {
     mocks.topicsCount.mockResolvedValue(0)
     mocks.topicsToArray.mockResolvedValue([])
     mocks.messageBlocksCount.mockResolvedValue(0)
+    mocks.messageBlocksAnyOf.mockReturnValue({
+      toArray: vi.fn().mockResolvedValue([])
+    })
+    mocks.messageBlocksWhere.mockReturnValue({
+      anyOf: mocks.messageBlocksAnyOf
+    })
     mocks.listStorageV2Conversations.mockResolvedValue([])
     mocks.listStorageV2Messages.mockResolvedValue([])
   })
@@ -197,6 +208,157 @@ describe('StorageV2ConversationHydrationService', () => {
       pinned: true,
       messages: result?.messages
     })
+  })
+
+  it('prunes unreferenced file metadata when Storage v2 removes old file blocks', async () => {
+    mocks.topicsGet.mockResolvedValue({
+      id: 'topic-1',
+      messages: [
+        {
+          id: 'old-message',
+          blocks: ['old-file-block']
+        }
+      ]
+    })
+    mocks.messageBlocksWhere.mockImplementation((index: string) => ({
+      anyOf: vi.fn((ids: string[]) => ({
+        toArray: vi.fn().mockResolvedValue(
+          index === 'id' && ids.includes('old-file-block')
+            ? [
+                {
+                  id: 'old-file-block',
+                  messageId: 'old-message',
+                  type: 'file',
+                  file: {
+                    id: 'orphan-file',
+                    name: 'orphan-file.txt',
+                    origin_name: 'orphan.txt',
+                    ext: '.txt',
+                    path: '/tmp/cherry-files/orphan-file.txt',
+                    count: 1
+                  }
+                }
+              ]
+            : []
+        )
+      }))
+    }))
+    mocks.listStorageV2Conversations.mockResolvedValue([
+      {
+        id: 'topic-1',
+        ownerId: 'assistant-1',
+        title: 'Storage v2 Topic',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:03.000Z'
+      }
+    ])
+    mocks.listStorageV2Messages.mockResolvedValueOnce([
+      {
+        id: 'message-1',
+        role: 'user',
+        status: null,
+        metadata: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: null,
+        blocks: [
+          {
+            id: 'block-text',
+            messageId: 'message-1',
+            type: 'main_text',
+            ordinal: 1,
+            text: 'file block removed upstream',
+            payload: null,
+            createdAt: '2026-01-01T00:00:01.000Z',
+            updatedAt: null
+          }
+        ]
+      }
+    ])
+
+    await fetchStorageV2TopicMessages('topic-1')
+
+    expect(mocks.messageBlocksBulkDelete).toHaveBeenCalledWith(['old-file-block'])
+    expect(mocks.filesBulkDelete).toHaveBeenCalledWith(['orphan-file'])
+  })
+
+  it('keeps removed file metadata when another message block still references it', async () => {
+    const oldFileBlock = {
+      id: 'old-file-block',
+      messageId: 'old-message',
+      type: 'file',
+      file: {
+        id: 'shared-file',
+        name: 'shared-file.txt',
+        origin_name: 'shared.txt',
+        ext: '.txt',
+        path: '/tmp/cherry-files/shared-file.txt',
+        count: 2
+      }
+    }
+    const remainingFileBlock = {
+      ...oldFileBlock,
+      id: 'other-topic-file-block',
+      messageId: 'other-message'
+    }
+
+    mocks.topicsGet.mockResolvedValue({
+      id: 'topic-1',
+      messages: [
+        {
+          id: 'old-message',
+          blocks: ['old-file-block']
+        }
+      ]
+    })
+    mocks.messageBlocksWhere.mockImplementation((index: string) => ({
+      anyOf: vi.fn((ids: string[]) => ({
+        toArray: vi
+          .fn()
+          .mockResolvedValue(
+            index === 'id' && ids.includes('old-file-block')
+              ? [oldFileBlock]
+              : index === 'file.id' && ids.includes('shared-file')
+                ? [remainingFileBlock]
+                : []
+          )
+      }))
+    }))
+    mocks.listStorageV2Conversations.mockResolvedValue([
+      {
+        id: 'topic-1',
+        ownerId: 'assistant-1',
+        title: 'Storage v2 Topic',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:03.000Z'
+      }
+    ])
+    mocks.listStorageV2Messages.mockResolvedValueOnce([
+      {
+        id: 'message-1',
+        role: 'user',
+        status: null,
+        metadata: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: null,
+        blocks: [
+          {
+            id: 'block-text',
+            messageId: 'message-1',
+            type: 'main_text',
+            ordinal: 1,
+            text: 'shared file block removed from this topic',
+            payload: null,
+            createdAt: '2026-01-01T00:00:01.000Z',
+            updatedAt: null
+          }
+        ]
+      }
+    ])
+
+    await fetchStorageV2TopicMessages('topic-1')
+
+    expect(mocks.messageBlocksBulkDelete).toHaveBeenCalledWith(['old-file-block'])
+    expect(mocks.filesBulkDelete).not.toHaveBeenCalled()
   })
 
   it('treats an existing empty Storage v2 topic as authoritative and seeds an empty Dexie cache', async () => {

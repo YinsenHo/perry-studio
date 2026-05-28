@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { flushStorageV2ReduxMirror } from '@renderer/services/StorageV2ReduxMirrorFlush'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addAssistantPreset,
@@ -10,6 +11,15 @@ import {
 import type { AssistantPreset, AssistantSettings } from '@renderer/types'
 
 const logger = loggerService.withContext('useAssistantPresets')
+
+function flushPresetMirror(reason: string): void
+function flushPresetMirror(reason: string, options: { strict: true }): Promise<void>
+function flushPresetMirror(reason: string, options?: { strict?: boolean }) {
+  const task = flushStorageV2ReduxMirror(reason, options)
+  if (options?.strict) return task
+  void task
+  return undefined
+}
 
 function ensurePresetsArray(storedPresets: unknown): AssistantPreset[] {
   if (Array.isArray(storedPresets)) {
@@ -29,9 +39,18 @@ export function useAssistantPresets() {
 
   return {
     presets,
-    setAssistantPresets: (presets: AssistantPreset[]) => dispatch(setAssistantPresets(presets)),
-    addAssistantPreset: (preset: AssistantPreset) => dispatch(addAssistantPreset(preset)),
-    removeAssistantPreset: (id: string) => dispatch(removeAssistantPreset({ id }))
+    setAssistantPresets: (presets: AssistantPreset[]) => {
+      dispatch(setAssistantPresets(presets))
+      flushPresetMirror('assistant-presets-set')
+    },
+    addAssistantPreset: (preset: AssistantPreset) => {
+      dispatch(addAssistantPreset(preset))
+      flushPresetMirror('assistant-preset-add')
+    },
+    removeAssistantPreset: async (id: string) => {
+      dispatch(removeAssistantPreset({ id }))
+      await flushPresetMirror('assistant-preset-remove', { strict: true })
+    }
   }
 }
 
@@ -47,13 +66,17 @@ export function useAssistantPreset(id: string) {
 
   return {
     preset: preset,
-    updateAssistantPreset: (preset: AssistantPreset) => dispatch(updateAssistantPreset(preset)),
+    updateAssistantPreset: (preset: AssistantPreset) => {
+      dispatch(updateAssistantPreset(preset))
+      flushPresetMirror('assistant-preset-update')
+    },
     updateAssistantPresetSettings: (settings: Partial<AssistantSettings>) => {
       if (!preset) {
         logger.warn(`Failed to update assistant preset settings because preset with id ${id} is missing.`)
         return
       }
       dispatch(updateAssistantPresetSettings({ assistantId: preset.id, settings }))
+      flushPresetMirror('assistant-preset-settings-update')
     }
   }
 }

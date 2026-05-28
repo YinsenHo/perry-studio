@@ -31,7 +31,9 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
       window.modal.confirm({
         centered: true,
         content: t('assistants.presets.delete.popup.content'),
-        onOk: () => removeAssistantPreset(preset.id)
+        onOk: async () => {
+          await removeAssistantPreset(preset.id)
+        }
       })
     },
     [removeAssistantPreset]

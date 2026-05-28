@@ -352,13 +352,7 @@ class AnthropicService extends Error {
 
   // 11. Clear stored credentials
   public async clearCredentials(): Promise<void> {
-    let storageV2Error: unknown = null
-    try {
-      await this.clearCredentialsInStorageV2()
-    } catch (error) {
-      storageV2Error = error
-      logger.error('Failed to clear Anthropic OAuth credentials in Storage v2:', error as Error)
-    }
+    await this.clearCredentialsInStorageV2()
 
     try {
       await promises.unlink(CREDS_PATH)
@@ -368,10 +362,6 @@ class AnthropicService extends Error {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
         throw error
       }
-    }
-
-    if (storageV2Error) {
-      throw storageV2Error
     }
   }
 

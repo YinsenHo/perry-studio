@@ -690,15 +690,8 @@ async function saveCredentials(credentials: Credentials, tokenPath: string): Pro
 }
 
 async function clearCredentials(tokenPath: string): Promise<void> {
-  let storageV2Error: unknown = null
-  await clearCredentialsInStorageV2(tokenPath).catch((error) => {
-    storageV2Error = error
-    logger.warn('Failed to clear WeChat credentials in Storage v2', {
-      error: error instanceof Error ? error.message : String(error)
-    })
-  })
+  await clearCredentialsInStorageV2(tokenPath)
   await rm(tokenPath, { force: true })
-  if (storageV2Error) throw storageV2Error
 }
 
 interface LoginOptions {

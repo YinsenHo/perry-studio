@@ -169,6 +169,15 @@ describe('AnthropicService Storage v2 OAuth credentials', () => {
     expect(mocks.fsPromises.unlink).toHaveBeenCalledWith('/mock/config/oauth/anthropic.json')
   })
 
+  it('keeps the legacy JSON file when the Storage v2 clear marker cannot be written', async () => {
+    mocks.settingsRepository.set.mockRejectedValueOnce(new Error('storage locked'))
+    const service = await loadAnthropicService()
+
+    await expect(service.clearCredentials()).rejects.toThrow('storage locked')
+
+    expect(mocks.fsPromises.unlink).not.toHaveBeenCalled()
+  })
+
   it('keeps legacy credentials fallback readable if Storage v2 save fails after a previous clear', async () => {
     mocks.secretVault.setSecret.mockRejectedValue(new Error('safeStorage unavailable'))
     const service = await loadAnthropicService()

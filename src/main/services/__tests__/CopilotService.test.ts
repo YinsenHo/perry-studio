@@ -111,6 +111,26 @@ describe('CopilotService Storage v2 token persistence', () => {
     )
   })
 
+  it('keeps legacy token fallback readable if Storage v2 save fails after a previous clear', async () => {
+    mocks.secretVault.setSecret.mockRejectedValue(new Error('safeStorage unavailable'))
+    const service = await loadCopilotService()
+
+    await service.saveCopilotToken({} as Electron.IpcMainInvokeEvent, 'github-access-token')
+
+    expect(mocks.fs.promises.writeFile).toHaveBeenCalledWith(
+      '/mock/config/.copilot_token',
+      Buffer.from('encrypted:github-access-token')
+    )
+    expect(mocks.settingsRepository.set).toHaveBeenCalledWith(
+      'copilot.accessToken',
+      {
+        legacyFallbackAt: expect.any(String),
+        updatedAt: expect.any(String)
+      },
+      'copilot'
+    )
+  })
+
   it('reads Copilot access tokens from Storage v2 before the legacy token file', async () => {
     mocks.settingsRepository.get.mockResolvedValue({
       accessTokenSecretRef: 'storage-v2://secret/copilot/github/accessToken'

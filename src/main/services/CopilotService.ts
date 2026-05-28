@@ -39,6 +39,7 @@ const STORAGE_V2_COPILOT_TOKEN_SETTING_KEY = 'copilot.accessToken'
 type CopilotTokenStorageV2Setting = {
   accessTokenSecretRef?: string
   clearedAt?: string
+  legacyFallbackAt?: string
   updatedAt?: string
 }
 
@@ -125,6 +126,18 @@ class CopilotService {
       {
         accessTokenSecretRef: secretRef,
         updatedAt: new Date().toISOString()
+      } satisfies CopilotTokenStorageV2Setting,
+      'copilot'
+    )
+  }
+
+  private markAccessTokenLegacyFallbackInStorageV2 = async (): Promise<void> => {
+    const timestamp = new Date().toISOString()
+    await storageV2SettingsRepository.set(
+      STORAGE_V2_COPILOT_TOKEN_SETTING_KEY,
+      {
+        legacyFallbackAt: timestamp,
+        updatedAt: timestamp
       } satisfies CopilotTokenStorageV2Setting,
       'copilot'
     )
@@ -338,7 +351,9 @@ class CopilotService {
   public saveCopilotToken = async (_: Electron.IpcMainInvokeEvent, token: string): Promise<void> => {
     try {
       const encryptedToken = safeStorage.encryptString(token)
+      let shouldMarkLegacyFallback = false
       await this.saveAccessTokenToStorageV2(token).catch((error) => {
+        shouldMarkLegacyFallback = true
         logger.warn('Failed to save Copilot access token to Storage v2', error as Error)
       })
 
@@ -349,6 +364,11 @@ class CopilotService {
       }
 
       await fs.promises.writeFile(this.tokenFilePath, encryptedToken)
+      if (shouldMarkLegacyFallback) {
+        await this.markAccessTokenLegacyFallbackInStorageV2().catch((error) => {
+          logger.warn('Failed to clear Copilot Storage v2 cleared marker after legacy token write', error as Error)
+        })
+      }
     } catch (error) {
       logger.error('Failed to save token:', error as Error)
       throw new CopilotServiceError('无法保存访问令牌', error)

@@ -1,5 +1,4 @@
 import crypto from 'node:crypto'
-import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -61,6 +60,7 @@ import { CacheService } from './CacheService'
 import DxtService from './DxtService'
 import { CallBackServer } from './mcp/oauth/callback'
 import { McpOAuthClientProvider } from './mcp/oauth/provider'
+import { JsonFileStorage } from './mcp/oauth/storage'
 import { ServerLogBuffer } from './mcp/ServerLogBuffer'
 import { windowService } from './WindowService'
 
@@ -794,9 +794,8 @@ class McpService {
         const baseUrlStillInUse = remainingServers.some((s) => s.id !== server.id && s.baseUrl === server.baseUrl)
         if (!baseUrlStillInUse) {
           const serverUrlHash = crypto.createHash('md5').update(server.baseUrl).digest('hex')
-          const oauthFilePath = path.join(getConfigDir(), 'mcp', 'oauth', `${serverUrlHash}_oauth.json`)
-          await fs.unlink(oauthFilePath)
-          getServerLogger(server).debug(`Cleaned up OAuth token file`)
+          await JsonFileStorage.clearByServerUrlHash(serverUrlHash, path.join(getConfigDir(), 'mcp', 'oauth'))
+          getServerLogger(server).debug(`Cleaned up OAuth token storage`)
         } else {
           getServerLogger(server).debug(`Skipped OAuth token cleanup; baseUrl still in use by another server`)
         }

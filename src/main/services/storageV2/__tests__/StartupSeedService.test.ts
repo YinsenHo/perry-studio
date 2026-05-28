@@ -101,8 +101,8 @@ describe('StorageV2StartupSeedService', () => {
     const report = await new StorageV2StartupSeedService().seedFromLegacyRuntimeDatabases()
 
     expect(events).toEqual(['flush', 'agent', 'app'])
-    expect(mocks.importAgentDb).toHaveBeenCalledWith({ dryRun: false, createSnapshot: false })
-    expect(mocks.importAppDb).toHaveBeenCalledWith({ dryRun: false, createSnapshot: false })
+    expect(mocks.importAgentDb).toHaveBeenCalledWith({ dryRun: false, createSnapshot: false, pruneMissing: false })
+    expect(mocks.importAppDb).toHaveBeenCalledWith({ dryRun: false, createSnapshot: false, pruneMissing: false })
     expect(report.generatedAt).toEqual(expect.any(String))
     expect(report.agent.sourceDbPath).toBe('/data/agents.db')
     expect(report.appData.sourceDbPath).toBe('/data/app.db')
@@ -111,8 +111,8 @@ describe('StorageV2StartupSeedService', () => {
   it('can create snapshots when explicitly requested', async () => {
     await new StorageV2StartupSeedService().seedFromLegacyRuntimeDatabases({ createSnapshot: true })
 
-    expect(mocks.importAgentDb).toHaveBeenCalledWith({ dryRun: false, createSnapshot: true })
-    expect(mocks.importAppDb).toHaveBeenCalledWith({ dryRun: false, createSnapshot: true })
+    expect(mocks.importAgentDb).toHaveBeenCalledWith({ dryRun: false, createSnapshot: true, pruneMissing: false })
+    expect(mocks.importAppDb).toHaveBeenCalledWith({ dryRun: false, createSnapshot: true, pruneMissing: false })
   })
 
   it('deduplicates concurrent startup seed requests', async () => {

@@ -34,11 +34,13 @@ export class StorageV2StartupSeedService {
     await storageV2AgentDbMirrorService.flush()
     const agent = await storageV2LegacyAgentDbImportService.importSnapshot({
       dryRun: false,
-      createSnapshot
+      createSnapshot,
+      pruneMissing: false
     })
     const appData = await storageV2LegacyAppDbImportService.importSnapshot({
       dryRun: false,
-      createSnapshot
+      createSnapshot,
+      pruneMissing: false
     })
 
     return {

@@ -149,4 +149,29 @@ describe('StorageV2AppDataRuntimeRecoveryService', () => {
     )
     expect(projection).toHaveBeenCalledTimes(1)
   })
+
+  it('rechecks a specific app record after an unrelated inflight projection found no rows', async () => {
+    const legacyClient = createCountClient(0)
+    const storageClient = createCountClient(1)
+    const projection = mockProjection()
+    const service = new StorageV2AppDataRuntimeRecoveryService()
+    ;(service as any).projection = Promise.resolve(false).finally(() => {
+      ;(service as any).projection = null
+    })
+    vi.spyOn(AppDataDatabaseModule, 'getAppDataDatabase').mockResolvedValue({
+      getRawClient: async () => legacyClient
+    } as any)
+    vi.spyOn(storageV2Database, 'getClient').mockResolvedValue(storageClient as any)
+
+    const recovered = await service.projectIfAppRecordMissing('agent-tools', 'github', 'test')
+
+    expect(recovered).toBe(true)
+    expect(storageClient.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining('key = ?'),
+        args: ['legacy-app-record', 'app-record', 'agent-tools', 'github']
+      })
+    )
+    expect(projection).toHaveBeenCalledTimes(1)
+  })
 })

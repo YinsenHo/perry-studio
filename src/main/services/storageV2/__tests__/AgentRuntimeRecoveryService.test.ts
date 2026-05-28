@@ -200,6 +200,27 @@ describe('StorageV2AgentRuntimeRecoveryService', () => {
     expect(projection).toHaveBeenCalledTimes(1)
   })
 
+  it('rechecks a specific session after an unrelated inflight projection found no rows', async () => {
+    const storageClient = createCountClient(1)
+    const projection = mockProjection()
+    const service = new StorageV2AgentRuntimeRecoveryService()
+    ;(service as any).projection = Promise.resolve(false).finally(() => {
+      ;(service as any).projection = null
+    })
+    vi.spyOn(storageV2Database, 'getClient').mockResolvedValue(storageClient as any)
+
+    const recovered = await service.projectIfSessionMissingById('session-1', 'test')
+
+    expect(recovered).toBe(true)
+    expect(storageClient.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining('agent_sessions'),
+        args: ['session-1']
+      })
+    )
+    expect(projection).toHaveBeenCalledTimes(1)
+  })
+
   it('projects session messages when Storage v2 has agent conversation history', async () => {
     const storageClient = createCountClient(1)
     const projection = mockProjection()

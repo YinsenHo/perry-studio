@@ -89,8 +89,10 @@ export class StorageV2AgentRuntimeRecoveryService {
   }
 
   private async projectIfStorageHasRows(reason: string, hasRows: () => Promise<boolean>): Promise<boolean> {
-    if (this.projection) {
-      return this.projection
+    while (this.projection) {
+      if (await this.projection) {
+        return true
+      }
     }
 
     this.projection = this.projectNow(reason, hasRows).finally(() => {

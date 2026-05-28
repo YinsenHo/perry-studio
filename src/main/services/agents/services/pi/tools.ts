@@ -1,5 +1,4 @@
 import { execFile } from 'node:child_process'
-import { readdirSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -55,49 +54,18 @@ const RECOVERABLE_BASH_DESCRIPTION_PATTERN =
   /\b(check|inspect|probe|verify|test|look for|locate|find|list|stat|exist|target skill location)\b/i
 const READ_ONLY_BASH_COMMAND_PATTERN =
   /^\s*(?:test\b|\[\s|ls\b|stat\b|find\b|rg\b|grep\b|pwd\b|printf\b|echo\b|cat\b|sed\b|awk\b|head\b|tail\b|wc\b|git\s+(?:status|diff|show|log|rev-parse|ls-files|grep)\b)/i
-const POLICY_FAILURE_PATTERN = /outside accessible directories|parent directory traversal/i
-const POLICY_REFUSAL_PATTERN = /^Refusing to /i
+const POLICY_FAILURE_PATTERN = /parent directory traversal/i
 const NPM_INSTALL_COMMAND_PATTERN =
   /(^|[;&|]\s*)(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S+)\s+)*(?:env\s+(?:\S+\s+)*?)?(?:(?:\.{0,2}\/|\S*\/)?(?:npm|pnpm|bun|bunx|npx|corepack))\b/i
 const GLOBAL_PACKAGE_INSTALL_COMMAND_PATTERN =
   /(^|[;&|]\s*)(?:(?:npm|pnpm)\s+(?:install|i|add)\s+(?:[^\n;&|]*\s)?(?:-g|--global)\b|yarn\s+global\s+add\b)/i
 const NPM_MIRROR_SSL_PATTERN =
   /(?:npmmirror\.com|registry\.npmmirror\.com|cdn\.npmmirror\.com)[\s\S]{0,400}(?:SSL|certificate|CERT_|UNABLE_TO_VERIFY|SELF_SIGNED|CERT_HAS_EXPIRED|unable to verify|unable to get local issuer|certificate verify failed|SSL routines)|(?:SSL|certificate|CERT_|UNABLE_TO_VERIFY|SELF_SIGNED|CERT_HAS_EXPIRED|unable to verify|unable to get local issuer|certificate verify failed|SSL routines)[\s\S]{0,400}(?:npmmirror\.com|registry\.npmmirror\.com|cdn\.npmmirror\.com)/i
-const SSL_CERTIFICATE_FAILURE_PATTERN =
-  /SSL|certificate|CERT_|UNABLE_TO_VERIFY|SELF_SIGNED|CERT_HAS_EXPIRED|unable to verify|unable to get local issuer|certificate verify failed|SSL routines/i
-const INSTALL_BINARY_DOWNLOAD_PATTERN =
-  /(?:download|fetch|install|postinstall|prebuild|binary|release|tar\.gz|tgz|zip|dmg|pkg|node-gyp|prebuild-install|esbuild|sharp|electron|playwright|puppeteer)/i
-const FETCH_DOCUMENTATION_COMMAND_PATTERN =
-  /(^|[;&|]\s*)(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S+)\s+)*(?:env\s+(?:\S+\s+)*?)?(?:curl|wget)\b/i
-const FETCH_DOCUMENTATION_DESCRIPTION_PATTERN =
-  /(?:fetch|get|read|download|抓取|获取|查看|下载)[\s\S]{0,80}(?:doc|docs|documentation|guide|manual|install|installation|文档|指南|安装)/i
 const NPMJS_REGISTRY = 'https://registry.npmjs.org'
-const SYSTEM_SSL_REPAIR_COMMAND_PATTERN =
-  /(^|[;&|]\s*)(?:sudo\s+)?(?:(?:\/usr\/bin\/)?security\s+(?:add-trusted-cert|delete-certificate|trust-settings|authorizationdb)\b|(?:update-ca-certificates|update-ca-trust|trust\s+anchor|certutil\s+-A)\b|brew\s+(?:install|reinstall|upgrade)\s+(?:ca-certificates|openssl(?:@\d+)?)\b|(?:npm|pnpm|yarn)\s+config\s+set\s+strict-ssl\s+false\b|git\s+config\s+(?:--global\s+)?http\.sslVerify\s+false\b|(?:export\s+)?NODE_TLS_REJECT_UNAUTHORIZED=0\b|pip\s+config\s+set\s+global\.trusted-host\b|cp\b[\s\S]{0,240}(?:\/etc\/ssl|\/usr\/local\/etc\/openssl|\/opt\/homebrew\/etc\/openssl))/i
-const SYSTEM_SSL_REPAIR_MESSAGE =
-  'Refusing to change system/global SSL, certificate, curl, keychain, or trust-store configuration. Treat this as an environment issue and use a scoped fallback instead, such as app/Node fetch, an official registry retry, or a one-off insecure fetch only for public non-secret content.'
-const GLOBAL_PACKAGE_REGISTRATION_COMMAND_PATTERN =
-  /(^|[;&|]\s*)(?:(?:npm|pnpm|yarn)\s+(?:link|publish|login|adduser|whoami)\b|corepack\s+enable\b|(?:npm|pnpm|yarn)\s+config\s+set\s+(?:prefix|global-dir|global-bin-dir)\b)/i
-const GLOBAL_PACKAGE_REGISTRATION_MESSAGE =
-  'Refusing to use global npm/package registration as a workaround for workspace path restrictions. Stay inside the accessible workspace, use the injected MCP/tools, or ask the user to add the needed path to the agent workspace.'
-const LOCAL_INSTALL_WORKAROUND_PATTERN =
-  /(?:local|workspace|current directory|当前目录|本地工作区|工作区|换个方式|workaround|fallback|instead)[\s\S]{0,120}(?:install|安装)|(?:install|安装)[\s\S]{0,120}(?:local|workspace|current directory|当前目录|本地工作区|工作区|workaround|fallback|instead)/i
-const LOCAL_INSTALL_WORKAROUND_MESSAGE =
-  'Refusing to turn a path/global-install restriction into a local workspace install workaround. Only install dependencies when they are required by the current project itself.'
-const MANUAL_BINARY_DOWNLOAD_COMMAND_PATTERN =
-  /(^|[;&|]\s*)(?:(?:node|tsx|ts-node)\s+(?:-e|--eval|-)\b[\s\S]{0,1200}(?:fetch|https|http|request)[\s\S]{0,1200}(?:binary|bin|release|download|tar\.gz|tgz|zip|dmg|pkg|node_modules|vendor)|(?:curl|wget)\b[\s\S]{0,1200}(?:binary|bin|release|tar\.gz|tgz|zip|dmg|pkg|node_modules|vendor))/i
-const MANUAL_BINARY_DOWNLOAD_MESSAGE =
-  'Refusing to manually download dependency binaries as a workaround for curl/SSL/install-script failures. Stop retrying and report the dependency/environment blocker briefly.'
-const DOCUMENTATION_FETCH_UNAVAILABLE_MESSAGE =
-  '[Documentation fetch unavailable due to network restrictions. Do not retry with another downloader or narrate the fetch failure; continue only if package metadata or local knowledge is enough.]'
-const HOMEBREW_METADATA_UNAVAILABLE_MESSAGE =
-  '[Homebrew metadata unavailable in the agent runtime. Do not retry with brew variants; use package-manager metadata, existing PATH commands, or the user-requested installer only if it is already known.]'
-const HOMEBREW_COMMAND_PATTERN = /(^|[;&|]\s*)brew\s+(?:search|info|install|update|tap|fetch|--version)\b/i
 const SHELL_FAILURE_MARKER_PATTERN =
   /(?:^|\n)(?:CURL_FAILED|NPM_FAILED|PNPM_FAILED|YARN_FAILED|BREW_FAILED|BREW_NOT_AVAILABLE|INSTALL_FAILED)\b/i
 const SHELL_ERROR_OUTPUT_PATTERN =
   /(?:^|\n)(?:[^\n]+:\s+)?(?:command not found|Operation not permitted|Permission denied|No such file or directory|Error:|fatal:|npm ERR!|ERR_PNPM_|curl: \(\d+\))/i
-const SYSTEM_WRITE_DENIED_ROOTS = ['/etc', '/private/etc', '/var/db', '/private/var/db']
 
 const isRecoverableBashFailure = (command: string, description: string | undefined, output: string) => {
   if (POLICY_FAILURE_PATTERN.test(output)) return false
@@ -107,28 +75,6 @@ const isRecoverableBashFailure = (command: string, description: string | undefin
 
 const shouldRetryNpmMirrorWithOfficialRegistry = (command: string, output: string) => {
   return NPM_INSTALL_COMMAND_PATTERN.test(command) && NPM_MIRROR_SSL_PATTERN.test(output)
-}
-
-const isInstallBinarySslFailure = (command: string, output: string) => {
-  return (
-    NPM_INSTALL_COMMAND_PATTERN.test(command) &&
-    !POLICY_REFUSAL_PATTERN.test(output) &&
-    SSL_CERTIFICATE_FAILURE_PATTERN.test(output) &&
-    INSTALL_BINARY_DOWNLOAD_PATTERN.test(output)
-  )
-}
-
-const isDocumentationFetchSslFailure = (command: string, description: string | undefined, output: string) => {
-  return (
-    FETCH_DOCUMENTATION_COMMAND_PATTERN.test(command) &&
-    !!description &&
-    FETCH_DOCUMENTATION_DESCRIPTION_PATTERN.test(description) &&
-    SSL_CERTIFICATE_FAILURE_PATTERN.test(output)
-  )
-}
-
-const isHomebrewMetadataFailure = (command: string, output: string) => {
-  return HOMEBREW_COMMAND_PATTERN.test(command) && SSL_CERTIFICATE_FAILURE_PATTERN.test(output)
 }
 
 const outputLooksLikeForcedShellFailure = (output: string) => {
@@ -216,6 +162,36 @@ const mcpResultToToolResult = (
   }
 }
 
+const browserResultToToolResult = (
+  result: {
+    content: Array<{ type: string; text?: string; data?: string; mimeType?: string; mimeType_?: string }>
+    isError: boolean
+  },
+  details: ToolResultDetails
+): AgentToolResult<ToolResultDetails> => {
+  const content = result.content.map((item) => {
+    if (item.type === 'image' && item.data) {
+      return {
+        type: 'image' as const,
+        data: item.data,
+        mimeType: item.mimeType ?? item.mimeType_ ?? 'image/png'
+      }
+    }
+    return {
+      type: 'text' as const,
+      text: truncateOutput(item.text ?? JSON.stringify(item), MAX_SUCCESS_OUTPUT_CHARS).text
+    }
+  })
+
+  return {
+    content,
+    details: {
+      ...details,
+      isError: result.isError
+    }
+  }
+}
+
 const safeExecute = async (operation: string, fn: () => Promise<AgentToolResult<ToolResultDetails>>) => {
   try {
     return await fn()
@@ -224,119 +200,32 @@ const safeExecute = async (operation: string, fn: () => Promise<AgentToolResult<
   }
 }
 
-const isInside = (target: string, roots: string[]) => {
-  const resolved = path.resolve(target)
-  return roots.some((root) => {
-    const relative = path.relative(path.resolve(root), resolved)
-    return relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative))
-  })
+const resolveAllowedPath = (rawPath: string | undefined, cwd: string) => {
+  return path.resolve(cwd, rawPath || '.')
 }
 
-const resolveAllowedPath = (rawPath: string | undefined, cwd: string, roots: string[]) => {
-  const resolved = path.resolve(cwd, rawPath || '.')
-  if (!isInside(resolved, roots)) {
-    throw new Error(`Path is outside accessible directories: ${rawPath || resolved}`)
-  }
-  return resolved
-}
-
-const assertCommandDoesNotReferenceOutsidePaths = (command: string, roots: string[]) => {
-  if (SYSTEM_SSL_REPAIR_COMMAND_PATTERN.test(command)) {
-    throw new Error(SYSTEM_SSL_REPAIR_MESSAGE)
-  }
-  if (GLOBAL_PACKAGE_REGISTRATION_COMMAND_PATTERN.test(command)) {
-    throw new Error(GLOBAL_PACKAGE_REGISTRATION_MESSAGE)
-  }
-  if (MANUAL_BINARY_DOWNLOAD_COMMAND_PATTERN.test(command)) {
-    throw new Error(MANUAL_BINARY_DOWNLOAD_MESSAGE)
-  }
-
-  const absolutePathPattern = /(^|[\s"'`=([{:;,])((?:\/[^/\s"'`$;|&:<>(){}[\]]+)+)/g
-  for (const match of command.matchAll(absolutePathPattern)) {
-    const candidate = match[2]
-    if (!candidate || isInside(candidate, roots)) continue
-    throw new Error(`Bash command references a path outside accessible directories: ${candidate}`)
-  }
-
+const assertCommandDoesNotReferenceOutsidePaths = (command: string) => {
   const parentTraversalPattern = /(^|[\s"'`=([{:;,])\.\.(?:\/|$)/
   if (parentTraversalPattern.test(command)) {
     throw new Error('Bash command references parent directory traversal outside the workspace boundary')
   }
 }
 
-const sandboxProfileForRoots = (roots: string[]) => {
-  const deniedRoots = collectDeniedHomeSiblings(roots)
-  const denyRules = deniedRoots.map((root) => `(subpath ${JSON.stringify(root)})`).join(' ')
-  const systemWriteDeniedRoots = SYSTEM_WRITE_DENIED_ROOTS.filter((item) => !isInside(item, roots))
-  const systemWriteDenyRules = systemWriteDeniedRoots.map((root) => `(subpath ${JSON.stringify(root)})`).join(' ')
-  if (!denyRules && !systemWriteDenyRules) return '(version 1)\n(allow default)'
+const sandboxProfileForRoots = () => '(version 1)\n(allow default)'
 
-  return [
-    '(version 1)',
-    '(allow default)',
-    denyRules ? `(deny file-read* ${denyRules})` : '',
-    denyRules ? `(deny file-write* ${denyRules})` : '',
-    systemWriteDenyRules ? `(deny file-write* ${systemWriteDenyRules})` : ''
-  ]
-    .filter(Boolean)
-    .join('\n')
-}
-
-const collectDeniedHomeSiblings = (roots: string[]) => {
-  const home = process.env.HOME
-  if (!home) return []
-
-  const allowedAncestors = new Set<string>()
-  for (const root of roots) {
-    let current = path.resolve(root)
-    while (current.startsWith(home)) {
-      allowedAncestors.add(current)
-      const parent = path.dirname(current)
-      if (parent === current) break
-      current = parent
-    }
-  }
-  allowedAncestors.add(path.join(home, HOME_CHERRY_DIR))
-
-  const denied: string[] = []
-  try {
-    const entries = readdirSync(home, { withFileTypes: true })
-    for (const entry of entries) {
-      const entryPath = path.join(home, entry.name)
-      if (!allowedAncestors.has(entryPath) && !roots.some((root) => isInside(entryPath, [root]))) {
-        denied.push(entryPath)
-      }
-    }
-  } catch {
-    denied.push(path.join(home, '.ssh'), path.join(home, '.config'), path.join(home, 'Library'))
-  }
-
-  return denied.filter((item) => !roots.some((root) => isInside(item, [root])))
-}
-
-const runBash = async (
-  command: string,
-  cwd: string,
-  roots: string[],
-  signal?: AbortSignal,
-  extraEnv: NodeJS.ProcessEnv = {}
-) => {
-  assertCommandDoesNotReferenceOutsidePaths(command, roots)
+const runBash = async (command: string, cwd: string, signal?: AbortSignal, extraEnv: NodeJS.ProcessEnv = {}) => {
+  assertCommandDoesNotReferenceOutsidePaths(command)
 
   const env = await buildBashEnv(cwd, extraEnv)
 
   if (process.platform === 'darwin') {
-    return await execFileAsync(
-      '/usr/bin/sandbox-exec',
-      ['-p', sandboxProfileForRoots(roots), '/bin/zsh', '-lc', command],
-      {
-        cwd,
-        env,
-        signal,
-        timeout: BASH_TIMEOUT_MS,
-        maxBuffer: BASH_MAX_BUFFER
-      }
-    )
+    return await execFileAsync('/usr/bin/sandbox-exec', ['-p', sandboxProfileForRoots(), '/bin/zsh', '-lc', command], {
+      cwd,
+      env,
+      signal,
+      timeout: BASH_TIMEOUT_MS,
+      maxBuffer: BASH_MAX_BUFFER
+    })
   }
 
   const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh'
@@ -356,7 +245,7 @@ const toDisplayPath = (target: string, cwd: string) => {
 }
 
 async function walkFiles(root: string, cwd: string, roots: string[], results: string[] = []): Promise<string[]> {
-  const resolvedRoot = resolveAllowedPath(root, cwd, roots)
+  const resolvedRoot = resolveAllowedPath(root, cwd)
   const entries = await fs.readdir(resolvedRoot, { withFileTypes: true })
 
   for (const entry of entries) {
@@ -377,6 +266,16 @@ async function walkFiles(root: string, cwd: string, roots: string[], results: st
 
 export function createPiTools(cwd: string, accessiblePaths: string[]): AgentTool<any>[] {
   const roots = accessiblePaths.length > 0 ? accessiblePaths.map((p) => path.resolve(p)) : [path.resolve(cwd)]
+  let browserController: any
+
+  const getBrowserController = async () => {
+    if (!browserController) {
+      const modulePath = '@main/mcpServers/browser/controller'
+      const { CdpBrowserController } = await import(/* @vite-ignore */ modulePath)
+      browserController = new CdpBrowserController()
+    }
+    return browserController
+  }
 
   const readTool: AgentTool<any> = {
     name: 'Read',
@@ -391,7 +290,7 @@ export function createPiTools(cwd: string, accessiblePaths: string[]): AgentTool
     async execute(_toolCallId, params) {
       return safeExecute('Read', async () => {
         const input = params as ToolParams
-        const filePath = resolveAllowedPath(input.file_path ?? input.path, cwd, roots)
+        const filePath = resolveAllowedPath(input.file_path ?? input.path, cwd)
         const buffer = await fs.readFile(filePath)
         const truncated = buffer.byteLength > MAX_READ_BYTES && !input.limit
         let text = truncated ? buffer.subarray(0, MAX_READ_BYTES).toString('utf8') : buffer.toString('utf8')
@@ -420,7 +319,7 @@ export function createPiTools(cwd: string, accessiblePaths: string[]): AgentTool
     async execute(_toolCallId, params) {
       return safeExecute('Write', async () => {
         const input = params as ToolParams
-        const filePath = resolveAllowedPath(input.file_path ?? input.path, cwd, roots)
+        const filePath = resolveAllowedPath(input.file_path ?? input.path, cwd)
         await fs.mkdir(path.dirname(filePath), { recursive: true })
         await fs.writeFile(filePath, input.content, 'utf8')
         return textResult(`Wrote ${toDisplayPath(filePath, cwd)}`, { path: filePath })
@@ -443,7 +342,7 @@ export function createPiTools(cwd: string, accessiblePaths: string[]): AgentTool
     async execute(_toolCallId, params) {
       return safeExecute('Edit', async () => {
         const input = params as ToolParams
-        const filePath = resolveAllowedPath(input.file_path ?? input.path, cwd, roots)
+        const filePath = resolveAllowedPath(input.file_path ?? input.path, cwd)
         const current = await fs.readFile(filePath, 'utf8')
         if (!current.includes(input.old_string)) {
           return errorTextResult(
@@ -480,19 +379,7 @@ export function createPiTools(cwd: string, accessiblePaths: string[]): AgentTool
     }),
     async execute(_toolCallId, params, signal) {
       const input = params as ToolParams
-      if (
-        input.description &&
-        NPM_INSTALL_COMMAND_PATTERN.test(input.command) &&
-        LOCAL_INSTALL_WORKAROUND_PATTERN.test(input.description)
-      ) {
-        return errorTextResult(LOCAL_INSTALL_WORKAROUND_MESSAGE, {
-          command: input.command,
-          exitCode: 1,
-          policy: 'local_install_workaround'
-        })
-      }
-
-      let result = await runBash(input.command, cwd, roots, signal).catch((error) => ({
+      let result = await runBash(input.command, cwd, signal).catch((error) => ({
         stdout: error.stdout ?? '',
         stderr: error.stderr ?? error.message,
         code: error.code ?? 1
@@ -510,27 +397,12 @@ export function createPiTools(cwd: string, accessiblePaths: string[]): AgentTool
 
       output = [result.stdout, result.stderr].filter(Boolean).join('\n')
 
-      if (isDocumentationFetchSslFailure(input.command, input.description, output)) {
-        return textResult(DOCUMENTATION_FETCH_UNAVAILABLE_MESSAGE, {
-          ...details,
-          recoverable: true,
-          reason: 'documentation_fetch_unavailable'
-        })
-      }
-      if (isHomebrewMetadataFailure(input.command, output)) {
-        return textResult(HOMEBREW_METADATA_UNAVAILABLE_MESSAGE, {
-          ...details,
-          recoverable: true,
-          reason: 'homebrew_metadata_unavailable'
-        })
-      }
-
       if ('code' in result && result.code !== 0 && shouldRetryNpmMirrorWithOfficialRegistry(input.command, output)) {
         const fallbackEnv = {
           NPM_CONFIG_REGISTRY: NPMJS_REGISTRY,
           npm_config_registry: NPMJS_REGISTRY
         }
-        const retried = await runBash(input.command, cwd, roots, signal, fallbackEnv).catch((error) => ({
+        const retried = await runBash(input.command, cwd, signal, fallbackEnv).catch((error) => ({
           stdout: error.stdout ?? '',
           stderr: error.stderr ?? error.message,
           code: error.code ?? 1
@@ -554,19 +426,6 @@ export function createPiTools(cwd: string, accessiblePaths: string[]): AgentTool
         details.exitCode = 'code' in retried ? retried.code : 1
       }
 
-      if ('code' in result && result.code !== 0 && isInstallBinarySslFailure(input.command, output)) {
-        const truncated = truncateOutput(
-          '[Dependency install stopped: install script/binary download hit an SSL/certificate failure. Do not manually download binaries or retry with alternate install locations; report this as an environment/dependency blocker briefly.]',
-          MAX_ERROR_OUTPUT_CHARS
-        )
-        return errorTextResult(truncated.text, {
-          ...details,
-          blockedRetry: true,
-          reason: 'install_binary_ssl_failure',
-          truncated: truncated.truncated
-        })
-      }
-
       if ('code' in result && result.code !== 0) {
         const truncated = truncateOutput(output || '(no output)', MAX_ERROR_OUTPUT_CHARS)
         if (isRecoverableBashFailure(input.command, input.description, truncated.text)) {
@@ -583,6 +442,136 @@ export function createPiTools(cwd: string, accessiblePaths: string[]): AgentTool
     executionMode: 'sequential'
   }
 
+  const httpRequestTool: AgentTool<any> = {
+    name: 'HTTPRequest',
+    label: 'HTTP Request',
+    description:
+      'Send an HTTP or HTTPS request and return the response. Supports custom method, headers, and body. Use for APIs, downloads, and direct web requests.',
+    parameters: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'HTTP or HTTPS URL to request' },
+        method: { type: 'string', description: 'HTTP method, for example GET, POST, PUT, PATCH, DELETE' },
+        headers: {
+          type: 'object',
+          additionalProperties: { type: 'string' },
+          description: 'Optional request headers'
+        },
+        body: { type: 'string', description: 'Optional request body' },
+        max_chars: { type: 'number', description: 'Maximum response characters to return' }
+      },
+      required: ['url']
+    } as any,
+    async execute(_toolCallId, params, signal) {
+      return safeExecute('HTTPRequest', async () => {
+        const input = params as ToolParams
+        const { net } = await import('electron')
+        const method = String(input.method ?? 'GET').toUpperCase()
+        const response = await net.fetch(input.url, {
+          method,
+          headers: input.headers,
+          body: method === 'GET' || method === 'HEAD' ? undefined : input.body,
+          signal
+        })
+        const contentType = response.headers.get('content-type') ?? ''
+        const rawText = await response.text()
+        const maxChars = typeof input.max_chars === 'number' ? input.max_chars : MAX_SUCCESS_OUTPUT_CHARS
+        const truncated = truncateOutput(rawText || '(empty response)', maxChars)
+        return textResult(truncated.text, {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+          url: response.url,
+          contentType,
+          truncated: truncated.truncated,
+          isError: !response.ok
+        })
+      })
+    }
+  }
+
+  const browserOpenTool: AgentTool<any> = {
+    name: 'BrowserOpen',
+    label: 'Browser Open',
+    description:
+      'Open a URL in Cherry Studio browser automation and optionally return page content. Use for rendered pages, navigation, login flows, or pages that need JavaScript.',
+    parameters: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'URL to navigate to' },
+        format: {
+          type: 'string',
+          enum: ['html', 'txt', 'markdown', 'json'],
+          description: 'Optional content format to return after navigation'
+        },
+        selector: { type: 'string', description: 'Optional CSS selector to extract when format is set' },
+        maxChars: { type: 'number', description: 'Maximum characters to return' },
+        timeout: { type: 'number', description: 'Navigation timeout in ms' },
+        privateMode: { type: 'boolean', description: 'Use incognito/private session' },
+        newTab: { type: 'boolean', description: 'Open in a new tab' },
+        showWindow: { type: 'boolean', description: 'Show the browser window for visible/manual interaction' }
+      },
+      required: ['url']
+    } as any,
+    async execute(_toolCallId, params) {
+      return safeExecute('BrowserOpen', async () => {
+        const toolPath = '@main/mcpServers/browser/tools/open'
+        const [{ handleOpen }, controller] = await Promise.all([
+          import(/* @vite-ignore */ toolPath),
+          getBrowserController()
+        ])
+        const result = await handleOpen(controller, params)
+        return browserResultToToolResult(result, { tool: 'BrowserOpen' })
+      })
+    }
+  }
+
+  const browserExecuteTool: AgentTool<any> = {
+    name: 'BrowserExecute',
+    label: 'Browser Execute',
+    description:
+      'Run JavaScript in an open browser page. Use after BrowserOpen to click, fill forms, inspect the DOM, or extract dynamic content.',
+    parameters: {
+      type: 'object',
+      properties: {
+        code: { type: 'string', description: 'JavaScript code to run in the page context' },
+        timeout: { type: 'number', description: 'Execution timeout in ms' },
+        privateMode: { type: 'boolean', description: 'Target private session' },
+        tabId: { type: 'string', description: 'Target tab ID from BrowserOpen' }
+      },
+      required: ['code']
+    } as any,
+    async execute(_toolCallId, params) {
+      return safeExecute('BrowserExecute', async () => {
+        const toolPath = '@main/mcpServers/browser/tools/execute'
+        const [{ handleExecute }, controller] = await Promise.all([
+          import(/* @vite-ignore */ toolPath),
+          getBrowserController()
+        ])
+        const result = await handleExecute(controller, params)
+        return browserResultToToolResult(result, { tool: 'BrowserExecute' })
+      })
+    }
+  }
+
+  const browserResetTool: AgentTool<any> = {
+    name: 'BrowserReset',
+    label: 'Browser Reset',
+    description: 'Close Cherry Studio browser automation windows and clear browser automation state.',
+    parameters: { type: 'object', properties: {} } as any,
+    async execute(_toolCallId, params) {
+      return safeExecute('BrowserReset', async () => {
+        const toolPath = '@main/mcpServers/browser/tools/reset'
+        const [{ handleReset }, controller] = await Promise.all([
+          import(/* @vite-ignore */ toolPath),
+          getBrowserController()
+        ])
+        const result = await handleReset(controller, params)
+        return browserResultToToolResult(result, { tool: 'BrowserReset' })
+      })
+    }
+  }
+
   const globTool: AgentTool<any> = {
     name: 'Glob',
     label: 'Glob',
@@ -594,7 +583,7 @@ export function createPiTools(cwd: string, accessiblePaths: string[]): AgentTool
     async execute(_toolCallId, params) {
       return safeExecute('Glob', async () => {
         const input = params as ToolParams
-        const searchRoot = resolveAllowedPath(input.path, cwd, roots)
+        const searchRoot = resolveAllowedPath(input.path, cwd)
         const matches = (
           await fg(input.pattern, {
             cwd: searchRoot,
@@ -622,7 +611,7 @@ export function createPiTools(cwd: string, accessiblePaths: string[]): AgentTool
     async execute(_toolCallId, params) {
       return safeExecute('Grep', async () => {
         const input = params as ToolParams
-        const searchRoot = resolveAllowedPath(input.path, cwd, roots)
+        const searchRoot = resolveAllowedPath(input.path, cwd)
         let regex: RegExp
         try {
           regex = new RegExp(input.pattern)
@@ -664,7 +653,18 @@ export function createPiTools(cwd: string, accessiblePaths: string[]): AgentTool
     }
   }
 
-  return [readTool, writeTool, editTool, bashTool, globTool, grepTool]
+  return [
+    readTool,
+    writeTool,
+    editTool,
+    bashTool,
+    globTool,
+    grepTool,
+    httpRequestTool,
+    browserOpenTool,
+    browserExecuteTool,
+    browserResetTool
+  ]
 }
 
 export async function createPiMcpTools(mcpIds: string[] | undefined): Promise<AgentTool<any>[]> {

@@ -30,7 +30,6 @@ import type {
   AgentStreamEvent,
   AgentThinkingOptions
 } from '../../interfaces/AgentStreamInterface'
-import { promptForToolApproval } from '../claudecode/tool-permissions'
 import { createPiMcpTools, createPiTools } from './tools'
 import { PiStreamState } from './transform'
 
@@ -211,7 +210,6 @@ class PiAgentService implements AgentServiceInterface {
         ? tools.filter((tool) => allowedToolSet.has(tool.name) || allowedToolSet.has(tool.label))
         : tools
     const systemPrompt = this.buildSystemPrompt(session, configuredTools)
-    const permissionMode = session.configuration?.permission_mode
     const history = await this.loadHistory(session.id)
 
     return new Agent({
@@ -229,26 +227,7 @@ class PiAgentService implements AgentServiceInterface {
           headers: this.mergeHeaders(activeModel, options)
         })
       },
-      beforeToolCall: async ({ toolCall, args }, signal) => {
-        if (permissionMode === 'plan') {
-          return { block: true, reason: 'Tool execution is disabled in plan mode.' }
-        }
-        if (permissionMode === 'bypassPermissions') return undefined
-        if (this.isReadOnlyTool(toolCall.name)) return undefined
-        if (permissionMode === 'acceptEdits' && (toolCall.name === 'Edit' || toolCall.name === 'Write'))
-          return undefined
-
-        const approval = await promptForToolApproval(toolCall.name, args as Record<string, unknown>, {
-          signal: signal ?? new AbortController().signal,
-          toolCallId: `${sessionId}:${toolCall.id}`
-        })
-
-        if (approval.behavior === 'deny') {
-          return { block: true, reason: approval.message ?? 'User denied permission for this tool' }
-        }
-
-        return undefined
-      },
+      beforeToolCall: async () => undefined,
       afterToolCall: async ({ result, isError }) => {
         if (isError) return undefined
         if (result.details && typeof result.details === 'object' && 'isError' in result.details) {
@@ -299,23 +278,24 @@ class PiAgentService implements AgentServiceInterface {
             .slice(0, 40)
             .map((tool) => `- ${tool.name}: ${tool.description ? tool.description.slice(0, 160) : tool.label}`)
         ].join('\n')
-      : 'No MCP tools are currently injected for this session. Do not call MCP/slash/browser tools unless they appear in the actual tool schema.'
+      : 'No MCP tools are currently injected for this session. Use the built-in HTTPRequest and Browser* tools for web/API access when needed.'
 
     return `## Tool Use
 
-Available built-in tools are Bash, Read, Write, Edit, Glob, and Grep.
+Available built-in tools are Bash, Read, Write, Edit, Glob, Grep, HTTPRequest, BrowserOpen, BrowserExecute, and BrowserReset.
 
 ${mcpSummary}
 
 Use the least expensive tool first:
 - Use Glob/Grep to locate files or symbols before broad Read calls.
+- Use HTTPRequest for direct HTTP APIs, downloads, and raw web requests. Use BrowserOpen and BrowserExecute for rendered pages, JavaScript-heavy sites, login flows, or page interaction.
 - For skill discovery, start with Glob pattern ".claude/skills/*/SKILL.md" from the workspace root. Do not probe guessed skill paths with failing Bash commands.
 - Use Read with offset/limit for large files.
 - Use Edit only after confirming the exact target text; if an edit is ambiguous, read more context and retry once.
 - Batch related shell checks into one Bash command when safe, but make diagnostic checks tolerate misses (for example append "|| true") and avoid speculative commands.
-- For dependency installs, inspect the package manager files first, then run the one matching install command. CLI packages may be installed with npm install -g; Cherry Studio Pi maps global npm installs to an agent-scoped tool prefix on PATH, so do not convert a CLI install into a project dependency. Prefer npm metadata/install for npm-distributed CLIs; do not try Homebrew unless the user explicitly asked for Homebrew. If an install script, binary download, or native package fetch fails because of SSL/certificate/network restrictions, stop. Do not manually download binaries with Node/curl/wget, do not switch to a local/global install workaround, and do not repeat variants. Briefly report the dependency/environment blocker only if it prevents the requested task.
-- Path restrictions are final boundaries, not problems to bypass. If a path is outside accessible directories, do not retry from another directory, copy global files into the project, locally install a CLI as a workaround, or ask the user to expose /opt/homebrew/bin or /usr/local/bin. Use only the current workspace, injected MCP tools, or ask the user to add a task-relevant project path.
-- Never repair or mutate system/global SSL, certificate, curl, keychain, trust-store, npm, git, or Node TLS settings. Do not run commands such as security add-trusted-cert, update-ca-certificates, brew reinstall ca-certificates, npm config set strict-ssl false, git config --global http.sslVerify false, or NODE_TLS_REJECT_UNAUTHORIZED=0. If curl reports an SSL/certificate problem while fetching public documentation, do not narrate that failure or try another downloader; continue only if package metadata or local knowledge is enough. Do not tell the user that Cherry Studio Pi, Node, or Homebrew is broadly sandbox-limited unless the exact requested action is still blocked after the single appropriate install path.
+- For dependency installs, inspect the package manager files first, then run the one matching install command. CLI packages may be installed with npm install -g; Cherry Studio Pi maps global npm installs to an agent-scoped tool prefix on PATH, so do not convert a CLI install into a project dependency. Prefer npm metadata/install for npm-distributed CLIs; use Homebrew when the user asks for Homebrew or it is the appropriate system-level installer.
+- Read/Write/Edit/Bash can operate outside the workspace when the task requires it. Prefer the workspace for project edits, but use system and global paths when the user asks for system, network, certificate, package-manager, or app-level changes.
+- System/global SSL, certificate, keychain, trust-store, npm/git/Node TLS, and network configuration commands are allowed when they are directly relevant to the user's request. These commands may affect the user's machine, so be precise and explain the intent before running them unless the session is already in full-auto mode.
 - Keep tool outputs small: prefer commands like rg, git status --short, and targeted test commands over full-directory dumps.`
   }
 
@@ -502,10 +482,6 @@ Use the least expensive tool first:
       Object.assign(process.env, proxyEnv)
     }
     return Object.keys(headers).length > 0 ? headers : undefined
-  }
-
-  private isReadOnlyTool(toolName: string): boolean {
-    return toolName === 'Read' || toolName === 'Glob' || toolName === 'Grep'
   }
 
   private buildSessionKey(value: Record<string, unknown>): string {

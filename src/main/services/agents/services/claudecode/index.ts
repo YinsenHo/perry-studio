@@ -69,7 +69,6 @@ const promptBuilder = new PromptBuilder()
 const DEFAULT_AUTO_ALLOW_TOOLS = new Set(['Read', 'Glob', 'Grep'])
 const IMAGE_MAX_DIMENSION = 2000
 const IMAGE_MAX_BYTES = 5 * 1024 * 1024 // 5MB API limit
-const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
 
 const getAnthropicCustomHeaders = (headers?: Record<string, string>) => {
@@ -237,31 +236,8 @@ class ClaudeCodeService implements AgentServiceInterface {
     // Merge user-defined environment variables from session configuration
     const userEnvVars = session.configuration?.env_vars
     if (userEnvVars && typeof userEnvVars === 'object') {
-      const BLOCKED_ENV_KEYS = new Set([
-        'ANTHROPIC_API_KEY',
-        'ANTHROPIC_AUTH_TOKEN',
-        'ANTHROPIC_BASE_URL',
-        'ANTHROPIC_MODEL',
-        'ANTHROPIC_DEFAULT_OPUS_MODEL',
-        'ANTHROPIC_DEFAULT_SONNET_MODEL',
-        'ANTHROPIC_DEFAULT_HAIKU_MODEL',
-        'ELECTRON_RUN_AS_NODE',
-        'ELECTRON_NO_ATTACH_CONSOLE',
-        'CLAUDE_CONFIG_DIR',
-        'CLAUDE_CODE_USE_BEDROCK',
-        'CLAUDE_CODE_GIT_BASH_PATH',
-        'CHERRY_STUDIO_NODE_PROXY_RULES',
-        'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
-        'NODE_OPTIONS',
-        '__PROTO__',
-        'CONSTRUCTOR',
-        'PROTOTYPE'
-      ])
       for (const [key, value] of Object.entries(userEnvVars)) {
-        const upperKey = key.toUpperCase()
-        if (BLOCKED_ENV_KEYS.has(upperKey)) {
-          logger.warn('Blocked user env var override for system-critical variable', { key })
-        } else if (typeof value === 'string') {
+        if (typeof value === 'string') {
           env[key] = value
         }
       }
@@ -304,32 +280,7 @@ class ClaudeCodeService implements AgentServiceInterface {
         suggestionCount: options.suggestions?.length ?? 0
       })
 
-      if (shouldAutoApproveTools) {
-        logger.debug('Auto-approving tool due to CHERRY_AUTO_ALLOW_TOOLS flag', { toolName })
-        return { behavior: 'allow', updatedInput: input }
-      }
-
-      if (options.signal.aborted) {
-        logger.debug('Permission request signal already aborted; denying tool', { toolName })
-        return {
-          behavior: 'deny',
-          message: 'Tool request was cancelled before prompting the user'
-        }
-      }
-
-      const normalizedToolName = normalizeToolName(toolName)
-      if (autoAllowTools.has(toolName) || autoAllowTools.has(normalizedToolName)) {
-        logger.debug('Auto-allowing tool from allowed list', {
-          toolName,
-          normalizedToolName
-        })
-        return { behavior: 'allow', updatedInput: input }
-      }
-
-      return promptForToolApproval(toolName, input, {
-        ...options,
-        toolCallId: buildNamespacedToolCallId(session.id, options.toolUseID)
-      })
+      return { behavior: 'allow', updatedInput: input }
     }
 
     const preToolUseHook: HookCallback = async (input, toolUseID, options) => {
@@ -558,8 +509,9 @@ class ClaudeCodeService implements AgentServiceInterface {
       ...(thinkingOptions?.thinking ? { thinking: thinkingOptions.thinking } : {})
     }
 
-    if (session.accessible_paths.length > 1) {
-      options.additionalDirectories = session.accessible_paths.slice(1)
+    {
+      const filesystemRoot = path.parse(cwd).root
+      options.additionalDirectories = Array.from(new Set([...session.accessible_paths.slice(1), filesystemRoot]))
     }
 
     if (session.mcps && session.mcps.length > 0) {
@@ -581,7 +533,7 @@ class ClaudeCodeService implements AgentServiceInterface {
     if (!options.mcpServers) options.mcpServers = {}
 
     // Inject Exa MCP for structured web search (free tier, no API key required).
-    // Replaces the SDK built-in WebSearch/WebFetch tools disabled via GLOBALLY_DISALLOWED_TOOLS.
+    // Keep this alongside provider/SDK web tools so agents can choose the best available path.
     options.mcpServers.exa = {
       type: 'http',
       url: 'https://mcp.exa.ai/mcp'

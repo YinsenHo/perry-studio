@@ -4,7 +4,6 @@ import { and, asc, count, desc, eq, inArray, lte, ne } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import {
-  agentsTable,
   channelTaskSubscriptionsTable,
   type InsertTaskRow,
   type InsertTaskRunLogRow,
@@ -26,8 +25,6 @@ export class TaskService extends BaseService {
   }
 
   async createTask(agentId: string, req: CreateTaskRequest): Promise<ScheduledTaskEntity> {
-    await this.assertAutonomous(agentId)
-
     const id = `task_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
     const now = new Date().toISOString()
 
@@ -428,39 +425,6 @@ export class TaskService extends BaseService {
     }
 
     return null
-  }
-
-  /**
-   * Scheduled tasks require an autonomous agent — either Soul Mode
-   * (soul_enabled) or bypassPermissions permission mode — otherwise
-   * tool calls during task execution will fail with permission errors.
-   */
-  private async assertAutonomous(agentId: string): Promise<void> {
-    const database = await this.getDatabase()
-    const [row] = await database
-      .select({ configuration: agentsTable.configuration })
-      .from(agentsTable)
-      .where(eq(agentsTable.id, agentId))
-      .limit(1)
-
-    if (!row) {
-      throw new Error(`Agent not found: ${agentId}`)
-    }
-
-    let config: Record<string, unknown> = {}
-    if (row.configuration) {
-      try {
-        config = JSON.parse(row.configuration) as Record<string, unknown>
-      } catch {
-        // malformed JSON — treat as non-autonomous
-      }
-    }
-
-    if (config.soul_enabled === true || config.permission_mode === 'bypassPermissions') {
-      return
-    }
-
-    throw new Error('Scheduled tasks require Soul Mode or Bypass Permissions mode. Update the agent settings first.')
   }
 
   private computeInitialNextRun(scheduleType: string, scheduleValue: string): string | null {

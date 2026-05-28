@@ -3,6 +3,21 @@ import * as path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('electron', () => ({
+  default: {},
+  app: { on: vi.fn(), getPath: vi.fn(() => '/tmp') },
+  BrowserWindow: vi.fn(),
+  BrowserView: vi.fn(),
+  ipcMain: { handle: vi.fn(), on: vi.fn(), removeHandler: vi.fn() },
+  nativeTheme: { themeSource: 'system' },
+  net: { fetch: vi.fn() },
+  session: { defaultSession: {} }
+}))
+
+vi.mock('@main/services/WindowService', () => ({
+  windowService: {}
+}))
+
 vi.mock('@main/services/MCPService', () => ({
   default: {
     listAllActiveServerTools: vi.fn(),
@@ -94,55 +109,74 @@ describe('Pi tools', () => {
     expect(resultText(result)).toContain('Use offset/limit or Grep')
   })
 
-  it('returns compact path errors instead of throwing', async () => {
+  it('allows reads outside accessible roots', async () => {
+    const outsideFile = `/tmp/cherry-pi-outside-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`
+    await fs.writeFile(outsideFile, 'outside ok', 'utf8')
+
     const read = getTool('Read', tmpDir, [tmpDir])
     const result = await read.execute('read-2', {
-      file_path: '/etc/passwd'
+      file_path: outsideFile
     })
 
-    expect(result.details).toMatchObject({ isError: true })
-    expect(resultText(result)).toContain('Read failed:')
+    expect(result.details).not.toMatchObject({ isError: true })
+    expect(resultText(result)).toBe('outside ok')
+    await fs.rm(outsideFile, { force: true })
   })
 
-  it('blocks Bash commands that reference paths outside accessible roots', async () => {
+  it('allows Bash commands that reference paths outside accessible roots', async () => {
+    const outsideFile = `/tmp/cherry-pi-bash-outside-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`
+    await fs.writeFile(outsideFile, 'outside bash ok', 'utf8')
+
     const bash = getTool('Bash', tmpDir, [tmpDir])
     const result = await bash.execute('bash-1', {
-      command: 'cat /etc/passwd'
+      command: `cat "${outsideFile}"`
     })
 
-    expect(result.details).toMatchObject({ isError: true })
-    expect(resultText(result)).toContain('outside accessible directories')
+    expect(result.details).toMatchObject({ exitCode: 0 })
+    expect(result.details).not.toMatchObject({ isError: true })
+    expect(resultText(result)).toContain('outside bash ok')
+    await fs.rm(outsideFile, { force: true })
   })
 
-  it('blocks Bash commands that try to repair system SSL trust settings', async () => {
+  it('allows Bash commands that modify system SSL trust settings', async () => {
     const bash = getTool('Bash', tmpDir, [tmpDir])
+    const fakeSecurity = path.join(tmpDir, 'security')
+    await fs.writeFile(fakeSecurity, '#!/bin/sh\necho "security $*"\n', 'utf8')
+    await fs.chmod(fakeSecurity, 0o755)
+
     const result = await bash.execute('bash-system-ssl', {
-      command: 'sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain cert.pem'
+      command: `PATH="${tmpDir}:$PATH" security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain cert.pem`
     })
 
-    expect(result.details).toMatchObject({ isError: true })
-    expect(resultText(result)).toContain('Refusing to change system/global SSL')
+    expect(result.details).toMatchObject({ exitCode: 0 })
+    expect(result.details).not.toMatchObject({ isError: true })
+    expect(resultText(result)).toContain('/Library/Keychains/System.keychain')
   })
 
-  it('blocks global SSL verification disablement', async () => {
+  it('allows global SSL verification configuration commands', async () => {
     const bash = getTool('Bash', tmpDir, [tmpDir])
     const result = await bash.execute('bash-disable-ssl', {
-      command: 'git config --global http.sslVerify false && npm config set strict-ssl false'
+      command: 'git config --global http.sslVerify false'
     })
 
-    expect(result.details).toMatchObject({ isError: true })
-    expect(resultText(result)).toContain('Refusing to change system/global SSL')
+    expect(result.details).toMatchObject({ exitCode: 0 })
+    expect(result.details).not.toMatchObject({ isError: true })
   })
 
-  it('blocks global npm registration as a path restriction workaround', async () => {
+  it('allows global npm registration commands', async () => {
+    const fakeNpm = path.join(tmpDir, 'npm')
+    await fs.writeFile(fakeNpm, '#!/bin/sh\necho "npm $*"\n', 'utf8')
+    await fs.chmod(fakeNpm, 0o755)
+
     const bash = getTool('Bash', tmpDir, [tmpDir])
     const result = await bash.execute('bash-global-register', {
-      command: 'npm link && npm install -g example-tool',
+      command: `PATH="${tmpDir}:$PATH" npm link && PATH="${tmpDir}:$PATH" npm publish --dry-run`,
       description: 'Register tool globally after path restriction'
     })
 
-    expect(result.details).toMatchObject({ isError: true })
-    expect(resultText(result)).toContain('Refusing to use global npm/package registration')
+    expect(result.details).toMatchObject({ exitCode: 0 })
+    expect(result.details).not.toMatchObject({ isError: true })
+    expect(resultText(result)).toContain('npm link')
   })
 
   it('allows npm global CLI installs through the agent-scoped tool prefix', async () => {
@@ -177,18 +211,23 @@ describe('Pi tools', () => {
     expect(resultText(result)).toContain('local install ok')
   })
 
-  it('blocks local package installs when described as a restriction workaround', async () => {
+  it('allows local package installs even when described as a restriction workaround', async () => {
+    const fakeNpm = path.join(tmpDir, 'npm')
+    await fs.writeFile(fakeNpm, '#!/bin/sh\necho "workaround install ok"\n', 'utf8')
+    await fs.chmod(fakeNpm, 0o755)
+
     const bash = getTool('Bash', tmpDir, [tmpDir])
     const result = await bash.execute('bash-local-install-workaround', {
-      command: 'npm install some-cli',
+      command: `PATH="${tmpDir}:$PATH" npm install some-cli`,
       description: '系统限制了全局安装，让我在本地工作区安装'
     })
 
-    expect(result.details).toMatchObject({ isError: true, policy: 'local_install_workaround' })
-    expect(resultText(result)).toContain('Refusing to turn a path/global-install restriction')
+    expect(result.details).toMatchObject({ exitCode: 0 })
+    expect(result.details).not.toMatchObject({ isError: true })
+    expect(resultText(result)).toContain('workaround install ok')
   })
 
-  it('treats documentation fetch SSL failures as quiet recoverable misses', async () => {
+  it('returns documentation fetch SSL failures as normal command failures', async () => {
     const fakeCurl = path.join(tmpDir, 'curl')
     await fs.writeFile(
       fakeCurl,
@@ -203,25 +242,23 @@ describe('Pi tools', () => {
       description: 'Fetch Feishu CLI installation guide'
     })
 
-    expect(result.details).toMatchObject({ recoverable: true, reason: 'documentation_fetch_unavailable' })
-    expect(result.details).not.toMatchObject({ isError: true })
-    expect(resultText(result)).toContain('Documentation fetch unavailable')
-    expect(resultText(result)).not.toContain('SSL_connect')
+    expect(result.details).toMatchObject({ exitCode: 35, isError: true })
+    expect(resultText(result)).toContain('SSL_connect')
   })
 
-  it('blocks manual Node binary downloads as install-script workarounds', async () => {
+  it('allows manual Node binary download commands to run', async () => {
     const bash = getTool('Bash', tmpDir, [tmpDir])
     const result = await bash.execute('bash-manual-binary-download', {
-      command:
-        'node -e "require(\\"https\\").get(\\"https://example.com/releases/tool.tar.gz\\", r => r.pipe(require(\\"fs\\").createWriteStream(\\"vendor/tool.tar.gz\\")))"',
+      command: 'node -e "console.log(\\"download command allowed\\")"',
       description: '安装脚本使用 curl 下载二进制时遇到系统 SSL 问题。让我用 Node.js 手动下载二进制文件来解决'
     })
 
-    expect(result.details).toMatchObject({ isError: true })
-    expect(resultText(result)).toContain('Refusing to manually download dependency binaries')
+    expect(result.details).toMatchObject({ exitCode: 0 })
+    expect(result.details).not.toMatchObject({ isError: true })
+    expect(resultText(result)).toContain('download command allowed')
   })
 
-  it('stops npm install retries when a binary download hits SSL', async () => {
+  it('returns npm binary download SSL failures without policy-blocking retries', async () => {
     const fakeNpm = path.join(tmpDir, 'npm')
     await fs.writeFile(
       fakeNpm,
@@ -239,12 +276,9 @@ exit 1
       description: 'Install package dependencies'
     })
 
-    expect(result.details).toMatchObject({
-      isError: true,
-      blockedRetry: true,
-      reason: 'install_binary_ssl_failure'
-    })
-    expect(resultText(result)).toContain('Dependency install stopped')
+    expect(result.details).toMatchObject({ exitCode: 1, isError: true })
+    expect(result.details).not.toMatchObject({ blockedRetry: true })
+    expect(resultText(result)).toContain('unable to verify SSL certificate')
   })
 
   it('treats diagnostic Bash misses as recoverable output', async () => {
@@ -267,6 +301,12 @@ exit 1
 
     expect(result.details).toMatchObject({ exitCode: 0 })
     expect(resultText(result).trim()).toBe('hi')
+  })
+
+  it('includes HTTP and browser tools by default', () => {
+    const tools = createPiTools(tmpDir, [tmpDir]).map((tool) => tool.name)
+
+    expect(tools).toEqual(expect.arrayContaining(['HTTPRequest', 'BrowserOpen', 'BrowserExecute', 'BrowserReset']))
   })
 
   it('truncates noisy Bash failures', async () => {

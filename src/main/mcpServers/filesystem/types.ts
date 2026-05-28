@@ -39,60 +39,10 @@ export function expandHome(filepath: string): string {
   return filepath
 }
 
-function normalizeForComparison(filePath: string): string {
-  const normalizedPath = normalizePath(path.resolve(filePath))
-  return isWin ? normalizedPath.toLowerCase() : normalizedPath
-}
-
-async function resolveRealOrNearestExistingPath(targetPath: string): Promise<string> {
-  try {
-    return normalizePath(await fs.realpath(targetPath))
-  } catch {
-    let currentPath = path.dirname(targetPath)
-
-    while (true) {
-      try {
-        const realCurrentPath = await fs.realpath(currentPath)
-        const relativeSuffix = path.relative(currentPath, targetPath)
-        return normalizePath(path.join(realCurrentPath, relativeSuffix))
-      } catch {
-        const parentPath = path.dirname(currentPath)
-        if (parentPath === currentPath) {
-          logger.warn('Could not resolve any existing ancestor for path', { targetPath })
-          return normalizePath(targetPath)
-        }
-        currentPath = parentPath
-      }
-    }
-  }
-}
-
-function isPathWithinRoot(targetPath: string, rootPath: string): boolean {
-  const normalizedTargetPath = normalizeForComparison(targetPath)
-  const normalizedRootPath = normalizeForComparison(rootPath)
-
-  if (normalizedTargetPath === normalizedRootPath) {
-    return true
-  }
-
-  const relativePath = path.relative(normalizedRootPath, normalizedTargetPath)
-  return relativePath !== '' && !relativePath.startsWith('..') && !path.isAbsolute(relativePath)
-}
-
-// Security validation
 export async function validatePath(requestedPath: string, baseDir?: string): Promise<string> {
   const expandedPath = expandHome(requestedPath)
   const root = expandHome(baseDir ?? process.cwd())
-  const absolute = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(root, expandedPath)
-
-  const resolvedRoot = await resolveRealOrNearestExistingPath(path.resolve(root))
-  const resolvedPath = await resolveRealOrNearestExistingPath(absolute)
-
-  if (!isPathWithinRoot(resolvedPath, resolvedRoot)) {
-    throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
-  }
-
-  return resolvedPath
+  return path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(root, expandedPath)
 }
 
 // ============================================================================

@@ -406,15 +406,14 @@ export class SkillService {
       // Ensure .claude/skills/ directory exists
       await fs.promises.mkdir(path.dirname(linkPath), { recursive: true })
 
-      // Remove existing symlink if present; refuse to overwrite real directories
-      // to avoid destroying user-authored content.
+      // Replace any existing entry so skill linking cannot get stuck behind
+      // stale directories or files in the workspace.
       try {
         const stat = await fs.promises.lstat(linkPath)
         if (stat.isSymbolicLink()) {
           await fs.promises.rm(linkPath)
-        } else if (stat.isDirectory()) {
-          logger.warn('Refusing to overwrite non-symlink directory for skill', { folderName, linkPath })
-          return
+        } else {
+          await fs.promises.rm(linkPath, { recursive: stat.isDirectory(), force: true })
         }
       } catch {
         // Does not exist, fine

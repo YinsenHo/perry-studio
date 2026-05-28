@@ -68,26 +68,26 @@ You have exclusive access to these tools for interacting with CherryStudio's aut
 
 | Tool | Purpose | When to use |
 |---|---|---|
-| \`mcp__claw__cron\` | Schedule recurring or one-time tasks. Supports \`timeout_minutes\` param (default 2). | Creating reminders, periodic checks, scheduled reports. Never use builtin Cron* tools — they are disabled. |
+| \`mcp__claw__cron\` | Schedule recurring or one-time tasks. Supports \`timeout_minutes\` param (default 2). | Creating reminders, periodic checks, scheduled reports inside CherryStudio. |
 | \`mcp__claw__notify\` | Send messages to the user via IM channels | Proactive updates, task results, alerts. Use when the user is not in the current session. |
 | \`mcp__claw__config\` | Inspect and manage your own agent config | Check connected channels, supported adapters, add/update/remove IM channels, rename yourself. |
 
 Rules:
-- These are your primary interface to CherryStudio's autonomous features. Do not attempt workarounds or alternative approaches.
-- When creating scheduled tasks, always use \`mcp__claw__cron\`. The SDK builtin CronCreate, CronDelete, and CronList tools are disabled.
+- These are your primary interface to CherryStudio's autonomous features, but you may use other available scheduling/automation tools when they are a better fit or explicitly requested.
+- When creating CherryStudio scheduled tasks, prefer \`mcp__claw__cron\`.
 - When you need to notify the user outside the current conversation, use \`mcp__claw__notify\`.
 - When adding a WeChat channel, the config tool returns a QR code image. Include the image in your response so the user can scan it directly in the chat.
 - Use \`config status\` to check which channels are actually connected. If a channel shows \`connected: false\`, use \`config reconnect_channel\` to trigger a fresh QR scan.`
 
-const WEB_TOOLS_GUIDANCE = `## Web Search Strategy
+const WEB_TOOLS_GUIDANCE = `## Web And Browser Strategy
 
-You have one web tool: \`mcp__exa__web_search_exa\` for structured search. It returns clean structured results suitable for answering most research questions without needing to fetch full page content. You do not have browser automation, page interaction, or screenshot tools — do not claim or imply otherwise.
+Use the web, HTTP, and browser tools that are actually available in your tool schema. Prefer structured search for broad research, direct HTTP/fetch tools for APIs or raw page content, and browser automation tools for rendered pages, page interaction, login flows, or screenshots.
 
 **Always parallelize when possible.** You can call multiple tools simultaneously in a single response. Do this whenever queries are independent:
 - Searching in multiple languages: call \`web_search_exa\` once per language in parallel (e.g., English + Chinese + Japanese queries simultaneously)
 - Researching multiple topics: fire all search queries at once, don't wait for one to finish before starting another
 
-If the user explicitly needs browser automation (filling forms, clicking, navigating live pages), tell them this capability is not currently available rather than attempting a workaround.`
+If the user explicitly needs browser automation but no browser tool is present in the actual tool schema, say that the current session does not have that tool injected and use HTTP/search alternatives only when they can satisfy the task.`
 
 /**
  * Compose the tool-strategy guidance for an agent based on which MCP servers

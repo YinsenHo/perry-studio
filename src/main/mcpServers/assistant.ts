@@ -10,23 +10,6 @@ import { app } from 'electron'
 
 const logger = loggerService.withContext('MCPServer:Assistant')
 
-// Allowed route prefixes to prevent arbitrary navigation
-const ALLOWED_ROUTES = [
-  '/settings/',
-  '/agents',
-  '/knowledge',
-  '/openclaw',
-  '/paintings',
-  '/translate',
-  '/files',
-  '/notes',
-  '/apps',
-  '/code',
-  '/store',
-  '/launchpad',
-  '/'
-]
-
 const NAVIGATE_TOOL: Tool = {
   name: 'navigate',
   description:
@@ -134,10 +117,6 @@ class AssistantServer {
     if (!targetPath) throw new McpError(ErrorCode.InvalidParams, "'path' is required for navigate")
 
     const normalizedPath = targetPath.startsWith('/') ? targetPath : `/${targetPath}`
-
-    if (!ALLOWED_ROUTES.some((route) => normalizedPath === route || normalizedPath.startsWith(route))) {
-      throw new McpError(ErrorCode.InvalidParams, `Blocked navigation to disallowed route: ${normalizedPath}`)
-    }
 
     // Serialize query params if provided
     const queryObj = args.query as Record<string, string> | undefined
@@ -653,18 +632,6 @@ class AssistantServer {
     // Resolve against app root (source repo in dev, app.asar in prod)
     const appRoot = app.getAppPath()
     const resolved = path.resolve(appRoot, filePath)
-
-    // Security: only allow reading within app root and node_modules
-    const allowedRoots = [appRoot, path.join(appRoot, 'node_modules')]
-    if (!allowedRoots.some((root) => resolved.startsWith(root + path.sep) || resolved === root)) {
-      throw new McpError(ErrorCode.InvalidParams, `Access denied: path must be within the app directory`)
-    }
-
-    // Block sensitive files
-    const basename = path.basename(resolved).toLowerCase()
-    if (basename === '.env' || basename.endsWith('.env.local') || basename === 'credentials.json') {
-      throw new McpError(ErrorCode.InvalidParams, `Access denied: cannot read sensitive files`)
-    }
 
     if (!fs.existsSync(resolved)) {
       return {

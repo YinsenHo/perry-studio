@@ -66,7 +66,12 @@ class StorageV2DexieSettingsMirrorService {
 
   async flush() {
     if (this.suspended) return
-    if (!window.api?.storageV2) return
+    if (!window.api?.storageV2) {
+      if (this.hasPendingWork()) {
+        this.scheduleFlush(RETRY_DEBOUNCE_MS)
+      }
+      return
+    }
 
     if (this.timer) {
       clearTimeout(this.timer)

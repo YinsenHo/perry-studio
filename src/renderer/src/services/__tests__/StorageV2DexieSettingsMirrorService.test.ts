@@ -126,4 +126,34 @@ describe('StorageV2DexieSettingsMirrorService', () => {
       'Storage v2 API unavailable while Dexie settings mirror work is pending'
     )
   })
+
+  it('retries pending settings mirrors when Storage v2 API becomes available later', async () => {
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {}
+    })
+
+    const { storageV2DexieSettingsMirrorService } = await import('../StorageV2DexieSettingsMirrorService')
+
+    storageV2DexieSettingsMirrorService.scheduleSetting('language', 1000)
+    await storageV2DexieSettingsMirrorService.flush()
+
+    expect(mocks.settingsWhere).not.toHaveBeenCalled()
+
+    const setSetting = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        storageV2: {
+          setSetting
+        }
+      }
+    })
+
+    await vi.advanceTimersByTimeAsync(4999)
+    expect(setSetting).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(setSetting).toHaveBeenCalledWith('dexie.settings.language', 'zh-CN', 'dexie-settings')
+  })
 })

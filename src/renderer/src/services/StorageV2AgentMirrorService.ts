@@ -43,7 +43,12 @@ class StorageV2AgentMirrorService {
       return
     }
 
-    if (!this.pending || !window.api?.storageV2) return
+    if (!this.pending) return
+
+    if (!window.api?.storageV2) {
+      this.schedule()
+      return
+    }
 
     this.pending = false
     this.inflight = this.mirrorNow().finally(() => {

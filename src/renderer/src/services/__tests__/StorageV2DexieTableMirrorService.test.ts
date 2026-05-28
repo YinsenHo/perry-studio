@@ -141,4 +141,49 @@ describe('StorageV2DexieTableMirrorService', () => {
       'Storage v2 API unavailable while Dexie auxiliary table mirror work is pending'
     )
   })
+
+  it('retries pending auxiliary table mirrors when Storage v2 API becomes available later', async () => {
+    vi.useFakeTimers()
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {}
+    })
+
+    try {
+      const { storageV2DexieTableMirrorService } = await import('../StorageV2DexieTableMirrorService')
+
+      storageV2DexieTableMirrorService.scheduleRow('quick_phrases', 'phrase-1', 1000)
+      await storageV2DexieTableMirrorService.flush()
+
+      expect(mocks.quickPhrasesWhere).not.toHaveBeenCalled()
+
+      const setSetting = vi.fn().mockResolvedValue(undefined)
+      Object.defineProperty(window, 'api', {
+        configurable: true,
+        value: {
+          storageV2: {
+            setSetting
+          }
+        }
+      })
+
+      await vi.advanceTimersByTimeAsync(499)
+      expect(setSetting).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(1)
+      expect(setSetting).toHaveBeenCalledWith(
+        'dexie.table.quick_phrases.phrase-1',
+        {
+          id: 'phrase-1',
+          title: 'Greeting',
+          content: 'Hello',
+          createdAt: 1760000000000,
+          updatedAt: 1760000000000
+        },
+        'dexie-table:quick_phrases'
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

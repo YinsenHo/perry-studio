@@ -105,7 +105,12 @@ class StorageV2DexieTableMirrorService {
 
   async flush() {
     if (this.suspended) return
-    if (!window.api?.storageV2) return
+    if (!window.api?.storageV2) {
+      if (this.hasPendingWork()) {
+        this.scheduleFlush(DEFAULT_DEBOUNCE_MS)
+      }
+      return
+    }
 
     if (this.timer) {
       clearTimeout(this.timer)

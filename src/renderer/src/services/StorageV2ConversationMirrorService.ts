@@ -328,7 +328,12 @@ class StorageV2ConversationMirrorService {
   }
 
   private async mirrorPendingNow() {
-    if (!this.latestGetState || !window.api?.storageV2) return
+    if (!this.latestGetState) return
+
+    if (!window.api?.storageV2) {
+      this.scheduleFlush(DEFAULT_DEBOUNCE_MS)
+      return
+    }
 
     const getState = this.latestGetState
     const state = getState()

@@ -53,4 +53,32 @@ describe('StorageV2AgentMirrorService', () => {
       'Storage v2 API unavailable while agent database mirror work is pending'
     )
   })
+
+  it('retries pending agent database mirrors when Storage v2 API becomes available later', async () => {
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {}
+    })
+
+    const { storageV2AgentMirrorService } = await import('../StorageV2AgentMirrorService')
+
+    storageV2AgentMirrorService.schedule(1000)
+    await storageV2AgentMirrorService.flush()
+
+    const importLegacyAgentDb = vi.fn().mockResolvedValue({ dryRun: false })
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        storageV2: {
+          importLegacyAgentDb
+        }
+      }
+    })
+
+    await vi.advanceTimersByTimeAsync(3999)
+    expect(importLegacyAgentDb).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(importLegacyAgentDb).toHaveBeenCalledWith({ dryRun: false, createSnapshot: false })
+  })
 })

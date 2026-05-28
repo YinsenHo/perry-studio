@@ -259,6 +259,24 @@ describe('StorageV2AgentRuntimeRecoveryService', () => {
     expect(projection).toHaveBeenCalledTimes(1)
   })
 
+  it('projects any Storage v2 agent runtime rows before an authoritative mirror', async () => {
+    const storageClient = createCountClient(1)
+    const projection = mockProjection()
+    vi.spyOn(storageV2Database, 'getClient').mockResolvedValue(storageClient as any)
+
+    const recovered = await new StorageV2AgentRuntimeRecoveryService().projectIfStorageHasAnyAgentRuntimeRows('test')
+
+    expect(recovered).toBe(true)
+    expect(storageV2LegacyAgentDbImportService.importSnapshot).toHaveBeenCalledWith({
+      dryRun: false,
+      createSnapshot: false,
+      pruneMissing: false
+    })
+    expect(storageClient.execute).toHaveBeenCalledWith(expect.stringContaining('agent_sessions'))
+    expect(storageClient.execute).toHaveBeenCalledWith(expect.stringContaining("kind = 'agent_session'"))
+    expect(projection).toHaveBeenCalledTimes(1)
+  })
+
   it('projects a specific missing task when Storage v2 has it', async () => {
     const storageClient = createCountClient(1)
     const projection = mockProjection()

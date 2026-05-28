@@ -88,6 +88,10 @@ export class StorageV2AgentRuntimeRecoveryService {
     return this.projectIfStorageHasRows(reason, async () => (await this.countStorageChannel(filters)) > 0)
   }
 
+  async projectIfStorageHasAnyAgentRuntimeRows(reason: string): Promise<boolean> {
+    return this.projectIfStorageHasRows(reason, async () => (await this.countStorageAnyAgentRuntimeRows()) > 0)
+  }
+
   private async projectIfStorageHasRows(reason: string, hasRows: () => Promise<boolean>): Promise<boolean> {
     while (this.projection) {
       if (await this.projection) {
@@ -290,6 +294,35 @@ export class StorageV2AgentRuntimeRecoveryService {
       sql: `SELECT COUNT(*) AS count FROM channels WHERE ${clauses.join(' AND ')}`,
       args
     })
+    return countFromRow(result.rows[0] as Record<string, unknown> | undefined)
+  }
+
+  private async countStorageAnyAgentRuntimeRows() {
+    const client = await storageV2Database.getClient()
+    const result = await client.execute(`
+      SELECT
+        (SELECT COUNT(*) FROM agents WHERE deleted_at IS NULL) +
+        (SELECT COUNT(*) FROM agent_sessions WHERE deleted_at IS NULL) +
+        (SELECT COUNT(*) FROM skills WHERE deleted_at IS NULL) +
+        (SELECT COUNT(*) FROM agent_skills) +
+        (SELECT COUNT(*) FROM scheduled_tasks WHERE deleted_at IS NULL) +
+        (SELECT COUNT(*) FROM task_run_logs) +
+        (SELECT COUNT(*) FROM channels WHERE deleted_at IS NULL) +
+        (
+          SELECT COUNT(*)
+          FROM conversations
+          WHERE kind = 'agent_session'
+            AND deleted_at IS NULL
+        ) +
+        (
+          SELECT COUNT(*)
+          FROM messages m
+          INNER JOIN conversations c ON c.id = m.conversation_id
+          WHERE c.kind = 'agent_session'
+            AND c.deleted_at IS NULL
+            AND m.deleted_at IS NULL
+        ) AS count
+    `)
     return countFromRow(result.rows[0] as Record<string, unknown> | undefined)
   }
 }

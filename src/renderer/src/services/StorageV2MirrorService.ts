@@ -141,6 +141,7 @@ class StorageV2MirrorService {
   private timer: ReturnType<typeof setTimeout> | null = null
   private latestGetState: StateGetter | null = null
   private lastSnapshotJson = ''
+  private lastSnapshotPruneMissing: boolean | null = null
   private inflight: Promise<void> | null = null
   private needsFollowUp = false
   private suspended = false
@@ -220,13 +221,18 @@ class StorageV2MirrorService {
 
     const snapshot = getMirrorSnapshot(this.latestGetState())
     const snapshotJson = JSON.stringify(snapshot)
-    if (snapshotJson === this.lastSnapshotJson) return
     const pruneMissing = this.pendingPruneMissing !== false
+    const needsPruneUpgrade = pruneMissing && this.lastSnapshotPruneMissing !== true
+    if (snapshotJson === this.lastSnapshotJson && !needsPruneUpgrade) {
+      this.pendingPruneMissing = null
+      return
+    }
 
     try {
       await window.api.storageV2.importLegacyReduxSnapshot(snapshot, { dryRun: false, pruneMissing })
       this.pendingPruneMissing = null
       this.lastSnapshotJson = snapshotJson
+      this.lastSnapshotPruneMissing = pruneMissing
       logger.debug('Mirrored Redux settings to Storage v2')
     } catch (error) {
       this.scheduleRetry()
@@ -249,6 +255,7 @@ class StorageV2MirrorService {
     this.latestGetState = null
     this.needsFollowUp = false
     this.pendingPruneMissing = null
+    this.lastSnapshotPruneMissing = null
 
     if (this.timer) {
       clearTimeout(this.timer)

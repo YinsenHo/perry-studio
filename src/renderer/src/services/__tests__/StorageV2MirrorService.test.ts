@@ -96,6 +96,31 @@ describe('StorageV2MirrorService', () => {
     expect(importLegacyReduxSnapshot).toHaveBeenCalledWith(expect.any(Object), { dryRun: false, pruneMissing: false })
   })
 
+  it('upgrades an identical startup snapshot to pruning after runtime changes resume', async () => {
+    const { storageV2MirrorService } = await import('../StorageV2MirrorService')
+    const middleware = storageV2MirrorService.createMiddleware()({
+      dispatch: vi.fn(),
+      getState: createState
+    } as any)(vi.fn((action) => action))
+
+    storageV2MirrorService.scheduleStartupMirror(createState)
+    await vi.advanceTimersByTimeAsync(1500)
+
+    middleware({ type: 'settings/setLanguage' })
+
+    await vi.waitFor(() => {
+      expect(importLegacyReduxSnapshot).toHaveBeenCalledTimes(2)
+    })
+    expect(importLegacyReduxSnapshot).toHaveBeenNthCalledWith(1, expect.any(Object), {
+      dryRun: false,
+      pruneMissing: false
+    })
+    expect(importLegacyReduxSnapshot).toHaveBeenNthCalledWith(2, expect.any(Object), {
+      dryRun: false,
+      pruneMissing: true
+    })
+  })
+
   it('retries a failed startup mirror without upgrading it to pruning', async () => {
     importLegacyReduxSnapshot.mockRejectedValueOnce(new Error('ipc unavailable')).mockResolvedValueOnce({
       dryRun: false

@@ -7,7 +7,6 @@ import { promisify } from 'node:util'
 import type { AgentTool, AgentToolResult } from '@earendil-works/pi-agent-core'
 import { Type } from '@earendil-works/pi-ai'
 import { config as apiServerConfig } from '@main/apiServer/config'
-import { promptForToolApproval } from '@main/services/agents/services/ToolPermissionService'
 import mcpService from '@main/services/MCPService'
 import getShellEnv from '@main/utils/shell-env'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
@@ -25,9 +24,6 @@ const BASH_MAX_BUFFER = 1024 * 1024
 
 type ToolResultDetails = Record<string, unknown>
 type ToolParams = Record<string, any>
-type PiToolsOptions = {
-  sessionId?: string
-}
 
 const textResult = (text: string, details: ToolResultDetails = {}): AgentToolResult<ToolResultDetails> => ({
   content: [{ type: 'text', text }],
@@ -58,6 +54,7 @@ const RECOVERABLE_BASH_DESCRIPTION_PATTERN =
   /\b(check|inspect|probe|verify|test|look for|locate|find|list|stat|exist|target skill location)\b/i
 const READ_ONLY_BASH_COMMAND_PATTERN =
   /^\s*(?:test\b|\[\s|ls\b|stat\b|find\b|rg\b|grep\b|pwd\b|printf\b|echo\b|cat\b|sed\b|awk\b|head\b|tail\b|wc\b|git\s+(?:status|diff|show|log|rev-parse|ls-files|grep)\b)/i
+const POLICY_FAILURE_PATTERN = /parent directory traversal/i
 const NPM_INSTALL_COMMAND_PATTERN =
   /(^|[;&|]\s*)(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S+)\s+)*(?:env\s+(?:\S+\s+)*?)?(?:(?:\.{0,2}\/|\S*\/)?(?:npm|pnpm|bun|bunx|npx|corepack))\b/i
 const GLOBAL_PACKAGE_INSTALL_COMMAND_PATTERN =
@@ -69,32 +66,9 @@ const SHELL_FAILURE_MARKER_PATTERN =
   /(?:^|\n)(?:CURL_FAILED|NPM_FAILED|PNPM_FAILED|YARN_FAILED|BREW_FAILED|BREW_NOT_AVAILABLE|INSTALL_FAILED)\b/i
 const SHELL_ERROR_OUTPUT_PATTERN =
   /(?:^|\n)(?:[^\n]+:\s+)?(?:command not found|Operation not permitted|Permission denied|No such file or directory|Error:|fatal:|npm ERR!|ERR_PNPM_|curl: \(\d+\))/i
-const SENSITIVE_PATH_SEGMENTS = new Set([
-  '.ssh',
-  '.gnupg',
-  '.aws',
-  '.azure',
-  '.config',
-  '.docker',
-  '.kube',
-  '.codex',
-  '.agents'
-])
-const SENSITIVE_FILE_NAMES = new Set([
-  '.env',
-  '.npmrc',
-  '.netrc',
-  'id_rsa',
-  'id_dsa',
-  'id_ecdsa',
-  'id_ed25519',
-  'known_hosts'
-])
-const FILESYSTEM_BASH_COMMAND_PATTERN =
-  /^\s*(?:cat|less|more|head|tail|sed|awk|grep|rg|find|ls|stat|wc|test|\[|mkdir|touch|rm|rmdir|cp|mv|ln|chmod|chown|du|tree)\b/
-const SHELL_PATH_PATTERN = /(?:^|[\s"'`=([{:;,])((?:~|\/)[^\s"'`()[\]{};|&<>$\\]+|\.\.\/[^\s"'`()[\]{};|&<>$\\]*)/g
 
-const isRecoverableBashFailure = (command: string, description: string | undefined, _output: string) => {
+const isRecoverableBashFailure = (command: string, description: string | undefined, output: string) => {
+  if (POLICY_FAILURE_PATTERN.test(output)) return false
   if (description && RECOVERABLE_BASH_DESCRIPTION_PATTERN.test(description)) return true
   return READ_ONLY_BASH_COMMAND_PATTERN.test(command)
 }
@@ -230,9 +204,18 @@ const resolveAllowedPath = (rawPath: string | undefined, cwd: string) => {
   return path.resolve(cwd, rawPath || '.')
 }
 
+const assertCommandDoesNotReferenceOutsidePaths = (command: string) => {
+  const parentTraversalPattern = /(^|[\s"'`=([{:;,])\.\.(?:\/|$)/
+  if (parentTraversalPattern.test(command)) {
+    throw new Error('Bash command references parent directory traversal outside the workspace boundary')
+  }
+}
+
 const sandboxProfileForRoots = () => '(version 1)\n(allow default)'
 
 const runBash = async (command: string, cwd: string, signal?: AbortSignal, extraEnv: NodeJS.ProcessEnv = {}) => {
+  assertCommandDoesNotReferenceOutsidePaths(command)
+
   const env = await buildBashEnv(cwd, extraEnv)
 
   if (process.platform === 'darwin') {
@@ -281,91 +264,9 @@ async function walkFiles(root: string, cwd: string, roots: string[], results: st
   return results
 }
 
-const isPathInside = (target: string, root: string) => {
-  const relative = path.relative(path.resolve(root), path.resolve(target))
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
-}
-
-const hasSensitivePathSegment = (target: string) => {
-  const segments = path.resolve(target).split(path.sep).filter(Boolean)
-  const basename = path.basename(target)
-  return (
-    segments.some((segment) => SENSITIVE_PATH_SEGMENTS.has(segment)) ||
-    SENSITIVE_FILE_NAMES.has(basename) ||
-    basename.startsWith('.env')
-  )
-}
-
-const directoryForApproval = async (target: string) => {
-  const resolvedTarget = path.resolve(target)
-  const stat = await fs.stat(resolvedTarget).catch(() => undefined)
-  if (stat?.isDirectory()) return resolvedTarget
-  return path.dirname(resolvedTarget)
-}
-
-const extractShellPathReferences = (command: string, cwd: string) => {
-  if (!FILESYSTEM_BASH_COMMAND_PATTERN.test(command)) return []
-
-  const matches = Array.from(command.matchAll(SHELL_PATH_PATTERN))
-  return Array.from(
-    new Set(
-      matches
-        .map((match) => match[1])
-        .filter(Boolean)
-        .map((rawPath) => (rawPath.startsWith('~') ? path.join(os.homedir(), rawPath.slice(1)) : rawPath))
-        .map((rawPath) => path.resolve(cwd, rawPath))
-    )
-  )
-}
-
-export function createPiTools(cwd: string, accessiblePaths: string[], options: PiToolsOptions = {}): AgentTool<any>[] {
+export function createPiTools(cwd: string, accessiblePaths: string[]): AgentTool<any>[] {
   const roots = accessiblePaths.length > 0 ? accessiblePaths.map((p) => path.resolve(p)) : [path.resolve(cwd)]
-  const approvedRoots = new Set<string>()
   let browserController: any
-
-  const isAlreadyApproved = (target: string) => {
-    if (Array.from(approvedRoots).some((root) => isPathInside(target, root))) return true
-    return roots.some((root) => isPathInside(target, root)) && !hasSensitivePathSegment(target)
-  }
-
-  const toPermissionToolCallId = (toolCallId: string) =>
-    options.sessionId && !toolCallId.startsWith(`${options.sessionId}:`)
-      ? `${options.sessionId}:${toolCallId}`
-      : toolCallId
-
-  const ensurePathAccess = async (
-    toolName: string,
-    toolCallId: string,
-    input: ToolParams,
-    targets: string[],
-    access: 'read' | 'write' | 'execute',
-    signal?: AbortSignal
-  ) => {
-    const pendingTargets = targets.map((target) => path.resolve(target)).filter((target) => !isAlreadyApproved(target))
-    if (pendingTargets.length === 0) return
-
-    const folders = Array.from(new Set(await Promise.all(pendingTargets.map((target) => directoryForApproval(target)))))
-    const result = await promptForToolApproval(
-      toolName,
-      {
-        ...input,
-        requested_access: access,
-        requested_paths: pendingTargets,
-        requested_folders: folders
-      },
-      {
-        toolCallId: toPermissionToolCallId(toolCallId),
-        description: `Allow ${toolName} to ${access} ${folders.join(', ')}`,
-        signal
-      }
-    )
-
-    if (result.behavior !== 'allow') {
-      throw new Error(result.message ?? `User denied ${toolName} access to ${folders.join(', ')}`)
-    }
-
-    folders.forEach((folder) => approvedRoots.add(path.resolve(folder)))
-  }
 
   const getBrowserController = async () => {
     if (!browserController) {
@@ -386,11 +287,10 @@ export function createPiTools(cwd: string, accessiblePaths: string[], options: P
       offset: Type.Optional(Type.Number({ description: 'Line number to start reading from, 1-indexed' })),
       limit: Type.Optional(Type.Number({ description: 'Maximum number of lines to read' }))
     }),
-    async execute(toolCallId, params, signal) {
+    async execute(_toolCallId, params) {
       return safeExecute('Read', async () => {
         const input = params as ToolParams
         const filePath = resolveAllowedPath(input.file_path ?? input.path, cwd)
-        await ensurePathAccess('Read', toolCallId, input, [filePath], 'read', signal)
         const buffer = await fs.readFile(filePath)
         const truncated = buffer.byteLength > MAX_READ_BYTES && !input.limit
         let text = truncated ? buffer.subarray(0, MAX_READ_BYTES).toString('utf8') : buffer.toString('utf8')
@@ -416,11 +316,10 @@ export function createPiTools(cwd: string, accessiblePaths: string[], options: P
       path: Type.Optional(Type.String({ description: 'Path to write' })),
       content: Type.String({ description: 'File contents' })
     }),
-    async execute(toolCallId, params, signal) {
+    async execute(_toolCallId, params) {
       return safeExecute('Write', async () => {
         const input = params as ToolParams
         const filePath = resolveAllowedPath(input.file_path ?? input.path, cwd)
-        await ensurePathAccess('Write', toolCallId, input, [filePath], 'write', signal)
         await fs.mkdir(path.dirname(filePath), { recursive: true })
         await fs.writeFile(filePath, input.content, 'utf8')
         return textResult(`Wrote ${toDisplayPath(filePath, cwd)}`, { path: filePath })
@@ -440,11 +339,10 @@ export function createPiTools(cwd: string, accessiblePaths: string[], options: P
       new_string: Type.String({ description: 'Replacement text' }),
       replace_all: Type.Optional(Type.Boolean({ description: 'Replace all occurrences' }))
     }),
-    async execute(toolCallId, params, signal) {
+    async execute(_toolCallId, params) {
       return safeExecute('Edit', async () => {
         const input = params as ToolParams
         const filePath = resolveAllowedPath(input.file_path ?? input.path, cwd)
-        await ensurePathAccess('Edit', toolCallId, input, [filePath], 'write', signal)
         const current = await fs.readFile(filePath, 'utf8')
         if (!current.includes(input.old_string)) {
           return errorTextResult(
@@ -479,16 +377,8 @@ export function createPiTools(cwd: string, accessiblePaths: string[], options: P
       command: Type.String({ description: 'Command to execute' }),
       description: Type.Optional(Type.String({ description: 'Short description of the command' }))
     }),
-    async execute(toolCallId, params, signal) {
+    async execute(_toolCallId, params, signal) {
       const input = params as ToolParams
-      const referencedPaths = extractShellPathReferences(input.command, cwd)
-      if (referencedPaths.length > 0) {
-        const permission = await safeExecute('Bash permission', async () => {
-          await ensurePathAccess('Bash', toolCallId, input, referencedPaths, 'execute', signal)
-          return textResult('ok')
-        })
-        if (permission.details?.isError) return permission
-      }
       let result = await runBash(input.command, cwd, signal).catch((error) => ({
         stdout: error.stdout ?? '',
         stderr: error.stderr ?? error.message,
@@ -690,11 +580,10 @@ export function createPiTools(cwd: string, accessiblePaths: string[], options: P
       pattern: Type.String({ description: 'Glob pattern, for example **/*.ts' }),
       path: Type.Optional(Type.String({ description: 'Directory to search from' }))
     }),
-    async execute(toolCallId, params, signal) {
+    async execute(_toolCallId, params) {
       return safeExecute('Glob', async () => {
         const input = params as ToolParams
         const searchRoot = resolveAllowedPath(input.path, cwd)
-        await ensurePathAccess('Glob', toolCallId, input, [searchRoot], 'read', signal)
         const matches = (
           await fg(input.pattern, {
             cwd: searchRoot,
@@ -719,11 +608,10 @@ export function createPiTools(cwd: string, accessiblePaths: string[], options: P
       path: Type.Optional(Type.String({ description: 'Directory to search from' })),
       glob: Type.Optional(Type.String({ description: 'Optional file glob filter' }))
     }),
-    async execute(toolCallId, params, signal) {
+    async execute(_toolCallId, params) {
       return safeExecute('Grep', async () => {
         const input = params as ToolParams
         const searchRoot = resolveAllowedPath(input.path, cwd)
-        await ensurePathAccess('Grep', toolCallId, input, [searchRoot], 'read', signal)
         let regex: RegExp
         try {
           regex = new RegExp(input.pattern)

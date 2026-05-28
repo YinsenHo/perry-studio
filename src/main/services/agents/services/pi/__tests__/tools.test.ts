@@ -25,11 +25,6 @@ vi.mock('@main/services/MCPService', () => ({
   }
 }))
 
-vi.mock('@main/services/agents/services/ToolPermissionService', () => ({
-  promptForToolApproval: vi.fn(async () => ({ behavior: 'allow' }))
-}))
-
-import { promptForToolApproval } from '@main/services/agents/services/ToolPermissionService'
 import mcpService from '@main/services/MCPService'
 
 import { createPiMcpTools, createPiTools } from '../tools'
@@ -48,8 +43,6 @@ describe('Pi tools', () => {
   beforeEach(async () => {
     tmpDir = `/tmp/cherry-pi-tools-${Date.now()}-${Math.random().toString(36).slice(2)}`
     await fs.mkdir(tmpDir, { recursive: true })
-    vi.mocked(promptForToolApproval).mockReset()
-    vi.mocked(promptForToolApproval).mockResolvedValue({ behavior: 'allow' })
   })
 
   afterEach(async () => {
@@ -116,46 +109,21 @@ describe('Pi tools', () => {
     expect(resultText(result)).toContain('Use offset/limit or Grep')
   })
 
-  it('prompts before reading outside accessible roots', async () => {
+  it('allows reads outside accessible roots', async () => {
     const outsideFile = `/tmp/cherry-pi-outside-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`
     await fs.writeFile(outsideFile, 'outside ok', 'utf8')
 
-    const read = createPiTools(tmpDir, [tmpDir], { sessionId: 'session-1' }).find((item) => item.name === 'Read')!
+    const read = getTool('Read', tmpDir, [tmpDir])
     const result = await read.execute('read-2', {
       file_path: outsideFile
     })
 
-    expect(promptForToolApproval).toHaveBeenCalledWith(
-      'Read',
-      expect.objectContaining({
-        file_path: outsideFile,
-        requested_access: 'read',
-        requested_paths: [outsideFile],
-        requested_folders: [path.dirname(outsideFile)]
-      }),
-      expect.objectContaining({ toolCallId: 'session-1:read-2' })
-    )
     expect(result.details).not.toMatchObject({ isError: true })
     expect(resultText(result)).toBe('outside ok')
     await fs.rm(outsideFile, { force: true })
   })
 
-  it('denies file access when folder approval is rejected', async () => {
-    const outsideFile = `/tmp/cherry-pi-denied-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`
-    await fs.writeFile(outsideFile, 'outside denied', 'utf8')
-    vi.mocked(promptForToolApproval).mockResolvedValueOnce({ behavior: 'deny', message: 'Nope' })
-
-    const read = getTool('Read', tmpDir, [tmpDir])
-    const result = await read.execute('read-denied', {
-      file_path: outsideFile
-    })
-
-    expect(result.details).toMatchObject({ isError: true })
-    expect(resultText(result)).toContain('Nope')
-    await fs.rm(outsideFile, { force: true })
-  })
-
-  it('prompts before Bash commands reference paths outside accessible roots', async () => {
+  it('allows Bash commands that reference paths outside accessible roots', async () => {
     const outsideFile = `/tmp/cherry-pi-bash-outside-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`
     await fs.writeFile(outsideFile, 'outside bash ok', 'utf8')
 
@@ -164,44 +132,10 @@ describe('Pi tools', () => {
       command: `cat "${outsideFile}"`
     })
 
-    expect(promptForToolApproval).toHaveBeenCalledWith(
-      'Bash',
-      expect.objectContaining({
-        command: `cat "${outsideFile}"`,
-        requested_access: 'execute',
-        requested_paths: [outsideFile],
-        requested_folders: [path.dirname(outsideFile)]
-      }),
-      expect.objectContaining({ toolCallId: 'bash-1' })
-    )
     expect(result.details).toMatchObject({ exitCode: 0 })
     expect(result.details).not.toMatchObject({ isError: true })
     expect(resultText(result)).toContain('outside bash ok')
     await fs.rm(outsideFile, { force: true })
-  })
-
-  it('prompts before accessing sensitive folders inside an accessible root', async () => {
-    const sshDir = path.join(tmpDir, '.ssh')
-    const sshConfig = path.join(sshDir, 'config')
-    await fs.mkdir(sshDir, { recursive: true })
-    await fs.writeFile(sshConfig, 'Host example\n', 'utf8')
-
-    const read = getTool('Read', tmpDir, [tmpDir])
-    const result = await read.execute('read-sensitive', {
-      file_path: sshConfig
-    })
-
-    expect(promptForToolApproval).toHaveBeenCalledWith(
-      'Read',
-      expect.objectContaining({
-        requested_access: 'read',
-        requested_paths: [sshConfig],
-        requested_folders: [sshDir]
-      }),
-      expect.objectContaining({ toolCallId: 'read-sensitive' })
-    )
-    expect(result.details).not.toMatchObject({ isError: true })
-    expect(resultText(result)).toContain('Host example')
   })
 
   it('allows Bash commands that modify system SSL trust settings', async () => {

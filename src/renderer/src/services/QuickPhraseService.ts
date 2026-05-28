@@ -95,6 +95,9 @@ export class QuickPhraseService {
         })
       )
     )
+    for (const phrase of phrases) {
+      storageV2DexieTableMirrorService.scheduleRow('quick_phrases', phrase.id, 0)
+    }
     await storageV2DexieTableMirrorService.flush()
   }
 

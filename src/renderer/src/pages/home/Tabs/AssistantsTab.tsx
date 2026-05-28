@@ -109,7 +109,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   )
 
   const onDeleteAssistant = useCallback(
-    (assistant: Assistant) => {
+    async (assistant: Assistant) => {
       const remaining = assistants.filter((a) => a.id !== assistant.id)
       if (remaining.length === 0) {
         window.toast.error(t('assistants.delete.error.remain_one'))
@@ -120,7 +120,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
         const newActive = remaining[remaining.length - 1]
         setActiveAssistant(newActive)
       }
-      removeAssistant(assistant.id)
+      await removeAssistant(assistant.id)
     },
     [assistants, activeAssistant?.id, removeAssistant, t, setActiveAssistant]
   )

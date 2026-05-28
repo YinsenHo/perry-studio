@@ -38,7 +38,7 @@ interface AssistantItemProps {
   isActive: boolean
   sortBy: AssistantsSortType
   onSwitch: (assistant: Assistant) => void
-  onDelete: (assistant: Assistant) => void
+  onDelete: (assistant: Assistant) => void | Promise<void>
   onCreateDefaultAssistant: () => void
   addPreset: (agent: any) => void
   copyAssistant: (assistant: Assistant) => void

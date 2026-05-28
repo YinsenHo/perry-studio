@@ -35,6 +35,22 @@ import { useTranslation } from 'react-i18next'
 import { TopicManager } from './useTopic'
 
 const LOCAL_MODEL_PROVIDERS = new Set(['ollama', 'lmstudio', 'gpustack'])
+const logger = loggerService.withContext('useAssistant')
+
+async function removeTopicsFromRuntime(topicIds: Iterable<string>, reason: string) {
+  const uniqueTopicIds = Array.from(new Set(Array.from(topicIds).filter(Boolean)))
+  if (uniqueTopicIds.length === 0) return
+
+  const results = await Promise.allSettled(uniqueTopicIds.map((topicId) => TopicManager.removeTopic(topicId)))
+  const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+
+  if (failures.length > 0) {
+    logger.error(`Failed to remove ${failures.length} topic(s) from runtime before ${reason}`, failures[0].reason)
+    throw failures[0].reason instanceof Error
+      ? failures[0].reason
+      : new Error(`Failed to remove ${failures.length} topic(s) before ${reason}`)
+  }
+}
 
 const scheduleStorageV2TopicMirror = (topicId: string | undefined) => {
   storageV2ConversationMirrorService.scheduleTopic(topicId, () => store.getState())
@@ -64,7 +80,6 @@ export function useAssistants() {
   const { t } = useTranslation()
   const { assistants } = useAppSelector((state) => state.assistants)
   const dispatch = useAppDispatch()
-  const logger = loggerService.withContext('useAssistants')
 
   return {
     assistants,
@@ -103,12 +118,15 @@ export function useAssistants() {
       }
       return _assistant
     },
-    removeAssistant: (id: string) => {
-      dispatch(removeAssistant({ id }))
-      flushAssistantMirror('assistants-remove')
+    removeAssistant: async (id: string) => {
       const assistant = assistants.find((a) => a.id === id)
       const topics = assistant?.topics || []
-      topics.forEach(({ id }) => TopicManager.removeTopic(id))
+      await removeTopicsFromRuntime(
+        topics.map((topic) => topic.id),
+        'assistant removal'
+      )
+      dispatch(removeAssistant({ id }))
+      flushAssistantMirror('assistants-remove')
     }
   }
 }
@@ -199,9 +217,10 @@ export function useAssistant(id: string) {
       dispatch(addTopic({ assistantId: assistant.id, topic }))
       scheduleStorageV2TopicMirror(topic.id)
     },
-    removeTopic: (topic: Topic) => {
-      void TopicManager.removeTopic(topic.id)
+    removeTopic: async (topic: Topic) => {
+      await removeTopicsFromRuntime([topic.id], 'topic removal')
       dispatch(removeTopic({ assistantId: assistant.id, topic }))
+      flushAssistantMirror('assistant-topic-remove')
     },
     moveTopic: (topic: Topic, toAssistant: Assistant) => {
       dispatch(addTopic({ assistantId: toAssistant.id, topic: { ...topic, assistantId: toAssistant.id } }))
@@ -230,7 +249,17 @@ export function useAssistant(id: string) {
       dispatch(updateTopics({ assistantId: assistant.id, topics }))
       scheduleStorageV2TopicMirrors(topics.map((topic) => topic.id))
     },
-    removeAllTopics: () => dispatch(removeAllTopics({ assistantId: assistant.id })),
+    removeAllTopics: async () => {
+      const replacementTopic = getDefaultTopic(assistant.id)
+      await removeTopicsFromRuntime(
+        normalizedTopics.map((topic) => topic.id),
+        'topic reset'
+      )
+      await db.topics.put({ id: replacementTopic.id, messages: [] })
+      dispatch(removeAllTopics({ assistantId: assistant.id, replacementTopic }))
+      flushAssistantMirror('assistant-topics-reset')
+      scheduleStorageV2TopicMirror(replacementTopic.id)
+    },
     setModel: useCallback(
       (model: Model) => {
         if (!assistant) return

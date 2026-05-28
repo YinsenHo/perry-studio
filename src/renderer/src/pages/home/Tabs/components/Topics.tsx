@@ -162,7 +162,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         }
       }
       await modelGenerating()
-      removeTopic(topic)
+      await removeTopic(topic)
       setDeletingTopicId(null)
     },
     [activeTopic.id, addTopic, assistant.id, assistant.topics, removeTopic, setActiveTopic]
@@ -213,7 +213,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         const index = findIndex(assistant.topics, (t) => t.id === topic.id)
         setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
       }
-      removeTopic(topic)
+      await removeTopic(topic)
     },
     [assistant.topics, removeTopic, setActiveTopic, activeTopic]
   )

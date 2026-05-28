@@ -24,8 +24,10 @@ import { type Topic, TopicType } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { addAbortController } from '@renderer/utils/abortController'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { Spin } from 'antd'
+import { Button, Spin } from 'antd'
+import { ChevronRight, Sparkles } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
 import styled from 'styled-components'
 
@@ -40,6 +42,7 @@ type Props = {
 }
 
 const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
+  const { t } = useTranslation()
   const { session } = useSession(agentId, sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   // Use the same hook as Messages.tsx for consistent behavior
@@ -216,6 +219,33 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
     [sessionTopicId, sessionAssistantId, sessionName, sessionCreatedAt, sessionUpdatedAt]
   )
 
+  const starterPrompts = useMemo(
+    () => [
+      t('agent.welcome.suggestions.review', {
+        defaultValue: '检查最近的改动，指出风险和下一步'
+      }),
+      t('agent.welcome.suggestions.explore', {
+        defaultValue: '先看一下这个项目的结构，并告诉我可以从哪里开始'
+      }),
+      t('agent.welcome.suggestions.plan', {
+        defaultValue: '帮我把当前目标拆成一个可执行计划'
+      })
+    ],
+    [t]
+  )
+
+  const runStarterPrompt = useCallback(
+    (text: string) => {
+      void EventEmitter.emit(EVENT_NAMES.AGENT_RUN_PROMPT, {
+        agentId,
+        sessionId,
+        text,
+        requestId: `welcome-${sessionId}-${Date.now()}`
+      })
+    },
+    [agentId, sessionId]
+  )
+
   logger.silly('Rendering agent session messages', {
     sessionId,
     messageCount: messages.length
@@ -263,7 +293,13 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
                 <div className="flex items-center justify-center py-5">
                   <Spin size="small" />
                 </div>
-              ) : null}
+              ) : (
+                <AgentWelcomeCard
+                  agentName={agent?.name ?? session.name}
+                  prompts={starterPrompts}
+                  onPromptClick={runStarterPrompt}
+                />
+              )}
               {isLoadingMore && (
                 <LoaderContainer>
                   <LoadingIcon color="var(--color-text-2)" />
@@ -275,6 +311,50 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
       </NarrowLayout>
       {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
     </MessagesContainer>
+  )
+}
+
+type AgentWelcomeCardProps = {
+  agentName?: string
+  prompts: string[]
+  onPromptClick: (text: string) => void
+}
+
+const AgentWelcomeCard = ({ agentName, prompts, onPromptClick }: AgentWelcomeCardProps) => {
+  const { t } = useTranslation()
+  const displayName = agentName?.trim() || t('agent.title', { defaultValue: 'Agent' })
+
+  return (
+    <WelcomeContainer>
+      <WelcomeHeader>
+        <WelcomeIcon>
+          <Sparkles size={18} />
+        </WelcomeIcon>
+        <div className="min-w-0">
+          <WelcomeTitle>
+            {t('agent.welcome.title', {
+              name: displayName,
+              defaultValue: 'Hi, I am {{name}}'
+            })}
+          </WelcomeTitle>
+          <WelcomeDescription>
+            {t('agent.welcome.description', {
+              defaultValue:
+                'I can read and edit project files, run commands and tests, inspect recent changes, use configured tools, and ask for your approval before accessing sensitive or extra folders.'
+            })}
+          </WelcomeDescription>
+        </div>
+      </WelcomeHeader>
+
+      <WelcomePrompts>
+        {prompts.map((prompt) => (
+          <Button key={prompt} type="text" onClick={() => onPromptClick(prompt)}>
+            <span>{prompt}</span>
+            <ChevronRight size={14} />
+          </Button>
+        ))}
+      </WelcomePrompts>
+    </WelcomeContainer>
   )
 }
 
@@ -318,6 +398,69 @@ const LoaderContainer = styled.div`
   width: 100%;
   background: var(--color-background);
   pointer-events: none;
+`
+
+const WelcomeContainer = styled.div`
+  width: min(100%, 42rem);
+  margin: 28px auto 18px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-background-soft);
+`
+
+const WelcomeHeader = styled.div`
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+`
+
+const WelcomeIcon = styled.div`
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 8px;
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+`
+
+const WelcomeTitle = styled.div`
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--color-text);
+`
+
+const WelcomeDescription = styled.div`
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--color-text-2);
+`
+
+const WelcomePrompts = styled.div`
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+
+  .ant-btn {
+    justify-content: space-between;
+    min-height: 34px;
+    height: auto;
+    padding: 6px 8px;
+    border-radius: 6px;
+    text-align: left;
+    color: var(--color-text);
+    background: var(--color-background);
+  }
+
+  .ant-btn > span {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 `
 
 export default memo(AgentSessionMessages)

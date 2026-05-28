@@ -48,6 +48,7 @@ import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
 import { registerAppDataIpcHandlers } from './services/appData/AppDataIpcService'
 import { appDataMigrationService } from './services/AppDataMigrationService'
+import { flushAppRuntimeData, flushMainStorageV2RuntimeMirrors } from './services/AppRuntimeSaveService'
 import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
@@ -138,11 +139,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
 
   powerMonitorService.registerShutdownHandler(async () => {
-    await storageV2AgentDbMirrorService.flush()
-    const mw = windowService.getMainWindow()
-    if (mw && !mw.isDestroyed()) {
-      mw.webContents.send(IpcChannel.App_SaveData)
-    }
+    await flushAppRuntimeData({ window: windowService.getMainWindow() })
   })
 
   const checkMainWindow = () => {
@@ -449,9 +446,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
 
   ipcMain.handle(IpcChannel.App_FlushAppData, async () => {
-    await configManager.flushPendingStorageV2ConfigStrict()
-    await configManager.mirrorAllToStorageV2()
-    await storageV2AgentDbMirrorService.flushStrict()
+    await flushMainStorageV2RuntimeMirrors()
 
     for (const w of BrowserWindow.getAllWindows()) {
       w.webContents.session.flushStorageData()

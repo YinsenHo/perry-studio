@@ -14,6 +14,7 @@ import path, { join } from 'path'
 
 import iconPath from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
+import { flushAppRuntimeData } from './AppRuntimeSaveService'
 import { configManager } from './ConfigManager'
 import { contextMenu } from './ContextMenu'
 import { isSafeExternalUrl } from './security'
@@ -37,6 +38,8 @@ export class WindowService {
   //to restore the focus status when miniWindow hides
   private wasMainWindowFocused: boolean = false
   private lastRendererProcessCrashTime: number = 0
+  private allowCloseAfterSave = false
+  private saveBeforeClosePromise: Promise<void> | null = null
 
   public static getInstance(): WindowService {
     if (!WindowService.instance) {
@@ -372,21 +375,39 @@ export class WindowService {
 
   private setupWindowLifecycleEvents(mainWindow: BrowserWindow) {
     mainWindow.on('close', (event) => {
-      // save data before when close window
-      try {
-        mainWindow.webContents.send(IpcChannel.App_SaveData)
-      } catch (error) {
-        logger.error('Failed to save data:', error as Error)
-      }
-
-      // 如果已经触发退出，直接退出
-      if (app.isQuitting) {
-        return app.quit()
-      }
-
       // 托盘及关闭行为设置
       const isShowTray = configManager.getTray()
       const isTrayOnClose = configManager.getTrayOnClose()
+      const shouldQuitOnClose =
+        app.isQuitting || ((!isShowTray || (isShowTray && !isTrayOnClose)) && (isWin || isLinux))
+
+      if (this.allowCloseAfterSave) {
+        this.allowCloseAfterSave = false
+        return
+      }
+
+      if (shouldQuitOnClose) {
+        event.preventDefault()
+
+        if (!this.saveBeforeClosePromise) {
+          this.saveBeforeClosePromise = flushAppRuntimeData({ window: mainWindow })
+            .catch((error) => {
+              logger.error('Failed to save data before app close:', error as Error)
+            })
+            .finally(() => {
+              this.saveBeforeClosePromise = null
+              if (mainWindow.isDestroyed()) return
+              this.allowCloseAfterSave = true
+              app.quit()
+            })
+        }
+
+        return
+      }
+
+      void flushAppRuntimeData({ window: mainWindow }).catch((error) => {
+        logger.error('Failed to save data before hiding window:', error as Error)
+      })
 
       // 没有开启托盘，或者开启了托盘，但设置了直接关闭，应执行直接退出
       if (!isShowTray || (isShowTray && !isTrayOnClose)) {

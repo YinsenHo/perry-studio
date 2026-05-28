@@ -76,8 +76,22 @@ export function useAppInit() {
   }, [])
 
   useEffect(() => {
-    window.electron.ipcRenderer.on(IpcChannel.App_SaveData, async () => {
-      await handleSaveData()
+    window.electron.ipcRenderer.on(IpcChannel.App_SaveData, async (_, requestId?: string) => {
+      try {
+        await handleSaveData()
+        if (requestId) {
+          window.electron.ipcRenderer.send(IpcChannel.App_SaveDataAck, { requestId, ok: true })
+        }
+      } catch (error) {
+        logger.error('Failed to save app data:', error as Error)
+        if (requestId) {
+          window.electron.ipcRenderer.send(IpcChannel.App_SaveDataAck, {
+            requestId,
+            ok: false,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      }
     })
   }, [])
 

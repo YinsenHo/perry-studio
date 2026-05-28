@@ -275,6 +275,7 @@ const BACKUP_ISSUE_LABEL_KEYS: Record<string, string> = {
 }
 const BACKUP_WARNING_LABEL_KEYS: Record<string, string> = {
   manifest_missing: 'settings.data.storage_v2.backup_restore.warnings.manifest_missing',
+  orphan_secret_vault_entries: 'settings.data.storage_v2.backup_restore.warnings.orphan_secret_vault_entries',
   secret_vault_missing: 'settings.data.storage_v2.backup_restore.warnings.secret_vault_missing'
 }
 
@@ -693,7 +694,8 @@ const StorageV2Settings: FC = () => {
                 corruptBlobFileCount: backupValidation.corruptBlobFileCount,
                 secretVaultSecretCount: backupValidation.secretVaultSecretCount,
                 missingSecretRefCount: backupValidation.missingSecretRefCount,
-                invalidSecretRefCount: backupValidation.invalidSecretRefCount
+                invalidSecretRefCount: backupValidation.invalidSecretRefCount,
+                orphanSecretVaultEntryCount: backupValidation.orphanSecretVaultEntryCount
               })}
             </Typography.Text>
             {backupValidation.issues.map((issue) => {

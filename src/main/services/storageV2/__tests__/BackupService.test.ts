@@ -39,6 +39,7 @@ const mocks = vi.hoisted(() => ({
     healthCheck: vi.fn(),
     initialize: vi.fn(),
     integrityReport: vi.fn(),
+    pruneUnreferencedSecretVaultEntries: vi.fn(),
     waitForIdle: vi.fn()
   },
   fileProjection: {
@@ -134,6 +135,7 @@ function createValidation(backupPath: string): StorageV2BackupValidation {
     secretVaultSecretCount: 0,
     missingSecretRefCount: 0,
     invalidSecretRefCount: 0,
+    orphanSecretVaultEntryCount: 0,
     issues: [],
     warnings: [],
     metadata: {
@@ -142,6 +144,76 @@ function createValidation(backupPath: string): StorageV2BackupValidation {
     }
   }
 }
+
+describe('StorageV2BackupService.createBackup', () => {
+  let tmpDir: string
+  let dataRoot: string
+  let snapshotPath: string
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'storage-v2-backup-'))
+    dataRoot = path.join(tmpDir, 'Data')
+    snapshotPath = path.join(tmpDir, 'snapshot.db')
+    fs.mkdirSync(path.join(dataRoot, 'secrets'), { recursive: true })
+    fs.writeFileSync(snapshotPath, 'snapshot-db')
+    fs.writeFileSync(path.join(dataRoot, 'secrets', 'vault.json'), JSON.stringify({ version: 1, secrets: {} }))
+
+    mocks.dataRootService.ensureDataRoot.mockReturnValue({
+      dataRoot,
+      manifest: { workspaceId: 'workspace-1' },
+      source: 'current-user-data',
+      candidates: []
+    })
+    mocks.database.healthCheck.mockResolvedValue({ ok: true })
+    mocks.database.waitForIdle.mockResolvedValue(undefined)
+    mocks.secretVault.waitForIdle.mockResolvedValue(undefined)
+    mocks.database.pruneUnreferencedSecretVaultEntries.mockResolvedValue({
+      beforeCount: 2,
+      afterCount: 1,
+      prunedCount: 1,
+      prunedSecretIds: ['provider:stale:apiKey'],
+      referencedSecretCount: 1,
+      invalidSecretRefCount: 0,
+      skippedSources: []
+    })
+    mocks.database.createSnapshot.mockResolvedValue({
+      path: snapshotPath,
+      reason: 'backup-test',
+      createdAt: '2026-01-01T00:00:00.000Z'
+    })
+    mocks.knowledgeService.closeAll.mockResolvedValue(undefined)
+    mocks.statisticsService.getStats.mockResolvedValue({ generatedAt: '2026-01-01T00:00:00.000Z', counts: {} })
+    mocks.database.integrityReport.mockResolvedValue({
+      ok: true,
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      quickCheck: 'ok',
+      integrityCheck: 'ok',
+      foreignKeyIssueCount: 0,
+      issues: []
+    })
+  })
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+    vi.restoreAllMocks()
+  })
+
+  it('prunes unreferenced secrets before copying the vault into the backup', async () => {
+    const result = await new StorageV2BackupService().createBackup('manual')
+
+    expect(mocks.database.pruneUnreferencedSecretVaultEntries).toHaveBeenCalledTimes(1)
+    expect(mocks.database.pruneUnreferencedSecretVaultEntries.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.database.createSnapshot.mock.invocationCallOrder[0]
+    )
+
+    const metadata = JSON.parse(fs.readFileSync(result.manifestPath, 'utf-8'))
+    expect(metadata.secretVaultPrune).toMatchObject({
+      prunedCount: 1,
+      prunedSecretIds: ['provider:stale:apiKey']
+    })
+  })
+})
 
 describe('StorageV2BackupService.restoreBackup', () => {
   let tmpDir: string

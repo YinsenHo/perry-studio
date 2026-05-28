@@ -7,10 +7,12 @@ import { loggerService } from '@logger'
 
 import { storageV2DataRootService } from './DataRootService'
 import { scanStorageV2SecretReferences } from './SecretRefIntegrity'
+import { storageV2SecretVaultService } from './SecretVaultService'
 import type {
   StorageV2HealthCheck,
   StorageV2IntegrityIssue,
   StorageV2IntegrityReport,
+  StorageV2SecretVaultPruneReport,
   StorageV2Snapshot
 } from './types'
 
@@ -831,6 +833,19 @@ export class StorageV2Database {
       integrityCheck,
       foreignKeyIssueCount,
       issues
+    }
+  }
+
+  async pruneUnreferencedSecretVaultEntries(): Promise<StorageV2SecretVaultPruneReport> {
+    const client = await this.getClient()
+    const secretReferenceScan = await scanStorageV2SecretReferences(client)
+    const pruneResult = await storageV2SecretVaultService.pruneUnreferencedSecretIds(secretReferenceScan.refs)
+
+    return {
+      ...pruneResult,
+      referencedSecretCount: secretReferenceScan.refs.size,
+      invalidSecretRefCount: secretReferenceScan.invalidRefs.size,
+      skippedSources: secretReferenceScan.skippedSources
     }
   }
 

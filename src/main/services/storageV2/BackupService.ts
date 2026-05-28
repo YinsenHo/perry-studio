@@ -59,6 +59,7 @@ export type StorageV2BackupValidation = {
   secretVaultSecretCount: number
   missingSecretRefCount: number
   invalidSecretRefCount: number
+  orphanSecretVaultEntryCount: number
   issues: StorageV2BackupValidationMessage[]
   warnings: StorageV2BackupValidationMessage[]
   metadata: Record<string, any> | null
@@ -344,6 +345,11 @@ export class StorageV2BackupService {
   async createBackup(reason = 'manual'): Promise<StorageV2Backup> {
     const rootInfo = storageV2DataRootService.ensureDataRoot()
     await storageV2Database.healthCheck()
+    await storageV2Database.waitForIdle()
+    await storageV2SecretVaultService.waitForIdle()
+    const secretVaultPrune = await storageV2Database.pruneUnreferencedSecretVaultEntries().catch((error) => ({
+      error: errorMessage(error)
+    }))
 
     const createdAt = new Date().toISOString()
     const backupDir = path.join(rootInfo.dataRoot, 'backups', `${timestampForFilename()}-${safeName(reason)}`)
@@ -392,6 +398,7 @@ export class StorageV2BackupService {
             sourceSnapshotPath: snapshot.path
           },
           copiedDirectories,
+          secretVaultPrune,
           stats,
           integrity
         },
@@ -451,6 +458,7 @@ export class StorageV2BackupService {
     let secretVaultSecretCount = 0
     let missingSecretRefCount = 0
     let invalidSecretRefCount = 0
+    let orphanSecretVaultEntryCount = 0
     let secretReferenceScan: Awaited<ReturnType<typeof scanStorageV2SecretReferences>> | null = null
 
     if (!fs.existsSync(dbPath)) {
@@ -550,6 +558,9 @@ export class StorageV2BackupService {
       missingSecretRefCount = Array.from(secretReferenceScan.refs).filter(
         (secretId) => !vaultValidation.secretIds.has(secretId)
       ).length
+      orphanSecretVaultEntryCount = Array.from(vaultValidation.secretIds).filter(
+        (secretId) => !secretReferenceScan.refs.has(secretId)
+      ).length
 
       if (secretReferenceScan.skippedSources.length > 0) {
         warnings.push(
@@ -580,6 +591,16 @@ export class StorageV2BackupService {
           )
         )
       }
+
+      if (orphanSecretVaultEntryCount > 0) {
+        warnings.push(
+          validationMessage(
+            'orphan_secret_vault_entries',
+            `Backup contains ${orphanSecretVaultEntryCount} secret value(s) that are no longer referenced by the database.`,
+            { count: orphanSecretVaultEntryCount }
+          )
+        )
+      }
     }
 
     return {
@@ -598,6 +619,7 @@ export class StorageV2BackupService {
       secretVaultSecretCount,
       missingSecretRefCount,
       invalidSecretRefCount,
+      orphanSecretVaultEntryCount,
       issues,
       warnings,
       metadata

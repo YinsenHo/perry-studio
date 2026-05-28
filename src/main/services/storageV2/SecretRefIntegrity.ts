@@ -51,11 +51,11 @@ export function secretRefToVaultId(secretRef: string): string | null {
   if (!secretRef.startsWith(STORAGE_V2_SECRET_REF_PREFIX)) return null
 
   try {
-    return secretRef
-      .slice(STORAGE_V2_SECRET_REF_PREFIX.length)
-      .split('/')
-      .map((part) => decodeURIComponent(part))
-      .join(':')
+    const parts = secretRef.slice(STORAGE_V2_SECRET_REF_PREFIX.length).split('/')
+    for (const part of parts) {
+      decodeURIComponent(part)
+    }
+    return parts.join(':')
   } catch {
     return null
   }

@@ -10,7 +10,7 @@ function createMockClient(): Client {
 
       if (sql.includes('provider_credentials')) {
         return {
-          rows: [{ secret_ref: 'storage-v2://secret/provider/provider-1/apiKey' }],
+          rows: [{ secret_ref: 'storage-v2://secret/provider/provider%201/apiKey' }],
           columns: [],
           columnTypes: []
         }
@@ -46,7 +46,7 @@ describe('scanStorageV2SecretReferences', () => {
   it('collects nested secret refs and tracks invalid refs', async () => {
     const result = await scanStorageV2SecretReferences(createMockClient())
 
-    expect(result.refs).toEqual(new Set(['provider:provider-1:apiKey', 'settings:s3:secretAccessKey']))
+    expect(result.refs).toEqual(new Set(['provider:provider%201:apiKey', 'settings:s3:secretAccessKey']))
     expect(result.invalidRefs).toEqual(new Set(['storage-v2://secret/%']))
     expect(result.skippedSources).toEqual(['sync_conflicts.local_snapshot_json', 'sync_conflicts.remote_snapshot_json'])
   })

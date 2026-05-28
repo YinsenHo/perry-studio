@@ -951,8 +951,8 @@ describe('providerToAiSdkConfig', () => {
 
       const settings = config.providerSettings
       expect(settings.headers).toBeDefined()
-      expect(settings.headers!['HTTP-Referer']).toBe('https://cherry-ai.com')
-      expect(settings.headers!['X-Title']).toBe('Cherry Studio')
+      expect(settings.headers!['HTTP-Referer']).toBe('https://github.com/CherryHQ/cherry-studio-pi')
+      expect(settings.headers!['X-Title']).toBe('Cherry Studio Pi')
     })
 
     it('merges extra_headers from provider', async () => {

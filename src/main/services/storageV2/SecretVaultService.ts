@@ -17,6 +17,13 @@ type SecretVaultFile = {
   >
 }
 
+export type StorageV2SecretVaultPruneResult = {
+  beforeCount: number
+  afterCount: number
+  prunedCount: number
+  prunedSecretIds: string[]
+}
+
 const VAULT_VERSION = 1
 const SECRET_REF_PREFIX = 'storage-v2://secret/'
 
@@ -29,11 +36,11 @@ function decodeSecretRef(secretRef: string) {
     throw new Error('Invalid Storage v2 secret reference')
   }
 
-  return secretRef
-    .slice(SECRET_REF_PREFIX.length)
-    .split('/')
-    .map((part) => decodeURIComponent(part))
-    .join(':')
+  const parts = secretRef.slice(SECRET_REF_PREFIX.length).split('/')
+  for (const part of parts) {
+    decodeURIComponent(part)
+  }
+  return parts.join(':')
 }
 
 export class StorageV2SecretVaultService {
@@ -88,6 +95,38 @@ export class StorageV2SecretVaultService {
 
   async waitForIdle(): Promise<void> {
     await this.writeQueue
+  }
+
+  async pruneUnreferencedSecretIds(referencedSecretIds: Iterable<string>): Promise<StorageV2SecretVaultPruneResult> {
+    const referenced = new Set(referencedSecretIds)
+
+    return this.enqueueVaultWrite(async () => {
+      const vault = await this.readVault()
+      const secretIds = Object.keys(vault.secrets)
+      const prunedSecretIds = secretIds.filter((secretId) => !referenced.has(secretId))
+
+      if (prunedSecretIds.length === 0) {
+        return {
+          beforeCount: secretIds.length,
+          afterCount: secretIds.length,
+          prunedCount: 0,
+          prunedSecretIds: []
+        }
+      }
+
+      for (const secretId of prunedSecretIds) {
+        delete vault.secrets[secretId]
+      }
+
+      await this.writeVault(vault)
+
+      return {
+        beforeCount: secretIds.length,
+        afterCount: secretIds.length - prunedSecretIds.length,
+        prunedCount: prunedSecretIds.length,
+        prunedSecretIds
+      }
+    })
   }
 
   private getVaultPath() {

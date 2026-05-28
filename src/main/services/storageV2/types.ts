@@ -50,6 +50,16 @@ export type StorageV2IntegrityReport = {
   issues: StorageV2IntegrityIssue[]
 }
 
+export type StorageV2SecretVaultPruneReport = {
+  beforeCount: number
+  afterCount: number
+  prunedCount: number
+  prunedSecretIds: string[]
+  referencedSecretCount: number
+  invalidSecretRefCount: number
+  skippedSources: string[]
+}
+
 export type StorageV2Snapshot = {
   path: string
   reason: string

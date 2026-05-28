@@ -4632,11 +4632,12 @@
           "restart_title": "Storage v2 备份已恢复",
           "select_title": "选择 Storage v2 备份目录",
           "selected": "备份：{{path}}",
-          "summary": "quick_check={{quickCheck}}，integrity_check={{integrityCheck}}，missing_blob={{missingBlobFileCount}}，corrupt_blob={{corruptBlobFileCount}}，secrets={{secretVaultSecretCount}}，missing_secret={{missingSecretRefCount}}，invalid_secret_ref={{invalidSecretRefCount}}",
+          "summary": "quick_check={{quickCheck}}，integrity_check={{integrityCheck}}，missing_blob={{missingBlobFileCount}}，corrupt_blob={{corruptBlobFileCount}}，secrets={{secretVaultSecretCount}}，missing_secret={{missingSecretRefCount}}，invalid_secret_ref={{invalidSecretRefCount}}，orphan_secret={{orphanSecretVaultEntryCount}}",
           "valid": "备份可用",
           "warning": "提示：{{message}}",
           "warnings": {
             "manifest_missing": "备份 manifest.json 缺失或无效；恢复后可能会创建新的 manifest",
+            "orphan_secret_vault_entries": "备份中有 {{count}} 个数据库不再引用的密钥，创建新备份时会自动清理",
             "secret_vault_missing": "备份标记已复制 secrets，但 secrets/vault.json 缺失"
           }
         },

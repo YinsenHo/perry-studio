@@ -4632,11 +4632,12 @@
           "restart_title": "Storage v2 backup restored",
           "select_title": "Select Storage v2 backup directory",
           "selected": "Backup: {{path}}",
-          "summary": "quick_check={{quickCheck}}, integrity_check={{integrityCheck}}, missing_blob={{missingBlobFileCount}}, corrupt_blob={{corruptBlobFileCount}}, secrets={{secretVaultSecretCount}}, missing_secret={{missingSecretRefCount}}, invalid_secret_ref={{invalidSecretRefCount}}",
+          "summary": "quick_check={{quickCheck}}, integrity_check={{integrityCheck}}, missing_blob={{missingBlobFileCount}}, corrupt_blob={{corruptBlobFileCount}}, secrets={{secretVaultSecretCount}}, missing_secret={{missingSecretRefCount}}, invalid_secret_ref={{invalidSecretRefCount}}, orphan_secret={{orphanSecretVaultEntryCount}}",
           "valid": "Backup is usable",
           "warning": "Warning: {{message}}",
           "warnings": {
             "manifest_missing": "Backup manifest.json is missing or invalid; a new manifest may be created after restore",
+            "orphan_secret_vault_entries": "Backup contains {{count}} secret value(s) that are no longer referenced by the database. New backups prune them automatically",
             "secret_vault_missing": "Backup metadata says secrets were copied, but secrets/vault.json is missing"
           }
         },

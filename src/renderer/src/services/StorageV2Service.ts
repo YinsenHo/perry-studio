@@ -81,6 +81,7 @@ export type StorageV2BackupValidation = {
   secretVaultSecretCount: number
   missingSecretRefCount: number
   invalidSecretRefCount: number
+  orphanSecretVaultEntryCount: number
   issues: Array<{
     id: string
     message: string

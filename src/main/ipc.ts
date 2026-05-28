@@ -90,6 +90,8 @@ import {
   saveSpans,
   tokenUsage
 } from './services/SpanCacheService'
+import { storageV2AgentDbMirrorService } from './services/storageV2/AgentDbMirrorService'
+import { registerStorageV2IpcHandlers } from './services/storageV2/StorageV2IpcService'
 import storeSyncService from './services/StoreSyncService'
 import { themeService } from './services/ThemeService'
 import VertexAIService from './services/VertexAIService'
@@ -123,6 +125,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   const appUpdater = new AppUpdater()
   const notificationService = new NotificationService()
   registerAppDataIpcHandlers()
+  registerStorageV2IpcHandlers()
 
   // Register shutdown handlers
   powerMonitorService.registerShutdownHandler(() => {
@@ -130,6 +133,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
 
   powerMonitorService.registerShutdownHandler(() => {
+    void storageV2AgentDbMirrorService.flush()
     const mw = windowService.getMainWindow()
     if (mw && !mw.isDestroyed()) {
       mw.webContents.send(IpcChannel.App_SaveData)
@@ -433,6 +437,8 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
 
   ipcMain.handle(IpcChannel.App_FlushAppData, async () => {
+    await storageV2AgentDbMirrorService.flush()
+
     for (const w of BrowserWindow.getAllWindows()) {
       w.webContents.session.flushStorageData()
       await w.webContents.session.cookies.flushStore()

@@ -50,6 +50,12 @@ const assistantsSlice = createSlice({
   name: 'assistants',
   initialState,
   reducers: {
+    hydrateAssistantsState: (_state, action: PayloadAction<Partial<AssistantsState>>) => {
+      return {
+        ...initialState,
+        ...action.payload
+      }
+    },
     updateDefaultAssistant: (state, action: PayloadAction<{ assistant: Assistant }>) => {
       // @ts-ignore ts2589
       state.defaultAssistant = action.payload.assistant
@@ -246,6 +252,7 @@ const assistantsSlice = createSlice({
 })
 
 export const {
+  hydrateAssistantsState,
   updateDefaultAssistant,
   updateAssistants,
   addAssistant,

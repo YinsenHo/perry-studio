@@ -81,6 +81,12 @@ const websearchSlice = createSlice({
   name: 'websearch',
   initialState,
   reducers: {
+    hydrateWebSearchState: (_state, action: PayloadAction<Partial<WebSearchState>>) => {
+      return {
+        ...initialState,
+        ...action.payload
+      }
+    },
     setDefaultProvider: (state, action: PayloadAction<string>) => {
       state.defaultProvider = action.payload
     },
@@ -163,6 +169,7 @@ const websearchSlice = createSlice({
 })
 
 export const {
+  hydrateWebSearchState,
   setWebSearchProviders,
   updateWebSearchProvider,
   updateWebSearchProviders,

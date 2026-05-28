@@ -1,5 +1,9 @@
 # Cherry Studio Pi Data Storage And Sync
 
+> This document describes the current app-scoped key/value storage and WebDAV sync layer.
+> For the proposed unified authoritative data architecture, see
+> [Storage v2](./zh/references/storage-v2.md).
+
 ## Goals
 
 - Keep Redux as a UI state cache only.

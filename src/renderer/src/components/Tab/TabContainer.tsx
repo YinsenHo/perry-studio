@@ -374,7 +374,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children, withSidebar = f
         )}
         <WindowControls />
       </TabsBar>
-      <TabContent $withSidebar={withSidebar}>
+      <TabContent $withSidebar={withSidebar} $hasTabCards={hasMultipleVisibleTabs}>
         {/* MiniApp WebView 池（Tab 模式保活） */}
         <MinAppTabsPool />
         {children}
@@ -592,19 +592,23 @@ const SettingsButton = styled.div<{ $active: boolean }>`
   }
 `
 
-const TabContent = styled.div<{ $withSidebar: boolean }>`
+const TabContent = styled.div<{ $withSidebar: boolean; $hasTabCards: boolean }>`
   display: flex;
   flex: 1;
   overflow: hidden;
   width: ${({ $withSidebar }) => ($withSidebar ? '100%' : 'calc(100% - 12px)')};
   margin: ${({ $withSidebar }) => ($withSidebar ? '0' : '6px')};
-  margin-top: -1px;
-  padding-top: 1px;
+  margin-top: ${({ $hasTabCards }) => ($hasTabCards ? '-1px' : '0')};
+  padding-top: ${({ $hasTabCards }) => ($hasTabCards ? '1px' : '0')};
   border-radius: ${({ $withSidebar }) => ($withSidebar ? '10px 0 0 0' : '8px')};
   background: var(--color-background);
   overflow: hidden;
   position: relative; /* 约束 MinAppTabsPool 绝对定位范围 */
   z-index: 1;
+
+  && #content-container {
+    border-top: none;
+  }
 `
 
 export default TabsContainer

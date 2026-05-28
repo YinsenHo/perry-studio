@@ -17,6 +17,7 @@ import { Button, Input, Typography } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
@@ -36,6 +37,7 @@ type SyncStatus = {
 }
 
 const DataSyncSettings: FC = () => {
+  const { t } = useTranslation()
   const { theme } = useTheme()
   const { dataSyncWebdavHost, dataSyncWebdavUser, dataSyncWebdavPass, dataSyncWebdavPath, dataSyncSyncInterval } =
     useSettings()
@@ -59,7 +61,7 @@ const DataSyncSettings: FC = () => {
 
   const syncNow = async () => {
     if (!webdavHost) {
-      window.toast.warning('请先配置 WebDAV 地址')
+      window.toast.warning(t('settings.data.data_sync.toast.webdav_required'))
       return
     }
 
@@ -79,9 +81,9 @@ const DataSyncSettings: FC = () => {
         }))
       }
       await refreshStatus()
-      window.toast.success('数据同步完成')
+      window.toast.success(t('settings.data.data_sync.toast.sync_success'))
     } catch (error) {
-      window.toast.error(`同步失败：${(error as Error).message}`)
+      window.toast.error(t('settings.data.data_sync.toast.sync_failed', { message: (error as Error).message }))
     } finally {
       setSyncing(false)
     }
@@ -106,15 +108,15 @@ const DataSyncSettings: FC = () => {
 
   return (
     <SettingGroup theme={theme}>
-      <SettingTitle>数据同步</SettingTitle>
+      <SettingTitle>{t('settings.data.data_sync.title')}</SettingTitle>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>同步方式</SettingRowTitle>
-        <Typography.Text type="secondary">SQLite 细颗粒度记录 + WebDAV</Typography.Text>
+        <SettingRowTitle>{t('settings.data.data_sync.method')}</SettingRowTitle>
+        <Typography.Text type="secondary">{t('settings.data.data_sync.method_value')}</Typography.Text>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>WebDAV 地址</SettingRowTitle>
+        <SettingRowTitle>{t('settings.data.data_sync.webdav_host')}</SettingRowTitle>
         <Input
           placeholder="https://example.com/dav"
           value={webdavHost}
@@ -134,9 +136,9 @@ const DataSyncSettings: FC = () => {
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>用户名</SettingRowTitle>
+        <SettingRowTitle>{t('settings.data.data_sync.username')}</SettingRowTitle>
         <Input
-          placeholder="WebDAV 用户名"
+          placeholder={t('settings.data.data_sync.username_placeholder')}
           value={webdavUser}
           onChange={(event) => setWebdavUser(event.target.value)}
           onBlur={() => dispatch(setDataSyncWebdavUser(webdavUser || ''))}
@@ -145,9 +147,9 @@ const DataSyncSettings: FC = () => {
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>密码</SettingRowTitle>
+        <SettingRowTitle>{t('settings.data.data_sync.password')}</SettingRowTitle>
         <Input.Password
-          placeholder="WebDAV 密码或应用密码"
+          placeholder={t('settings.data.data_sync.password_placeholder')}
           value={webdavPass}
           onChange={(event) => setWebdavPass(event.target.value)}
           onBlur={() => dispatch(setDataSyncWebdavPass(webdavPass || ''))}
@@ -156,7 +158,7 @@ const DataSyncSettings: FC = () => {
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>同步目录</SettingRowTitle>
+        <SettingRowTitle>{t('settings.data.data_sync.remote_path')}</SettingRowTitle>
         <Input
           placeholder="/cherry-studio-pi"
           value={webdavPath}
@@ -167,64 +169,68 @@ const DataSyncSettings: FC = () => {
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>自动同步</SettingRowTitle>
+        <SettingRowTitle>{t('settings.data.data_sync.auto_sync')}</SettingRowTitle>
         <Selector
           size={14}
           value={syncInterval}
           onChange={onSyncIntervalChange}
           disabled={!webdavHost}
           options={[
-            { label: '关闭', value: 0 },
-            { label: '每 1 分钟', value: 1 },
-            { label: '每 5 分钟', value: 5 },
-            { label: '每 15 分钟', value: 15 },
-            { label: '每 30 分钟', value: 30 },
-            { label: '每 1 小时', value: 60 },
-            { label: '每 2 小时', value: 120 },
-            { label: '每 6 小时', value: 360 },
-            { label: '每 12 小时', value: 720 },
-            { label: '每天', value: 1440 }
+            { label: t('settings.data.data_sync.interval.off'), value: 0 },
+            { label: t('settings.data.data_sync.interval.minute_one'), value: 1 },
+            { label: t('settings.data.data_sync.interval.minute_other', { count: 5 }), value: 5 },
+            { label: t('settings.data.data_sync.interval.minute_other', { count: 15 }), value: 15 },
+            { label: t('settings.data.data_sync.interval.minute_other', { count: 30 }), value: 30 },
+            { label: t('settings.data.data_sync.interval.hour_one'), value: 60 },
+            { label: t('settings.data.data_sync.interval.hour_other', { count: 2 }), value: 120 },
+            { label: t('settings.data.data_sync.interval.hour_other', { count: 6 }), value: 360 },
+            { label: t('settings.data.data_sync.interval.hour_other', { count: 12 }), value: 720 },
+            { label: t('settings.data.data_sync.interval.day_one'), value: 1440 }
           ]}
         />
       </SettingRow>
       <SettingRow>
-        <SettingHelpText>
-          数据同步使用独立的 WebDAV 配置，不复用备份设置；缓存只保存在本地，不参与云端同步。
-        </SettingHelpText>
+        <SettingHelpText>{t('settings.data.data_sync.help')}</SettingHelpText>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>当前设备</SettingRowTitle>
+        <SettingRowTitle>{t('settings.data.data_sync.current_device')}</SettingRowTitle>
         <Typography.Text type="secondary" copyable>
-          {status?.deviceId || '尚未初始化'}
+          {status?.deviceId || t('settings.data.data_sync.uninitialized')}
         </Typography.Text>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>立即同步</SettingRowTitle>
+        <SettingRowTitle>{t('settings.data.data_sync.sync_now')}</SettingRowTitle>
         <Button
           type="primary"
           icon={<SyncOutlined spin={syncing} />}
           loading={syncing}
           disabled={!webdavHost}
           onClick={syncNow}>
-          同步
+          {t('settings.data.data_sync.sync')}
         </Button>
       </SettingRow>
       {summary && summary.lastSyncAt > 0 && (
         <>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitle>最近结果</SettingRowTitle>
+            <SettingRowTitle>{t('settings.data.data_sync.last_result')}</SettingRowTitle>
             <HStack gap="12px">
               <Typography.Text type="secondary">
                 {dayjs(summary.lastSyncAt).format('YYYY-MM-DD HH:mm:ss')}
               </Typography.Text>
-              <Typography.Text type="secondary">上传 {summary.uploaded}</Typography.Text>
-              <Typography.Text type="secondary">下载 {summary.downloaded}</Typography.Text>
-              <Typography.Text type="secondary">删除 {summary.deleted}</Typography.Text>
+              <Typography.Text type="secondary">
+                {t('settings.data.data_sync.summary.uploaded', { count: summary.uploaded })}
+              </Typography.Text>
+              <Typography.Text type="secondary">
+                {t('settings.data.data_sync.summary.downloaded', { count: summary.downloaded })}
+              </Typography.Text>
+              <Typography.Text type="secondary">
+                {t('settings.data.data_sync.summary.deleted', { count: summary.deleted })}
+              </Typography.Text>
               <Typography.Text type={summary.conflicts ? 'warning' : 'secondary'}>
-                冲突 {summary.conflicts}
+                {t('settings.data.data_sync.summary.conflicts', { count: summary.conflicts })}
               </Typography.Text>
             </HStack>
           </SettingRow>
@@ -232,7 +238,7 @@ const DataSyncSettings: FC = () => {
       )}
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>未解决冲突</SettingRowTitle>
+        <SettingRowTitle>{t('settings.data.data_sync.unresolved_conflicts')}</SettingRowTitle>
         <Typography.Text type={status?.conflicts?.length ? 'warning' : 'secondary'}>
           {status?.conflicts?.length || 0}
         </Typography.Text>

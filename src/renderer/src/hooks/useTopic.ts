@@ -218,6 +218,11 @@ export const TopicManager = {
   async removeTopic(id: string) {
     await TopicManager.clearTopicMessages(id)
     await db.topics.delete(id)
+    if (window.api?.storageV2?.deleteConversation) {
+      await window.api.storageV2.deleteConversation(id).catch((error) => {
+        logger.warn(`Failed to tombstone topic ${id} in Storage v2:`, error as Error)
+      })
+    }
   },
 
   async clearTopicMessages(id: string): Promise<void> {

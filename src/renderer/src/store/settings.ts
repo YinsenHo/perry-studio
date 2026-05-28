@@ -468,6 +468,12 @@ const settingsSlice = createSlice({
   name: 'settings',
   initialState,
   reducers: {
+    hydrateSettingsState: (_state, action: PayloadAction<Partial<SettingsState>>) => {
+      return {
+        ...initialState,
+        ...action.payload
+      }
+    },
     setShowAssistants: (state, action: PayloadAction<boolean>) => {
       state.showAssistants = action.payload
     },
@@ -934,6 +940,7 @@ const settingsSlice = createSlice({
 })
 
 export const {
+  hydrateSettingsState,
   setShowModelNameInMarkdown,
   setShowModelProviderInMarkdown,
   setShowAssistants,

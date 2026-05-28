@@ -31,6 +31,12 @@ const mcpSlice = createSlice({
   name: 'mcp',
   initialState,
   reducers: {
+    hydrateMcpState: (_state, action: PayloadAction<Partial<MCPConfig>>) => {
+      return {
+        ...initialState,
+        ...action.payload
+      }
+    },
     setMCPServers: (state, action: PayloadAction<MCPServer[]>) => {
       state.servers = action.payload
     },
@@ -68,6 +74,7 @@ const mcpSlice = createSlice({
 })
 
 export const {
+  hydrateMcpState,
   setMCPServers,
   addMCPServer,
   updateMCPServer,

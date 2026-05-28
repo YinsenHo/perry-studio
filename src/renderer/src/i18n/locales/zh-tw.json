@@ -4065,6 +4065,44 @@
       "data": {
         "title": "資料目錄"
       },
+      "data_sync": {
+        "auto_sync": "自動同步",
+        "current_device": "目前裝置",
+        "help": "資料同步使用獨立的 WebDAV 設定；本機快取只保存在目前裝置。",
+        "interval": {
+          "day_one": "每天",
+          "hour_one": "每 1 小時",
+          "hour_other": "每 {{count}} 小時",
+          "minute_one": "每 1 分鐘",
+          "minute_other": "每 {{count}} 分鐘",
+          "off": "關閉"
+        },
+        "last_result": "最近結果",
+        "method": "同步方式",
+        "method_value": "SQLite 變更記錄 + WebDAV",
+        "password": "密碼",
+        "password_placeholder": "WebDAV 密碼或應用程式密碼",
+        "remote_path": "同步目錄",
+        "summary": {
+          "conflicts": "衝突 {{count}}",
+          "deleted": "刪除 {{count}}",
+          "downloaded": "下載 {{count}}",
+          "uploaded": "上傳 {{count}}"
+        },
+        "sync": "同步",
+        "sync_now": "立即同步",
+        "title": "資料同步",
+        "toast": {
+          "sync_failed": "同步失敗：{{message}}",
+          "sync_success": "資料同步完成",
+          "webdav_required": "請先設定 WebDAV 位址"
+        },
+        "uninitialized": "尚未初始化",
+        "unresolved_conflicts": "未解決衝突",
+        "username": "使用者名稱",
+        "username_placeholder": "WebDAV 使用者名稱",
+        "webdav_host": "WebDAV 位址"
+      },
       "divider": {
         "basic": "基本資料設定",
         "cloud_storage": "雲備份設定",
@@ -4528,6 +4566,188 @@
           "label": "思源筆記權杖"
         },
         "token_placeholder": "請輸入思源筆記權杖"
+      },
+      "storage_v2": {
+        "actions": {
+          "backup": "建立備份",
+          "dry_run": "演練遷移",
+          "help": "演練只讀取舊資料；匯入會寫入 Storage v2，不會刪除目前舊存儲。",
+          "hydrate": "從 Storage v2 還原",
+          "import": "匯入到 Storage v2",
+          "open": "開啟",
+          "refresh": "重新整理",
+          "relaunch": "立即重啟",
+          "restore_backup": "還原備份",
+          "select_backup": "選擇備份",
+          "snapshot": "建立快照",
+          "title": "操作",
+          "verify": "驗證存儲"
+        },
+        "audit": {
+          "exists": "已找到",
+          "files": "{{value}} 個檔案",
+          "missing": "未找到",
+          "title": "舊資料稽核"
+        },
+        "audit_items": {
+          "agents_db": "Pi agent 資料庫",
+          "agents_workspaces": "Agent 工作區",
+          "app_db": "應用資料庫",
+          "data": "目前 Data 目錄",
+          "files": "上傳檔案",
+          "indexeddb": "Chromium IndexedDB",
+          "knowledge_base": "知識庫",
+          "local_storage": "Chromium Local Storage",
+          "redux_local_storage_leveldb": "Chromium Local Storage LevelDB",
+          "skills": "全域 Skills",
+          "storage_v2_main_db": "Storage v2 主資料庫",
+          "storage_v2_manifest": "Storage v2 Manifest"
+        },
+        "auto_hydrate": {
+          "help": "開啟後，應用程式啟動時會優先用 Storage v2 中的設定、模型服務商和助手配置還原執行階段快取。遷移驗證完成前建議保持關閉。",
+          "title": "啟動時從 Storage v2 還原"
+        },
+        "backup_restore": {
+          "archived": "舊檔案歸檔：{{path}}",
+          "invalid": "備份不可用",
+          "issue": "問題：{{message}}",
+          "issues": {
+            "corrupt_blob_files": "備份有 {{count}} 個 Blob 檔案校驗失敗",
+            "db_missing": "備份缺少 main.db",
+            "db_open_failed": "備份資料庫無法開啟：{{message}}",
+            "format_unsupported": "備份格式不受支援",
+            "integrity_check_failed": "備份 integrity_check 失敗：{{integrityCheck}}",
+            "metadata_invalid": "備份 metadata.json 缺失或無效",
+            "missing_blob_files": "備份缺少 {{count}} 個被資料庫引用的 Blob 檔案",
+            "path_not_directory": "選擇的路徑不是目錄",
+            "quick_check_failed": "備份 quick_check 失敗：{{quickCheck}}",
+            "version_unsupported": "備份版本不受支援"
+          },
+          "no_backup_selected": "請先選擇一個可用的 Storage v2 備份",
+          "pre_restore": "還原前備份：{{path}}",
+          "restart_content": "還原前備份已保存到 {{preRestoreBackupPath}}。建議現在重啟應用程式，讓所有視窗重新讀取資料庫。",
+          "restart_title": "Storage v2 備份已還原",
+          "select_title": "選擇 Storage v2 備份目錄",
+          "selected": "備份：{{path}}",
+          "summary": "quick_check={{quickCheck}}，integrity_check={{integrityCheck}}，missing_blob={{missingBlobFileCount}}，corrupt_blob={{corruptBlobFileCount}}",
+          "valid": "備份可用",
+          "warning": "提示：{{message}}",
+          "warnings": {
+            "manifest_missing": "備份 manifest.json 缺失或無效；還原後可能會建立新的 manifest"
+          }
+        },
+        "banner": "Storage v2 是並行的本機資料層，用於遷移、備份和未來同步復原。",
+        "confirm_hydrate": {
+          "content": "這會用 Storage v2 中的設定、模型服務商和助手配置覆蓋目前執行階段快取。建議先確認 Storage v2 統計資料正常。",
+          "title": "從 Storage v2 還原執行階段快取？"
+        },
+        "confirm_import": {
+          "content": "匯入前會建立快照。目前應用程式資料目錄和舊存儲不會被刪除。",
+          "title": "匯入舊資料到 Storage v2？"
+        },
+        "confirm_restore": {
+          "content": "還原前會自動建立一份目前 Storage v2 備份，並把舊檔案歸檔到 legacy 目錄。還原後建議立即重啟應用程式。",
+          "title": "還原這個 Storage v2 備份？"
+        },
+        "data_root": "資料根目錄",
+        "empty": "-",
+        "entities": {
+          "agent_sessions": "Agent 會話",
+          "agents": "Agents",
+          "assistants": "助手",
+          "channels": "頻道",
+          "conversations": "對話",
+          "files": "檔案",
+          "knowledge_bases": "知識庫",
+          "knowledge_items": "知識項",
+          "kv_records": "應用記錄",
+          "message_blocks": "訊息區塊",
+          "messages": "訊息",
+          "migration_runs": "遷移記錄",
+          "models": "模型",
+          "providers": "服務商",
+          "scheduled_tasks": "排程任務",
+          "settings": "設定",
+          "skills": "Skills",
+          "sync_changes": "同步變更",
+          "sync_conflicts": "同步衝突",
+          "sync_tombstones": "同步墓碑"
+        },
+        "health": "健康狀態",
+        "health_failed": "異常",
+        "health_ok": "正常",
+        "history": {
+          "dry_run": "演練",
+          "empty": "暫無遷移記錄",
+          "failed": "失敗",
+          "import": "匯入",
+          "success": "成功",
+          "title": "遷移歷史"
+        },
+        "integrity": {
+          "failed": "發現問題",
+          "issues": {
+            "agent_sessions_without_agent": "存在 {{count}} 個沒有 Agent 的會話",
+            "agent_skills_without_agent": "存在 {{count}} 條沒有 Agent 的 Skill 綁定",
+            "agent_skills_without_skill": "存在 {{count}} 條沒有 Skill 的 Agent 綁定",
+            "corrupt_blob_files": "存在 {{count}} 個 Blob 檔案校驗失敗",
+            "files_without_blob": "存在 {{count}} 個沒有 Blob 的檔案記錄",
+            "knowledge_items_without_base": "存在 {{count}} 條沒有知識庫的知識項",
+            "message_blocks_without_message": "存在 {{count}} 個沒有訊息的訊息區塊",
+            "messages_without_conversation": "存在 {{count}} 條沒有對話的訊息",
+            "missing_blob_files": "存在 {{count}} 個 Blob 檔案在磁碟上缺失",
+            "models_without_provider": "存在 {{count}} 個沒有服務商的模型",
+            "provider_credentials_without_provider": "存在 {{count}} 條沒有服務商的密鑰引用",
+            "task_logs_without_task": "存在 {{count}} 條沒有任務的執行日誌",
+            "tasks_without_agent": "存在 {{count}} 個沒有 Agent 的排程任務",
+            "unknown": "{{label}}：{{count}}"
+          },
+          "ok": "完整",
+          "summary": "quick_check={{quickCheck}}，integrity_check={{integrityCheck}}，foreign_key={{foreignKeyIssueCount}}",
+          "title": "完整性檢查"
+        },
+        "last_report": {
+          "dry_run": "演練",
+          "imported": "已匯入",
+          "imported_count": "已匯入 {{value}}",
+          "title": "最近遷移報告"
+        },
+        "manifest": "Manifest",
+        "menu": "統一存儲",
+        "profile": "Profile {{value}}",
+        "reports": {
+          "agent_db": "Agent 資料庫",
+          "app_db": "應用資料庫",
+          "dexie": "IndexedDB",
+          "redux": "Redux 狀態"
+        },
+        "source": "來源",
+        "sources": {
+          "config": "設定檔",
+          "current_user_data": "目前使用者資料",
+          "env": "環境變數",
+          "legacy_user_data": "舊使用者資料",
+          "unknown": "未知"
+        },
+        "stats": {
+          "title": "Storage v2 記錄"
+        },
+        "title": "統一本機存儲",
+        "toast": {
+          "action_failed": "操作失敗：{{message}}",
+          "auto_hydrate_updated": "啟動還原設定已更新",
+          "backup_success": "Storage v2 備份已建立",
+          "backup_validate_failed": "備份驗證未通過",
+          "backup_validate_success": "備份驗證通過",
+          "dry_run_success": "遷移演練完成",
+          "hydrate_success": "已從 Storage v2 還原執行階段快取",
+          "import_success": "匯入完成",
+          "refresh_failed": "重新整理失敗：{{message}}",
+          "restore_success": "Storage v2 備份已還原",
+          "snapshot_success": "Storage v2 快照已建立",
+          "verify_success": "Storage v2 完整性檢查完成"
+        },
+        "version": "v{{value}}"
       },
       "title": "資料設定",
       "webdav": {

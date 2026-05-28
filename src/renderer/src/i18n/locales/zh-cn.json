@@ -4065,6 +4065,44 @@
       "data": {
         "title": "数据目录"
       },
+      "data_sync": {
+        "auto_sync": "自动同步",
+        "current_device": "当前设备",
+        "help": "数据同步使用独立的 WebDAV 配置；本地缓存只保存在当前设备。",
+        "interval": {
+          "day_one": "每天",
+          "hour_one": "每 1 小时",
+          "hour_other": "每 {{count}} 小时",
+          "minute_one": "每 1 分钟",
+          "minute_other": "每 {{count}} 分钟",
+          "off": "关闭"
+        },
+        "last_result": "最近结果",
+        "method": "同步方式",
+        "method_value": "SQLite 变更记录 + WebDAV",
+        "password": "密码",
+        "password_placeholder": "WebDAV 密码或应用密码",
+        "remote_path": "同步目录",
+        "summary": {
+          "conflicts": "冲突 {{count}}",
+          "deleted": "删除 {{count}}",
+          "downloaded": "下载 {{count}}",
+          "uploaded": "上传 {{count}}"
+        },
+        "sync": "同步",
+        "sync_now": "立即同步",
+        "title": "数据同步",
+        "toast": {
+          "sync_failed": "同步失败：{{message}}",
+          "sync_success": "数据同步完成",
+          "webdav_required": "请先配置 WebDAV 地址"
+        },
+        "uninitialized": "尚未初始化",
+        "unresolved_conflicts": "未解决冲突",
+        "username": "用户名",
+        "username_placeholder": "WebDAV 用户名",
+        "webdav_host": "WebDAV 地址"
+      },
       "divider": {
         "basic": "基础数据设置",
         "cloud_storage": "云备份设置",
@@ -4528,6 +4566,188 @@
           "label": "API 令牌"
         },
         "token_placeholder": "请输入思源笔记令牌"
+      },
+      "storage_v2": {
+        "actions": {
+          "backup": "创建备份",
+          "dry_run": "演练迁移",
+          "help": "演练只读取旧数据；导入会写入 Storage v2，不会删除当前旧存储。",
+          "hydrate": "从 Storage v2 恢复",
+          "import": "导入到 Storage v2",
+          "open": "打开",
+          "refresh": "刷新",
+          "relaunch": "立即重启",
+          "restore_backup": "恢复备份",
+          "select_backup": "选择备份",
+          "snapshot": "创建快照",
+          "title": "操作",
+          "verify": "验证存储"
+        },
+        "audit": {
+          "exists": "已找到",
+          "files": "{{value}} 个文件",
+          "missing": "未找到",
+          "title": "旧数据审计"
+        },
+        "audit_items": {
+          "agents_db": "Pi agent 数据库",
+          "agents_workspaces": "Agent 工作区",
+          "app_db": "应用数据库",
+          "data": "当前 Data 目录",
+          "files": "上传文件",
+          "indexeddb": "Chromium IndexedDB",
+          "knowledge_base": "知识库",
+          "local_storage": "Chromium Local Storage",
+          "redux_local_storage_leveldb": "Chromium Local Storage LevelDB",
+          "skills": "全局 Skills",
+          "storage_v2_main_db": "Storage v2 主数据库",
+          "storage_v2_manifest": "Storage v2 Manifest"
+        },
+        "auto_hydrate": {
+          "help": "开启后，应用启动时会优先用 Storage v2 中的设置、模型服务商和助手配置恢复运行时缓存。迁移验证完成前建议保持关闭。",
+          "title": "启动时从 Storage v2 恢复"
+        },
+        "backup_restore": {
+          "archived": "旧文件归档：{{path}}",
+          "invalid": "备份不可用",
+          "issue": "问题：{{message}}",
+          "issues": {
+            "corrupt_blob_files": "备份有 {{count}} 个 Blob 文件校验失败",
+            "db_missing": "备份缺少 main.db",
+            "db_open_failed": "备份数据库无法打开：{{message}}",
+            "format_unsupported": "备份格式不受支持",
+            "integrity_check_failed": "备份 integrity_check 失败：{{integrityCheck}}",
+            "metadata_invalid": "备份 metadata.json 缺失或无效",
+            "missing_blob_files": "备份缺少 {{count}} 个被数据库引用的 Blob 文件",
+            "path_not_directory": "选择的路径不是目录",
+            "quick_check_failed": "备份 quick_check 失败：{{quickCheck}}",
+            "version_unsupported": "备份版本不受支持"
+          },
+          "no_backup_selected": "请先选择一个可用的 Storage v2 备份",
+          "pre_restore": "恢复前备份：{{path}}",
+          "restart_content": "恢复前备份已保存到 {{preRestoreBackupPath}}。建议现在重启应用，让所有窗口重新读取数据库。",
+          "restart_title": "Storage v2 备份已恢复",
+          "select_title": "选择 Storage v2 备份目录",
+          "selected": "备份：{{path}}",
+          "summary": "quick_check={{quickCheck}}，integrity_check={{integrityCheck}}，missing_blob={{missingBlobFileCount}}，corrupt_blob={{corruptBlobFileCount}}",
+          "valid": "备份可用",
+          "warning": "提示：{{message}}",
+          "warnings": {
+            "manifest_missing": "备份 manifest.json 缺失或无效；恢复后可能会创建新的 manifest"
+          }
+        },
+        "banner": "Storage v2 是并行的本地数据层，用于迁移、备份和未来同步恢复。",
+        "confirm_hydrate": {
+          "content": "这会用 Storage v2 中的设置、模型服务商和助手配置覆盖当前运行时缓存。建议先确认 Storage v2 统计数据正常。",
+          "title": "从 Storage v2 恢复运行时缓存？"
+        },
+        "confirm_import": {
+          "content": "导入前会创建快照。当前应用数据目录和旧存储不会被删除。",
+          "title": "导入旧数据到 Storage v2？"
+        },
+        "confirm_restore": {
+          "content": "恢复前会自动创建一份当前 Storage v2 备份，并把旧文件归档到 legacy 目录。恢复后建议立即重启应用。",
+          "title": "恢复这个 Storage v2 备份？"
+        },
+        "data_root": "数据根目录",
+        "empty": "-",
+        "entities": {
+          "agent_sessions": "Agent 会话",
+          "agents": "Agents",
+          "assistants": "助手",
+          "channels": "频道",
+          "conversations": "对话",
+          "files": "文件",
+          "knowledge_bases": "知识库",
+          "knowledge_items": "知识项",
+          "kv_records": "应用记录",
+          "message_blocks": "消息块",
+          "messages": "消息",
+          "migration_runs": "迁移记录",
+          "models": "模型",
+          "providers": "服务商",
+          "scheduled_tasks": "定时任务",
+          "settings": "设置",
+          "skills": "Skills",
+          "sync_changes": "同步变更",
+          "sync_conflicts": "同步冲突",
+          "sync_tombstones": "同步墓碑"
+        },
+        "health": "健康状态",
+        "health_failed": "异常",
+        "health_ok": "正常",
+        "history": {
+          "dry_run": "演练",
+          "empty": "暂无迁移记录",
+          "failed": "失败",
+          "import": "导入",
+          "success": "成功",
+          "title": "迁移历史"
+        },
+        "integrity": {
+          "failed": "发现问题",
+          "issues": {
+            "agent_sessions_without_agent": "存在 {{count}} 个没有 Agent 的会话",
+            "agent_skills_without_agent": "存在 {{count}} 条没有 Agent 的 Skill 绑定",
+            "agent_skills_without_skill": "存在 {{count}} 条没有 Skill 的 Agent 绑定",
+            "corrupt_blob_files": "存在 {{count}} 个 Blob 文件校验失败",
+            "files_without_blob": "存在 {{count}} 个没有 Blob 的文件记录",
+            "knowledge_items_without_base": "存在 {{count}} 条没有知识库的知识项",
+            "message_blocks_without_message": "存在 {{count}} 个没有消息的消息块",
+            "messages_without_conversation": "存在 {{count}} 条没有对话的消息",
+            "missing_blob_files": "存在 {{count}} 个 Blob 文件在磁盘上缺失",
+            "models_without_provider": "存在 {{count}} 个没有服务商的模型",
+            "provider_credentials_without_provider": "存在 {{count}} 条没有服务商的密钥引用",
+            "task_logs_without_task": "存在 {{count}} 条没有任务的运行日志",
+            "tasks_without_agent": "存在 {{count}} 个没有 Agent 的定时任务",
+            "unknown": "{{label}}：{{count}}"
+          },
+          "ok": "完整",
+          "summary": "quick_check={{quickCheck}}，integrity_check={{integrityCheck}}，foreign_key={{foreignKeyIssueCount}}",
+          "title": "完整性检查"
+        },
+        "last_report": {
+          "dry_run": "演练",
+          "imported": "已导入",
+          "imported_count": "已导入 {{value}}",
+          "title": "最近迁移报告"
+        },
+        "manifest": "Manifest",
+        "menu": "统一存储",
+        "profile": "Profile {{value}}",
+        "reports": {
+          "agent_db": "Agent 数据库",
+          "app_db": "应用数据库",
+          "dexie": "IndexedDB",
+          "redux": "Redux 状态"
+        },
+        "source": "来源",
+        "sources": {
+          "config": "配置文件",
+          "current_user_data": "当前用户数据",
+          "env": "环境变量",
+          "legacy_user_data": "旧用户数据",
+          "unknown": "未知"
+        },
+        "stats": {
+          "title": "Storage v2 记录"
+        },
+        "title": "统一本地存储",
+        "toast": {
+          "action_failed": "操作失败：{{message}}",
+          "auto_hydrate_updated": "启动恢复设置已更新",
+          "backup_success": "Storage v2 备份已创建",
+          "backup_validate_failed": "备份校验未通过",
+          "backup_validate_success": "备份校验通过",
+          "dry_run_success": "迁移演练完成",
+          "hydrate_success": "已从 Storage v2 恢复运行时缓存",
+          "import_success": "导入完成",
+          "refresh_failed": "刷新失败：{{message}}",
+          "restore_success": "Storage v2 备份已恢复",
+          "snapshot_success": "Storage v2 快照已创建",
+          "verify_success": "Storage v2 完整性检查完成"
+        },
+        "version": "v{{value}}"
       },
       "title": "数据设置",
       "webdav": {

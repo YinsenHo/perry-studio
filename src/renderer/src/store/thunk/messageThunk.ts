@@ -1802,7 +1802,7 @@ export const loadTopicMessagesThunk =
       dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
 
       // Unified call - no need to check isAgentSessionTopicId
-      const { messages, blocks } = await dbService.fetchMessages(topicId)
+      const { messages, blocks } = await dbService.fetchMessages(topicId, forceReload)
 
       logger.silly('Loaded messages via DbService', {
         topicId,

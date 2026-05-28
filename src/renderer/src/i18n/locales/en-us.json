@@ -4065,6 +4065,44 @@
       "data": {
         "title": "Data Directory"
       },
+      "data_sync": {
+        "auto_sync": "Auto sync",
+        "current_device": "Current device",
+        "help": "Data sync uses an independent WebDAV configuration. Local cache stays on this device.",
+        "interval": {
+          "day_one": "Every day",
+          "hour_one": "Every 1 hour",
+          "hour_other": "Every {{count}} hours",
+          "minute_one": "Every 1 minute",
+          "minute_other": "Every {{count}} minutes",
+          "off": "Off"
+        },
+        "last_result": "Last result",
+        "method": "Sync method",
+        "method_value": "SQLite change log + WebDAV",
+        "password": "Password",
+        "password_placeholder": "WebDAV password or app password",
+        "remote_path": "Sync directory",
+        "summary": {
+          "conflicts": "Conflicts {{count}}",
+          "deleted": "Deleted {{count}}",
+          "downloaded": "Downloaded {{count}}",
+          "uploaded": "Uploaded {{count}}"
+        },
+        "sync": "Sync",
+        "sync_now": "Sync now",
+        "title": "Data Sync",
+        "toast": {
+          "sync_failed": "Sync failed: {{message}}",
+          "sync_success": "Data sync completed",
+          "webdav_required": "Configure the WebDAV URL first"
+        },
+        "uninitialized": "Not initialized",
+        "unresolved_conflicts": "Unresolved conflicts",
+        "username": "Username",
+        "username_placeholder": "WebDAV username",
+        "webdav_host": "WebDAV URL"
+      },
       "divider": {
         "basic": "Basic Data Settings",
         "cloud_storage": "Cloud Backup Settings",
@@ -4528,6 +4566,188 @@
           "label": "Siyuan Note Token"
         },
         "token_placeholder": "Please enter Siyuan Note Token"
+      },
+      "storage_v2": {
+        "actions": {
+          "backup": "Create backup",
+          "dry_run": "Dry run",
+          "help": "Dry run only reads legacy data. Import writes to Storage v2 and keeps the current legacy stores untouched.",
+          "hydrate": "Restore from Storage v2",
+          "import": "Import to Storage v2",
+          "open": "Open",
+          "refresh": "Refresh",
+          "relaunch": "Restart now",
+          "restore_backup": "Restore backup",
+          "select_backup": "Select backup",
+          "snapshot": "Create snapshot",
+          "title": "Operations",
+          "verify": "Verify storage"
+        },
+        "audit": {
+          "exists": "Found",
+          "files": "{{value}} files",
+          "missing": "Missing",
+          "title": "Legacy data audit"
+        },
+        "audit_items": {
+          "agents_db": "Pi agent database",
+          "agents_workspaces": "Agent workspaces",
+          "app_db": "App database",
+          "data": "Current Data directory",
+          "files": "Uploaded files",
+          "indexeddb": "Chromium IndexedDB",
+          "knowledge_base": "Knowledge bases",
+          "local_storage": "Chromium Local Storage",
+          "redux_local_storage_leveldb": "Chromium Local Storage LevelDB",
+          "skills": "Global skills",
+          "storage_v2_main_db": "Storage v2 main database",
+          "storage_v2_manifest": "Storage v2 manifest"
+        },
+        "auto_hydrate": {
+          "help": "When enabled, app startup restores the runtime cache from Storage v2 settings, model providers, and assistant configuration first. Keep this off until migration checks look good.",
+          "title": "Restore from Storage v2 on startup"
+        },
+        "backup_restore": {
+          "archived": "Archived old files: {{path}}",
+          "invalid": "Backup is not usable",
+          "issue": "Issue: {{message}}",
+          "issues": {
+            "corrupt_blob_files": "Backup has {{count}} blob file(s) with checksum mismatch",
+            "db_missing": "Backup main.db is missing",
+            "db_open_failed": "Backup database cannot be opened: {{message}}",
+            "format_unsupported": "Backup format is not supported",
+            "integrity_check_failed": "Backup integrity_check failed: {{integrityCheck}}",
+            "metadata_invalid": "Backup metadata.json is missing or invalid",
+            "missing_blob_files": "Backup is missing {{count}} referenced blob file(s)",
+            "path_not_directory": "Selected path is not a directory",
+            "quick_check_failed": "Backup quick_check failed: {{quickCheck}}",
+            "version_unsupported": "Backup version is not supported"
+          },
+          "no_backup_selected": "Select a usable Storage v2 backup first",
+          "pre_restore": "Pre-restore backup: {{path}}",
+          "restart_content": "A pre-restore backup was saved to {{preRestoreBackupPath}}. Restart now so every window reloads the database.",
+          "restart_title": "Storage v2 backup restored",
+          "select_title": "Select Storage v2 backup directory",
+          "selected": "Backup: {{path}}",
+          "summary": "quick_check={{quickCheck}}, integrity_check={{integrityCheck}}, missing_blob={{missingBlobFileCount}}, corrupt_blob={{corruptBlobFileCount}}",
+          "valid": "Backup is usable",
+          "warning": "Warning: {{message}}",
+          "warnings": {
+            "manifest_missing": "Backup manifest.json is missing or invalid; a new manifest may be created after restore"
+          }
+        },
+        "banner": "Storage v2 is a parallel local data layer for migration, backup, and future sync recovery.",
+        "confirm_hydrate": {
+          "content": "This will overwrite the current runtime cache with settings, model providers, and assistant configuration from Storage v2. Check Storage v2 stats first.",
+          "title": "Restore runtime cache from Storage v2?"
+        },
+        "confirm_import": {
+          "content": "A snapshot will be created before import. The current app data path and legacy stores will not be deleted.",
+          "title": "Import legacy data to Storage v2?"
+        },
+        "confirm_restore": {
+          "content": "A backup of the current Storage v2 data will be created first, and old files will be archived under legacy. Restart the app after restore.",
+          "title": "Restore this Storage v2 backup?"
+        },
+        "data_root": "Data root",
+        "empty": "-",
+        "entities": {
+          "agent_sessions": "Agent sessions",
+          "agents": "Agents",
+          "assistants": "Assistants",
+          "channels": "Channels",
+          "conversations": "Conversations",
+          "files": "Files",
+          "knowledge_bases": "Knowledge bases",
+          "knowledge_items": "Knowledge items",
+          "kv_records": "App records",
+          "message_blocks": "Message blocks",
+          "messages": "Messages",
+          "migration_runs": "Migration runs",
+          "models": "Models",
+          "providers": "Providers",
+          "scheduled_tasks": "Scheduled tasks",
+          "settings": "Settings",
+          "skills": "Skills",
+          "sync_changes": "Sync changes",
+          "sync_conflicts": "Sync conflicts",
+          "sync_tombstones": "Sync tombstones"
+        },
+        "health": "Health",
+        "health_failed": "Failed",
+        "health_ok": "OK",
+        "history": {
+          "dry_run": "Dry run",
+          "empty": "No migration records yet",
+          "failed": "Failed",
+          "import": "Import",
+          "success": "Success",
+          "title": "Migration history"
+        },
+        "integrity": {
+          "failed": "Issues found",
+          "issues": {
+            "agent_sessions_without_agent": "{{count}} agent session(s) without an agent",
+            "agent_skills_without_agent": "{{count}} agent skill binding(s) without an agent",
+            "agent_skills_without_skill": "{{count}} agent skill binding(s) without a skill",
+            "corrupt_blob_files": "{{count}} blob file(s) with checksum mismatch",
+            "files_without_blob": "{{count}} file record(s) without a blob",
+            "knowledge_items_without_base": "{{count}} knowledge item(s) without a knowledge base",
+            "message_blocks_without_message": "{{count}} message block(s) without a message",
+            "messages_without_conversation": "{{count}} message(s) without a conversation",
+            "missing_blob_files": "{{count}} blob file(s) missing on disk",
+            "models_without_provider": "{{count}} model(s) without a provider",
+            "provider_credentials_without_provider": "{{count}} credential reference(s) without a provider",
+            "task_logs_without_task": "{{count}} task log(s) without a task",
+            "tasks_without_agent": "{{count}} scheduled task(s) without an agent",
+            "unknown": "{{label}}: {{count}}"
+          },
+          "ok": "Healthy",
+          "summary": "quick_check={{quickCheck}}, integrity_check={{integrityCheck}}, foreign_key={{foreignKeyIssueCount}}",
+          "title": "Integrity check"
+        },
+        "last_report": {
+          "dry_run": "Dry run",
+          "imported": "Imported",
+          "imported_count": "Imported {{value}}",
+          "title": "Last migration report"
+        },
+        "manifest": "Manifest",
+        "menu": "Unified Storage",
+        "profile": "Profile {{value}}",
+        "reports": {
+          "agent_db": "Agent database",
+          "app_db": "App database",
+          "dexie": "IndexedDB",
+          "redux": "Redux state"
+        },
+        "source": "Source",
+        "sources": {
+          "config": "Config file",
+          "current_user_data": "Current user data",
+          "env": "Environment variable",
+          "legacy_user_data": "Legacy user data",
+          "unknown": "Unknown"
+        },
+        "stats": {
+          "title": "Storage v2 records"
+        },
+        "title": "Unified Local Storage",
+        "toast": {
+          "action_failed": "Operation failed: {{message}}",
+          "auto_hydrate_updated": "Startup restore setting updated",
+          "backup_success": "Storage v2 backup created",
+          "backup_validate_failed": "Backup validation failed",
+          "backup_validate_success": "Backup validation passed",
+          "dry_run_success": "Dry run completed",
+          "hydrate_success": "Runtime cache restored from Storage v2",
+          "import_success": "Import completed",
+          "refresh_failed": "Refresh failed: {{message}}",
+          "restore_success": "Storage v2 backup restored",
+          "snapshot_success": "Storage v2 snapshot created",
+          "verify_success": "Storage v2 integrity check completed"
+        },
+        "version": "v{{value}}"
       },
       "title": "Data Settings",
       "webdav": {

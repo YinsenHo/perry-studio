@@ -21,6 +21,11 @@ import { useDispatch, useSelector, useStore } from 'react-redux'
 import { FLUSH, PAUSE, PERSIST, persistReducer, persistStore, PURGE, REGISTER, REHYDRATE } from 'redux-persist'
 import storage from 'redux-persist/lib/storage'
 
+import { storageV2AgentMirrorService } from '../services/StorageV2AgentMirrorService'
+import { storageV2ConversationMirrorService } from '../services/StorageV2ConversationMirrorService'
+import { storageV2FileMirrorService } from '../services/StorageV2FileMirrorService'
+import { maybeHydrateRuntimeCacheFromStorageV2 } from '../services/StorageV2HydrationService'
+import { storageV2MirrorService } from '../services/StorageV2MirrorService'
 import storeSyncService from '../services/StoreSyncService'
 import assistants from './assistants'
 import backup from './backup'
@@ -116,7 +121,7 @@ const store = configureStore({
       serializableCheck: {
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER]
       }
-    }).concat(storeSyncService.createMiddleware())
+    }).concat(storeSyncService.createMiddleware(), storageV2MirrorService.createMiddleware())
   },
   devTools: true
 })
@@ -140,9 +145,25 @@ export const persistor = persistStore(store, undefined, () => {
     }, 0)
   }
 
-  // Notify main process that Redux store is ready
-  void window.electron?.ipcRenderer?.invoke(IpcChannel.ReduxStoreReady)
-  logger.info('Redux store ready, notified main process')
+  const notifyReduxReady = () => {
+    storageV2MirrorService.schedule(() => store.getState())
+    void window.electron?.ipcRenderer?.invoke(IpcChannel.ReduxStoreReady)
+    logger.info('Redux store ready, notified main process')
+  }
+
+  void maybeHydrateRuntimeCacheFromStorageV2({
+    dispatch: store.dispatch,
+    flush: () => persistor.flush()
+  })
+    .then((result) => {
+      if (result.hydrated) {
+        logger.info('Storage v2 runtime cache restored before Redux ready')
+      }
+    })
+    .catch((error) => {
+      logger.warn('Storage v2 auto hydrate skipped or failed', error as Error)
+    })
+    .finally(notifyReduxReady)
 })
 
 export const useAppDispatch = useDispatch.withTypes<AppDispatch>()
@@ -153,6 +174,10 @@ window.store = store
 export async function handleSaveData() {
   logger.info('Flushing redux persistor data')
   await persistor.flush()
+  await storageV2MirrorService.flush()
+  await storageV2ConversationMirrorService.flush()
+  await storageV2FileMirrorService.flush()
+  await storageV2AgentMirrorService.flush()
   logger.info('Flushed redux persistor data')
 }
 

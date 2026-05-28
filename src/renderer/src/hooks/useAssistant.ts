@@ -8,7 +8,8 @@ import {
 } from '@renderer/config/models'
 import { db } from '@renderer/databases'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { storageV2ConversationMirrorService } from '@renderer/services/StorageV2ConversationMirrorService'
+import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addAssistant,
   addTopic,
@@ -25,7 +26,7 @@ import {
   updateTopics
 } from '@renderer/store/assistants'
 import { setDefaultModel, setQuickModel, setTranslateModel } from '@renderer/store/llm'
-import type { Assistant, AssistantSettings, Model, ThinkingOption, Topic } from '@renderer/types'
+import type { Assistant, AssistantSettings, Model, Provider, ThinkingOption, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,7 +35,7 @@ import { TopicManager } from './useTopic'
 
 const LOCAL_MODEL_PROVIDERS = new Set(['ollama', 'lmstudio', 'gpustack'])
 
-const pickFallbackModel = (providers: import('@renderer/types').Provider[]): Model | undefined => {
+const pickFallbackModel = (providers: Provider[]): Model | undefined => {
   const provider = providers.find(
     (provider) =>
       provider.enabled &&
@@ -185,6 +186,9 @@ export function useAssistant(id: string) {
               assistantId: toAssistant.id
             }))
           }
+        })
+        .then(() => {
+          storageV2ConversationMirrorService.scheduleTopic(topic.id, () => store.getState())
         })
     },
     updateTopic: (topic: Topic) => dispatch(updateTopic({ assistantId: assistant.id, topic })),

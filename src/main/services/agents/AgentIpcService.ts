@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { modelsService } from '@main/apiServer/services/models'
+import { storageV2AgentDbMirrorService } from '@main/services/storageV2/AgentDbMirrorService'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ApiModelsFilter, CreateSessionMessageRequest, ListOptions, ScheduledTaskEntity } from '@types'
 import type { TextStreamPart } from 'ai'
@@ -80,6 +81,10 @@ const syncSchedulerIfNeeded = (agentId: string, agent: { configuration?: unknown
       error: error instanceof Error ? error.message : String(error)
     })
   })
+}
+
+const scheduleStorageV2AgentMirror = () => {
+  storageV2AgentDbMirrorService.schedule()
 }
 
 const ensureDefaultSession = async (agentId: string) => {
@@ -211,22 +216,29 @@ export function registerAgentIpcHandlers(): void {
     return { data: result.agents, total: result.total, limit, offset }
   })
 
-  ipcMain.handle(IpcChannel.Agent_Create, (_event, form: any) => createAgentWithDefaultSession(form))
+  ipcMain.handle(IpcChannel.Agent_Create, async (_event, form: any) => {
+    const agent = await createAgentWithDefaultSession(form)
+    scheduleStorageV2AgentMirror()
+    return agent
+  })
   ipcMain.handle(IpcChannel.Agent_Get, (_event, id: string) => agentService.getAgent(id))
   ipcMain.handle(IpcChannel.Agent_Update, async (_event, id: string, updates: any, options?: { replace?: boolean }) => {
     const agent = await agentService.updateAgent(id, updates, { replace: options?.replace === true })
     if (!agent) throw new Error('Agent not found')
     syncSchedulerIfNeeded(id, agent)
+    scheduleStorageV2AgentMirror()
     return agent
   })
   ipcMain.handle(IpcChannel.Agent_Delete, async (_event, id: string) => {
     const deleted = await agentService.deleteAgent(id)
     if (!deleted) throw new Error('Agent not found')
     void channelManager.disconnectAgent(id)
+    scheduleStorageV2AgentMirror()
     return { success: true }
   })
   ipcMain.handle(IpcChannel.Agent_Reorder, async (_event, orderedIds: string[]) => {
     await agentService.reorderAgents(orderedIds)
+    scheduleStorageV2AgentMirror()
     return { success: true }
   })
 
@@ -236,27 +248,33 @@ export function registerAgentIpcHandlers(): void {
     const result = await sessionService.listSessions(agentId, { limit, offset })
     return { data: result.sessions, total: result.total, limit, offset }
   })
-  ipcMain.handle(IpcChannel.AgentSession_Create, (_event, agentId: string, form: any) =>
-    sessionService.createSession(agentId, form)
-  )
+  ipcMain.handle(IpcChannel.AgentSession_Create, async (_event, agentId: string, form: any) => {
+    const session = await sessionService.createSession(agentId, form)
+    scheduleStorageV2AgentMirror()
+    return session
+  })
   ipcMain.handle(IpcChannel.AgentSession_Get, (_event, agentId: string, sessionId: string) =>
     sessionService.getSession(agentId, sessionId)
   )
   ipcMain.handle(IpcChannel.AgentSession_Update, async (_event, agentId: string, sessionId: string, updates: any) => {
     const session = await sessionService.updateSession(agentId, sessionId, updates)
     if (!session) throw new Error('Session not found')
+    scheduleStorageV2AgentMirror()
     return session
   })
-  ipcMain.handle(IpcChannel.AgentSession_Delete, (_event, agentId: string, sessionId: string) =>
-    deleteSessionWithFallback(agentId, sessionId)
-  )
+  ipcMain.handle(IpcChannel.AgentSession_Delete, async (_event, agentId: string, sessionId: string) => {
+    await deleteSessionWithFallback(agentId, sessionId)
+    scheduleStorageV2AgentMirror()
+  })
   ipcMain.handle(IpcChannel.AgentSession_Reorder, async (_event, agentId: string, orderedIds: string[]) => {
     await sessionService.reorderSessions(agentId, orderedIds)
+    scheduleStorageV2AgentMirror()
     return { success: true }
   })
   ipcMain.handle(IpcChannel.AgentSessionMessage_Delete, async (_event, sessionId: string, messageId: number) => {
     const deleted = await sessionMessageService.deleteSessionMessage(sessionId, messageId)
     if (!deleted) throw new Error('Session message not found')
+    scheduleStorageV2AgentMirror()
     return { success: true }
   })
 
@@ -273,6 +291,7 @@ export function registerAgentIpcHandlers(): void {
   ipcMain.handle(IpcChannel.AgentTask_Create, async (_event, agentId: string, task: any) => {
     const created = await taskService.createTask(agentId, task)
     schedulerService.startLoop()
+    scheduleStorageV2AgentMirror()
     return created
   })
   ipcMain.handle(IpcChannel.AgentTask_Get, async (_event, taskId: string): Promise<ScheduledTaskEntity> => {
@@ -284,18 +303,21 @@ export function registerAgentIpcHandlers(): void {
     const task = await taskService.updateTaskById(taskId, updates)
     if (!task) throw new Error('Task not found')
     void schedulerService.syncScheduler()
+    scheduleStorageV2AgentMirror()
     return task
   })
   ipcMain.handle(IpcChannel.AgentTask_Delete, async (_event, taskId: string) => {
     const deleted = await taskService.deleteTaskById(taskId)
     if (!deleted) throw new Error('Task not found')
     void schedulerService.syncScheduler()
+    scheduleStorageV2AgentMirror()
     return { success: true }
   })
   ipcMain.handle(IpcChannel.AgentTask_Run, async (_event, taskId: string) => {
     const task = await taskService.getTaskById(taskId)
     if (!task) throw new Error('Task not found')
     await schedulerService.runTaskNow(task.agent_id, taskId)
+    scheduleStorageV2AgentMirror()
     return { success: true }
   })
   ipcMain.handle(IpcChannel.AgentTaskLogs_List, async (_event, taskId: string, options?: ListOptions) => {
@@ -322,6 +344,7 @@ export function registerAgentIpcHandlers(): void {
       permissionMode: permission_mode
     })
     await channelManager.syncChannel(channel.id)
+    scheduleStorageV2AgentMirror()
     return channel
   })
   ipcMain.handle(IpcChannel.AgentChannel_Update, async (_event, id: string, data: Record<string, any>) => {
@@ -336,6 +359,7 @@ export function registerAgentIpcHandlers(): void {
     const channel = await channelService.updateChannel(id, updates)
     if (!channel) throw new Error('Channel not found')
     await channelManager.syncChannel(id)
+    scheduleStorageV2AgentMirror()
     return channel
   })
   ipcMain.handle(IpcChannel.AgentChannel_Delete, async (_event, id: string) => {
@@ -343,6 +367,7 @@ export function registerAgentIpcHandlers(): void {
     if (!channel) throw new Error('Channel not found')
     await channelService.deleteChannel(id)
     await channelManager.disconnectChannel(id)
+    scheduleStorageV2AgentMirror()
     return { success: true }
   })
 

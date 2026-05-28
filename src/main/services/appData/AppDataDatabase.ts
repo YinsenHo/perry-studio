@@ -102,6 +102,21 @@ export class AppDataDatabase {
     return AppDataDatabase.instance
   }
 
+  static async close() {
+    const instance = AppDataDatabase.instance
+    if (!instance) return
+
+    AppDataDatabase.instance = null
+
+    if (instance.client) {
+      try {
+        instance.client.close()
+      } catch (error) {
+        logger.warn('Failed to close app data database connection', error as Error)
+      }
+    }
+  }
+
   private get dbPath() {
     return path.join(app.getPath('userData'), 'Data', DB_NAME)
   }
@@ -186,6 +201,10 @@ export class AppDataDatabase {
     }
 
     return this.client!
+  }
+
+  async getRawClient() {
+    return this.getClient()
   }
 
   private async ensureDeviceId() {

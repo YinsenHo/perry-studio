@@ -64,6 +64,16 @@ const memorySlice = createSlice({
   name: 'memory',
   initialState,
   reducers: {
+    hydrateMemoryState: (_state, action: PayloadAction<Partial<MemoryState>>) => {
+      if (typeof action.payload.currentUserId === 'string') {
+        localStorage.setItem('memory_currentUserId', action.payload.currentUserId)
+      }
+
+      return {
+        ...initialState,
+        ...action.payload
+      }
+    },
     /**
      * Updates the memory configuration
      * @param state - Current memory state
@@ -113,7 +123,7 @@ const memorySlice = createSlice({
 })
 
 // Export action creators
-export const { updateMemoryConfig, setCurrentUserId, setGlobalMemoryEnabled } = memorySlice.actions
+export const { hydrateMemoryState, updateMemoryConfig, setCurrentUserId, setGlobalMemoryEnabled } = memorySlice.actions
 
 // Export selectors
 export const { getMemoryConfig, getCurrentUserId, getGlobalMemoryEnabled } = memorySlice.selectors

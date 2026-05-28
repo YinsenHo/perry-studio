@@ -57,6 +57,7 @@ This directory contains the project documentation in multiple languages.
 |------|------|
 | [消息系统](./zh/references/message-system.md) | 消息系统架构和 API |
 | [数据库结构](./zh/references/database.md) | 数据库表结构 |
+| [Storage v2](./zh/references/storage-v2.md) | 本地优先统一数据存储、迁移、同步和恢复架构 |
 | [服务](./zh/references/services.md) | 服务层文档 (KnowledgeService) |
 | [代码执行](./zh/references/code-execution.md) | 代码执行功能 |
 | [应用升级配置](./zh/references/app-upgrade.md) | 应用升级配置 |

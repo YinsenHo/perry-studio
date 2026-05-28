@@ -152,6 +152,45 @@ const llmSlice = createSlice({
   name: 'llm',
   initialState: isLocalAi ? getIntegratedInitialState() : initialState,
   reducers: {
+    hydrateLlmState: (_state, action: PayloadAction<Partial<LlmState>>) => {
+      const nextSettings = action.payload.settings
+      return {
+        ...(isLocalAi ? getIntegratedInitialState() : initialState),
+        ...action.payload,
+        settings: {
+          ...initialState.settings,
+          ...nextSettings,
+          ollama: {
+            ...initialState.settings.ollama,
+            ...nextSettings?.ollama
+          },
+          lmstudio: {
+            ...initialState.settings.lmstudio,
+            ...nextSettings?.lmstudio
+          },
+          gpustack: {
+            ...initialState.settings.gpustack,
+            ...nextSettings?.gpustack
+          },
+          vertexai: {
+            ...initialState.settings.vertexai,
+            ...nextSettings?.vertexai,
+            serviceAccount: {
+              ...initialState.settings.vertexai.serviceAccount,
+              ...nextSettings?.vertexai?.serviceAccount
+            }
+          },
+          awsBedrock: {
+            ...initialState.settings.awsBedrock,
+            ...nextSettings?.awsBedrock
+          },
+          cherryIn: {
+            ...initialState.settings.cherryIn,
+            ...nextSettings?.cherryIn
+          }
+        }
+      }
+    },
     updateProvider: (state, action: PayloadAction<Partial<Provider> & { id: string }>) => {
       const index = state.providers.findIndex((p) => p.id === action.payload.id)
       if (index !== -1) {
@@ -277,6 +316,7 @@ const llmSlice = createSlice({
 })
 
 export const {
+  hydrateLlmState,
   updateProvider,
   updateProviders,
   addProvider,

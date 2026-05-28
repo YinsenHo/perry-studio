@@ -1,0 +1,111 @@
+import { loggerService } from '@logger'
+import db from '@renderer/databases'
+
+const logger = loggerService.withContext('StorageV2FileMirrorService')
+
+const DEFAULT_DEBOUNCE_MS = 1500
+
+class StorageV2FileMirrorService {
+  private timer: ReturnType<typeof setTimeout> | null = null
+  private pendingFileIds = new Set<string>()
+  private inflight: Promise<void> | null = null
+  private needsFollowUp = false
+  private suspended = false
+
+  scheduleFile(fileId: string | undefined, debounceMs = DEFAULT_DEBOUNCE_MS) {
+    if (this.suspended) return
+    if (!fileId) return
+    this.pendingFileIds.add(fileId)
+    this.scheduleFlush(debounceMs)
+  }
+
+  scheduleFiles(fileIds: Iterable<string | undefined>, debounceMs = DEFAULT_DEBOUNCE_MS) {
+    if (this.suspended) return
+    let hasPending = false
+
+    for (const fileId of fileIds) {
+      if (!fileId) continue
+      this.pendingFileIds.add(fileId)
+      hasPending = true
+    }
+
+    if (hasPending) {
+      this.scheduleFlush(debounceMs)
+    }
+  }
+
+  async flush() {
+    if (this.suspended) return
+    if (this.timer) {
+      clearTimeout(this.timer)
+      this.timer = null
+    }
+
+    if (this.inflight) {
+      this.needsFollowUp = true
+      await this.inflight
+      if (this.needsFollowUp) {
+        this.needsFollowUp = false
+        await this.flush()
+      }
+      return
+    }
+
+    if (this.pendingFileIds.size === 0 || !window.api?.storageV2) return
+
+    this.inflight = this.mirrorPendingNow().finally(() => {
+      this.inflight = null
+    })
+
+    await this.inflight
+  }
+
+  private scheduleFlush(debounceMs: number) {
+    if (this.timer) {
+      clearTimeout(this.timer)
+    }
+
+    this.timer = setTimeout(() => {
+      this.timer = null
+      void this.flush()
+    }, debounceMs)
+  }
+
+  private async mirrorPendingNow() {
+    const fileIds = Array.from(this.pendingFileIds)
+    this.pendingFileIds.clear()
+
+    try {
+      const files = await db.files.where('id').anyOf(fileIds).toArray()
+      if (files.length === 0) return
+
+      await window.api.storageV2.importLegacyDexieSnapshot(
+        {
+          conversations: [],
+          files
+        },
+        { dryRun: false }
+      )
+
+      logger.debug(`Mirrored ${files.length} file(s) to Storage v2`)
+    } catch (error) {
+      for (const fileId of fileIds) {
+        this.pendingFileIds.add(fileId)
+      }
+      logger.warn('Failed to mirror files to Storage v2', error as Error)
+    }
+  }
+
+  suspendUntilReload() {
+    this.suspended = true
+    this.pendingFileIds.clear()
+    this.needsFollowUp = false
+
+    if (this.timer) {
+      clearTimeout(this.timer)
+      this.timer = null
+    }
+  }
+}
+
+export const storageV2FileMirrorService = new StorageV2FileMirrorService()

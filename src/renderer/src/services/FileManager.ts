@@ -9,6 +9,32 @@ import dayjs from 'dayjs'
 const logger = loggerService.withContext('FileManager')
 
 class FileManager {
+  private static async mirrorFileToStorageV2(file: FileMetadata | undefined): Promise<void> {
+    if (!file || !window.api?.storageV2) return
+
+    try {
+      await window.api.storageV2.importLegacyDexieSnapshot(
+        {
+          conversations: [],
+          files: [file]
+        },
+        { dryRun: false }
+      )
+    } catch (error) {
+      logger.warn('Failed to mirror file to Storage v2:', error as Error)
+    }
+  }
+
+  private static async deleteStorageV2File(id: string): Promise<void> {
+    if (!window.api?.storageV2) return
+
+    try {
+      await window.api.storageV2.deleteFile(id)
+    } catch (error) {
+      logger.warn('Failed to tombstone file in Storage v2:', error as Error)
+    }
+  }
+
   static async selectFiles(options?: Electron.OpenDialogOptions): Promise<FileMetadata[] | null> {
     return await window.api.file.select(options)
   }
@@ -17,11 +43,14 @@ class FileManager {
     const fileRecord = await db.files.get(file.id)
 
     if (fileRecord) {
-      await db.files.update(fileRecord.id, { ...fileRecord, count: fileRecord.count + 1 })
+      const updatedFile = { ...fileRecord, count: fileRecord.count + 1 }
+      await db.files.update(fileRecord.id, updatedFile)
+      await this.mirrorFileToStorageV2(updatedFile)
       return fileRecord
     }
 
     await db.files.add(file)
+    await this.mirrorFileToStorageV2(file)
 
     return file
   }
@@ -47,11 +76,14 @@ class FileManager {
     const fileRecord = await db.files.get(base64File.id)
 
     if (fileRecord) {
-      await db.files.update(fileRecord.id, { ...fileRecord, count: fileRecord.count + 1 })
+      const updatedFile = { ...fileRecord, count: fileRecord.count + 1 }
+      await db.files.update(fileRecord.id, updatedFile)
+      await this.mirrorFileToStorageV2(updatedFile)
       return fileRecord
     }
 
     await db.files.add(base64File)
+    await this.mirrorFileToStorageV2(base64File)
 
     return base64File
   }
@@ -64,11 +96,14 @@ class FileManager {
     const fileRecord = await db.files.get(uploadFile.id)
 
     if (fileRecord) {
-      await db.files.update(fileRecord.id, { ...fileRecord, count: fileRecord.count + 1 })
+      const updatedFile = { ...fileRecord, count: fileRecord.count + 1 }
+      await db.files.update(fileRecord.id, updatedFile)
+      await this.mirrorFileToStorageV2(updatedFile)
       return fileRecord
     }
 
     await db.files.add(uploadFile)
+    await this.mirrorFileToStorageV2(uploadFile)
 
     return uploadFile
   }
@@ -104,7 +139,9 @@ class FileManager {
 
     if (!force) {
       if (file.count > 1) {
-        await db.files.update(id, { ...file, count: file.count - 1 })
+        const updatedFile = { ...file, count: file.count - 1 }
+        await db.files.update(id, updatedFile)
+        await this.mirrorFileToStorageV2(updatedFile)
         return
       }
     }
@@ -116,6 +153,8 @@ class FileManager {
     } catch (error) {
       logger.error('Failed to delete file:', error as Error)
     }
+
+    await this.deleteStorageV2File(id)
   }
 
   static async deleteFiles(files: FileMetadata[]): Promise<void> {
@@ -154,6 +193,7 @@ class FileManager {
     }
 
     await db.files.update(file.id, file)
+    await this.mirrorFileToStorageV2(file)
   }
 
   static formatFileName(file: FileMetadata) {

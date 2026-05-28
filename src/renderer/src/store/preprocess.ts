@@ -66,6 +66,12 @@ const preprocessSlice = createSlice({
   name: 'preprocess',
   initialState,
   reducers: {
+    hydratePreprocessState: (_state, action: PayloadAction<Partial<PreprocessState>>) => {
+      return {
+        ...initialState,
+        ...action.payload
+      }
+    },
     setDefaultPreprocessProvider(state, action: PayloadAction<string>) {
       state.defaultProvider = action.payload
     },
@@ -85,6 +91,7 @@ const preprocessSlice = createSlice({
 })
 
 export const {
+  hydratePreprocessState,
   updatePreprocessProviders,
   updatePreprocessProvider,
   setDefaultPreprocessProvider,

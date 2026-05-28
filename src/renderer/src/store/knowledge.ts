@@ -34,6 +34,13 @@ const knowledgeSlice = createSlice({
   name: 'knowledge',
   initialState,
   reducers: {
+    hydrateKnowledgeState: (_state, action: PayloadAction<Partial<KnowledgeState>>) => {
+      return {
+        ...initialState,
+        ...action.payload
+      }
+    },
+
     addBase(state, action: PayloadAction<KnowledgeBase>) {
       state.bases.push(action.payload)
     },
@@ -239,6 +246,7 @@ const knowledgeSlice = createSlice({
 })
 
 export const {
+  hydrateKnowledgeState,
   addBase,
   deleteBase,
   renameBase,

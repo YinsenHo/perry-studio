@@ -64,6 +64,12 @@ const noteSlice = createSlice({
   name: 'note',
   initialState,
   reducers: {
+    hydrateNoteState: (_state, action: PayloadAction<Partial<NoteState>>) => {
+      return {
+        ...initialState,
+        ...action.payload
+      }
+    },
     setActiveNodeId: (state, action: PayloadAction<string | undefined>) => {
       state.activeNodeId = action.payload
     },
@@ -89,6 +95,7 @@ const noteSlice = createSlice({
 })
 
 export const {
+  hydrateNoteState,
   setActiveNodeId,
   setActiveFilePath,
   updateNotesSettings,

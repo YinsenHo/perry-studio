@@ -25,6 +25,7 @@ import type {
   AddAgentForm,
   AddMemoryOptions,
   ApiModelsFilter,
+  Assistant,
   AssistantMessage,
   CreateSessionForm,
   CreateSessionMessageRequest,
@@ -255,6 +256,46 @@ const api = {
   dataSync: {
     syncNow: (webdavConfig: WebDavConfig) => ipcRenderer.invoke(IpcChannel.DataSync_SyncNow, webdavConfig),
     getStatus: () => ipcRenderer.invoke(IpcChannel.DataSync_GetStatus)
+  },
+  storageV2: {
+    getDataRoot: () => ipcRenderer.invoke(IpcChannel.StorageV2_GetDataRoot),
+    healthCheck: () => ipcRenderer.invoke(IpcChannel.StorageV2_HealthCheck),
+    createSnapshot: (reason?: string) => ipcRenderer.invoke(IpcChannel.StorageV2_CreateSnapshot, reason),
+    createBackup: (reason?: string) => ipcRenderer.invoke(IpcChannel.StorageV2_CreateBackup, reason),
+    validateBackup: (backupPath: string) => ipcRenderer.invoke(IpcChannel.StorageV2_ValidateBackup, backupPath),
+    restoreBackup: (backupPath: string) => ipcRenderer.invoke(IpcChannel.StorageV2_RestoreBackup, backupPath),
+    getMigrationAudit: () => ipcRenderer.invoke(IpcChannel.StorageV2_GetMigrationAudit),
+    getStats: () => ipcRenderer.invoke(IpcChannel.StorageV2_GetStats),
+    getIntegrityReport: () => ipcRenderer.invoke(IpcChannel.StorageV2_GetIntegrityReport),
+    getCoreSnapshot: (options?: { includeSecrets?: boolean }) =>
+      ipcRenderer.invoke(IpcChannel.StorageV2_GetCoreSnapshot, options),
+    recordMigrationRun: (input: unknown) => ipcRenderer.invoke(IpcChannel.StorageV2_RecordMigrationRun, input),
+    listMigrationRuns: (limit?: number) => ipcRenderer.invoke(IpcChannel.StorageV2_ListMigrationRuns, limit),
+    getSetting: (key: string) => ipcRenderer.invoke(IpcChannel.StorageV2_SettingsGet, key),
+    setSetting: (key: string, value: unknown, scope?: string) =>
+      ipcRenderer.invoke(IpcChannel.StorageV2_SettingsSet, key, value, scope),
+    listSettings: (scope?: string) => ipcRenderer.invoke(IpcChannel.StorageV2_SettingsList, scope),
+    listProviders: () => ipcRenderer.invoke(IpcChannel.StorageV2_ProvidersList),
+    upsertProvider: (provider: Provider, sortOrder?: number, credentialRef?: string) =>
+      ipcRenderer.invoke(IpcChannel.StorageV2_ProviderUpsert, provider, sortOrder, credentialRef),
+    listAssistants: () => ipcRenderer.invoke(IpcChannel.StorageV2_AssistantsList),
+    upsertAssistant: (assistant: Assistant, sortOrder?: number) =>
+      ipcRenderer.invoke(IpcChannel.StorageV2_AssistantUpsert, assistant, sortOrder),
+    listConversations: (filter?: { ownerType?: string; ownerId?: string }) =>
+      ipcRenderer.invoke(IpcChannel.StorageV2_ConversationsList, filter),
+    listMessages: (conversationId: string, options?: { limit?: number; offset?: number }) =>
+      ipcRenderer.invoke(IpcChannel.StorageV2_MessagesList, conversationId, options),
+    deleteConversation: (conversationId: string) =>
+      ipcRenderer.invoke(IpcChannel.StorageV2_ConversationDelete, conversationId),
+    deleteFile: (fileId: string) => ipcRenderer.invoke(IpcChannel.StorageV2_FileDelete, fileId),
+    importLegacyReduxSnapshot: (snapshot: unknown, options?: { dryRun?: boolean }) =>
+      ipcRenderer.invoke(IpcChannel.StorageV2_ImportLegacyReduxSnapshot, snapshot, options),
+    importLegacyDexieSnapshot: (snapshot: unknown, options?: { dryRun?: boolean; pruneMissing?: boolean }) =>
+      ipcRenderer.invoke(IpcChannel.StorageV2_ImportLegacyDexieSnapshot, snapshot, options),
+    importLegacyAgentDb: (options?: { dryRun?: boolean; dbPath?: string }) =>
+      ipcRenderer.invoke(IpcChannel.StorageV2_ImportLegacyAgentDb, options),
+    importLegacyAppDb: (options?: { dryRun?: boolean; dbPath?: string }) =>
+      ipcRenderer.invoke(IpcChannel.StorageV2_ImportLegacyAppDb, options)
   },
   file: {
     select: (options?: OpenDialogOptions): Promise<FileMetadata[] | null> =>

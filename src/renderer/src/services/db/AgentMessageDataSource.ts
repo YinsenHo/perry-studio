@@ -15,6 +15,7 @@
  * --------------------------------------------------------------------------
  */
 import { loggerService } from '@logger'
+import { storageV2AgentMirrorService } from '@renderer/services/StorageV2AgentMirrorService'
 import store from '@renderer/store'
 import type { AgentPersistedMessage } from '@renderer/types/agent'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
@@ -85,6 +86,7 @@ export class AgentMessageDataSource implements MessageDataSource {
               ? { user: { payload: { message, blocks } } }
               : { assistant: { payload: { message, blocks } } })
           })
+          storageV2AgentMirrorService.schedule()
 
           logger.debug(`Persisted ${isComplete ? 'complete' : 'streaming'} message ${messageId} to backend`)
 
@@ -250,6 +252,7 @@ export class AgentMessageDataSource implements MessageDataSource {
         agentSessionId,
         ...(message.role === 'user' ? { user: { payload } } : { assistant: { payload } })
       })
+      storageV2AgentMirrorService.schedule()
 
       logger.info(`Saved ${message.role} message for agent session ${sessionId}`, {
         messageId: message.id,
@@ -313,6 +316,7 @@ export class AgentMessageDataSource implements MessageDataSource {
           ? { user: { payload: { message: updatedMessage, blocks: existingMessage.blocks || [] } } }
           : { assistant: { payload: { message: updatedMessage, blocks: existingMessage.blocks || [] } } })
       })
+      storageV2AgentMirrorService.schedule()
 
       const cacheEntry = streamingMessageCache.get(messageId)
       if (cacheEntry) {
@@ -449,6 +453,7 @@ export class AgentMessageDataSource implements MessageDataSource {
             ? { user: { payload: { message: finalMessage, blocks: finalBlocks } } }
             : { assistant: { payload: { message: finalMessage, blocks: finalBlocks } } })
         })
+        storageV2AgentMirrorService.schedule()
 
         logger.info(`Persisted complete message ${messageUpdates.id} for agent session ${sessionId}`, {
           status: finalMessage.status,
@@ -607,6 +612,7 @@ export class AgentMessageDataSource implements MessageDataSource {
               ? { user: { payload: { message, blocks: mergedBlocks } } }
               : { assistant: { payload: { message, blocks: mergedBlocks } } })
           })
+          storageV2AgentMirrorService.schedule()
 
           logger.debug(`Persisted block updates for message ${messageId} in agent session ${sessionId}`, {
             blockCount: mergedBlocks.length

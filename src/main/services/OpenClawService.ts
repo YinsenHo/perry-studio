@@ -15,6 +15,8 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { formatApiHost, hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType, VertexProvider } from '@types'
 
+import { storageV2SecretVaultService } from './storageV2/SecretVaultService'
+import { storageV2SettingsRepository } from './storageV2/StorageV2Repositories'
 import { parseCurrentVersion, parseUpdateStatus } from './utils/openClawParsers'
 import VertexAIService from './VertexAIService'
 import { windowService } from './WindowService'
@@ -27,6 +29,8 @@ const OPENCLAW_CONFIG_BAK_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json.b
 const OPENCLAW_LEGACY_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.cherry.json')
 const SYMLINK_PATH = '/usr/local/bin/openclaw'
 const DEFAULT_GATEWAY_PORT = 18790
+const STORAGE_V2_OPENCLAW_SCOPE = 'openclaw'
+const STORAGE_V2_OPENCLAW_CONFIG_SETTING_KEY = 'openclaw.config'
 
 export type GatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 
@@ -77,6 +81,11 @@ export interface OpenClawProviderConfig {
   models: OpenClawModelConfig[]
 }
 
+type OpenClawStorageV2ConfigSetting = {
+  configSecretRef?: string
+  updatedAt?: string
+}
+
 /**
  * OpenClaw API types
  * - 'openai-completions': For OpenAI-compatible chat completions API
@@ -122,6 +131,16 @@ function isAnthropicEndpointType(model: Model): boolean {
  */
 function isVertexProvider(provider: Provider): provider is VertexProvider {
   return provider.type === 'vertexai'
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+function getStorageV2OpenClawConfigSecretRef(value: unknown): string | null {
+  if (!isRecord(value)) return null
+  const secretRef = (value as OpenClawStorageV2ConfigSetting).configSecretRef
+  return typeof secretRef === 'string' && secretRef ? secretRef : null
 }
 
 class OpenClawService {
@@ -734,6 +753,39 @@ class OpenClawService {
     return crypto.randomBytes(24).toString('base64url')
   }
 
+  private parseConfig(content: string): OpenClawConfig | null {
+    const parsed = JSON.parse(content)
+    return isRecord(parsed) ? (parsed as OpenClawConfig) : null
+  }
+
+  private async loadConfigFromStorageV2(): Promise<OpenClawConfig | null> {
+    const setting = await storageV2SettingsRepository.get(STORAGE_V2_OPENCLAW_CONFIG_SETTING_KEY)
+    const secretRef = getStorageV2OpenClawConfigSecretRef(setting)
+    if (!secretRef) return null
+
+    const secret = await storageV2SecretVaultService.getSecret(secretRef)
+    if (!secret) return null
+
+    return this.parseConfig(secret)
+  }
+
+  private async saveConfigToStorageV2(config: OpenClawConfig): Promise<void> {
+    const secretRef = await storageV2SecretVaultService.setSecret(
+      STORAGE_V2_OPENCLAW_SCOPE,
+      'default',
+      'config',
+      JSON.stringify(config)
+    )
+    await storageV2SettingsRepository.set(
+      STORAGE_V2_OPENCLAW_CONFIG_SETTING_KEY,
+      {
+        configSecretRef: secretRef,
+        updatedAt: new Date().toISOString()
+      } satisfies OpenClawStorageV2ConfigSetting,
+      STORAGE_V2_OPENCLAW_SCOPE
+    )
+  }
+
   /**
    * Sync Cherry Studio Provider configuration to OpenClaw
    */
@@ -760,12 +812,28 @@ class OpenClawService {
 
       // Read existing config
       let config: OpenClawConfig = {}
+      let hasExistingConfig = false
       if (fs.existsSync(OPENCLAW_CONFIG_PATH)) {
         try {
           const content = fs.readFileSync(OPENCLAW_CONFIG_PATH, 'utf-8')
-          config = JSON.parse(content)
+          const parsedConfig = this.parseConfig(content)
+          if (parsedConfig) {
+            config = parsedConfig
+            hasExistingConfig = true
+          }
         } catch {
           logger.warn('Failed to parse existing OpenClaw config, creating new one')
+        }
+      }
+
+      if (!hasExistingConfig) {
+        const storageV2Config = await this.loadConfigFromStorageV2().catch((error) => {
+          logger.warn('Failed to load OpenClaw config from Storage v2:', error as Error)
+          return null
+        })
+        if (storageV2Config) {
+          config = storageV2Config
+          hasExistingConfig = true
         }
       }
 
@@ -827,11 +895,12 @@ class OpenClawService {
       }
 
       // Set gateway mode to local (required for gateway to start)
+      const existingGatewayToken = config.gateway?.auth?.token
       config.gateway = config.gateway || {}
       config.gateway.mode = 'local'
       config.gateway.port = this.gatewayPort
       // Auto-generate auth token if not already set, and store it for API calls
-      const token = this.gatewayAuthToken || this.generateAuthToken()
+      const token = this.gatewayAuthToken || existingGatewayToken || this.generateAuthToken()
       config.gateway.auth = { token }
       this.gatewayAuthToken = token
 
@@ -847,6 +916,9 @@ class OpenClawService {
 
       // Write config file
       fs.writeFileSync(OPENCLAW_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8')
+      await this.saveConfigToStorageV2(config).catch((error) => {
+        logger.warn('Failed to save OpenClaw config to Storage v2:', error as Error)
+      })
 
       logger.info(`Synced provider ${provider.id} to OpenClaw config`)
       return { success: true }

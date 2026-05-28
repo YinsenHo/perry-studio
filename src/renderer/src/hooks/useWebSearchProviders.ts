@@ -1,4 +1,5 @@
 import { flushStorageV2ReduxMirror } from '@renderer/services/StorageV2ReduxMirrorFlush'
+import { persistStorageV2ReduxSlice } from '@renderer/services/StorageV2ReduxSliceService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addSubscribeSource as _addSubscribeSource,
@@ -93,6 +94,10 @@ export const useBlacklist = () => {
   }
 
   const removeSubscribeSource = async (key: number) => {
+    await persistStorageV2ReduxSlice('websearch', {
+      ...websearch,
+      subscribeSources: websearch.subscribeSources.filter((source) => source.key !== key)
+    })
     dispatch(_removeSubscribeSource(key))
     await flushWebSearchMirror('websearch-remove-subscribe-source', { strict: true })
   }
@@ -103,6 +108,10 @@ export const useBlacklist = () => {
   }
 
   const setSubscribeSources = async (sources: { key: number; url: string; name: string; blacklist?: string[] }[]) => {
+    await persistStorageV2ReduxSlice('websearch', {
+      ...websearch,
+      subscribeSources: sources
+    })
     dispatch(_setSubscribeSources(sources))
     await flushWebSearchMirror('websearch-set-subscribe-sources', { strict: true })
   }

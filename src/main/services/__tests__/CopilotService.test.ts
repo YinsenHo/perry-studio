@@ -191,6 +191,15 @@ describe('CopilotService Storage v2 token persistence', () => {
     expect(mocks.fs.promises.unlink).toHaveBeenCalledWith('/mock/config/.copilot_token')
   })
 
+  it('keeps legacy token files when Storage v2 logout marker cannot be written', async () => {
+    mocks.settingsRepository.set.mockRejectedValueOnce(new Error('storage locked'))
+    const service = await loadCopilotService()
+
+    await expect(service.logout()).rejects.toThrow('无法完成退出登录操作')
+
+    expect(mocks.fs.promises.unlink).not.toHaveBeenCalled()
+  })
+
   it('does not resurrect a legacy token file after the Storage v2 token was cleared', async () => {
     mocks.settingsRepository.get.mockResolvedValue({
       clearedAt: '2026-01-01T00:00:00.000Z'

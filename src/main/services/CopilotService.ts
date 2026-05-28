@@ -411,9 +411,7 @@ class CopilotService {
    */
   public logout = async (): Promise<void> => {
     try {
-      await this.clearAccessTokenInStorageV2().catch((error) => {
-        logger.warn('Failed to clear Copilot access token in Storage v2', error as Error)
-      })
+      await this.clearAccessTokenInStorageV2()
 
       for (const tokenFilePath of this.getTokenFilePaths()) {
         try {

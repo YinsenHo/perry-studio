@@ -405,17 +405,12 @@ export const useKnowledgeBases = () => {
   const deleteKnowledgeBase = async (baseId: string) => {
     const base = bases.find((b) => b.id === baseId)
     if (!base) return
-    dispatch(deleteBase({ baseId }))
 
     const noteIds = base.items.filter(isKnowledgeNoteItem).map((item) => item.id)
     if (noteIds.length > 0) {
-      void db.knowledge_notes
-        .bulkDelete(noteIds)
-        .then(async () => {
-          storageV2DexieTableMirrorService.scheduleDeletes('knowledge_notes', noteIds)
-          await storageV2DexieTableMirrorService.flush()
-        })
-        .catch(() => undefined)
+      await db.knowledge_notes.bulkDelete(noteIds)
+      storageV2DexieTableMirrorService.scheduleDeletes('knowledge_notes', noteIds)
+      await storageV2DexieTableMirrorService.flush()
     }
 
     // remove assistant knowledge_base
@@ -440,8 +435,15 @@ export const useKnowledgeBases = () => {
       return agent
     })
 
-    updateAssistants(_assistants)
-    setAssistantPresets(_presets)
+    storageV2MirrorService.pauseRuntimeMirroring()
+    try {
+      dispatch(deleteBase({ baseId }))
+      updateAssistants(_assistants)
+      setAssistantPresets(_presets)
+    } finally {
+      storageV2MirrorService.resumeRuntimeMirroring()
+    }
+
     await flushStorageV2KnowledgeMirror('delete-knowledge-base')
   }
 

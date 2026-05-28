@@ -62,6 +62,22 @@ async function getKnowledgeNoteWithStorageV2Fallback(noteId: string, reason: str
   return note
 }
 
+async function deleteKnowledgeNotesAfterMetadataFlush(noteIds: string[]) {
+  if (noteIds.length === 0) return
+
+  storageV2DexieTableMirrorService.scheduleDeletes('knowledge_notes', noteIds)
+  await storageV2DexieTableMirrorService.flushStrict()
+  await db.knowledge_notes.bulkDelete(noteIds)
+}
+
+async function cleanupKnowledgeIndex(reason: string, cleanup: () => Promise<void>) {
+  try {
+    await cleanup()
+  } catch (error) {
+    logger.warn(`Failed to cleanup knowledge index after Storage v2 metadata flush: ${reason}`, error as Error)
+  }
+}
+
 export const useKnowledge = (baseId: string) => {
   const dispatch = useAppDispatch()
   const base = useSelector((state: RootState) => state.knowledge.bases.find((b) => b.id === baseId))
@@ -164,20 +180,21 @@ export const useKnowledge = (baseId: string) => {
       return
     }
 
-    if (isKnowledgeNoteItem(item)) {
-      storageV2DexieTableMirrorService.scheduleDelete('knowledge_notes', item.id)
-      await storageV2DexieTableMirrorService.flushStrict()
-      await db.knowledge_notes.delete(item.id)
-    }
-
+    const noteIds = isKnowledgeNoteItem(item) ? [item.id] : []
     if (item?.uniqueId && item?.uniqueIds) {
       const removalParams = {
         uniqueId: item.uniqueId,
         uniqueIds: item.uniqueIds,
         base: getKnowledgeBaseParams(base)
       }
-
-      await window.api.knowledgeBase.remove(removalParams)
+      dispatch(removeItemAction({ baseId, item }))
+      await flushStorageV2KnowledgeMirror('remove-item', { strict: true })
+      await deleteKnowledgeNotesAfterMetadataFlush(noteIds)
+      await cleanupKnowledgeIndex('remove-item', () => window.api.knowledgeBase.remove(removalParams))
+    } else {
+      dispatch(removeItemAction({ baseId, item }))
+      await flushStorageV2KnowledgeMirror('remove-item', { strict: true })
+      await deleteKnowledgeNotesAfterMetadataFlush(noteIds)
     }
 
     const filesToDelete =
@@ -187,8 +204,6 @@ export const useKnowledge = (baseId: string) => {
           ? item.content
           : []
 
-    dispatch(removeItemAction({ baseId, item }))
-    await flushStorageV2KnowledgeMirror('remove-item', { strict: true })
     await FileManager.deleteFiles(filesToDelete)
   }
   // 刷新项目
@@ -209,9 +224,7 @@ export const useKnowledge = (baseId: string) => {
       base: getKnowledgeBaseParams(base)
     }
 
-    await window.api.knowledgeBase.remove(removalParams)
-
-    await updateItem({
+    const refreshedItem: KnowledgeItem = {
       ...item,
       processingStatus: 'pending',
       processingProgress: 0,
@@ -219,7 +232,11 @@ export const useKnowledge = (baseId: string) => {
       uniqueId: undefined,
       retryCount: 0,
       updated_at: Date.now()
-    })
+    }
+
+    dispatch(updateItemAction({ baseId, item: refreshedItem }))
+    await flushStorageV2KnowledgeMirror('refresh-item', { strict: true })
+    await cleanupKnowledgeIndex('refresh-item', () => window.api.knowledgeBase.remove(removalParams))
     checkAllBases()
   }
 
@@ -396,16 +413,9 @@ export const useKnowledgeBases = () => {
     const base = bases.find((b) => b.id === baseId)
     if (!base) return
 
-    await window.api.knowledgeBase.delete(baseId)
-
     const files = base.items.filter(isKnowledgeFileItem).map((item) => item.content as FileMetadata)
 
     const noteIds = base.items.filter(isKnowledgeNoteItem).map((item) => item.id)
-    if (noteIds.length > 0) {
-      storageV2DexieTableMirrorService.scheduleDeletes('knowledge_notes', noteIds)
-      await storageV2DexieTableMirrorService.flushStrict()
-      await db.knowledge_notes.bulkDelete(noteIds)
-    }
 
     // remove assistant knowledge_base
     const _assistants = assistants.map((assistant) => {
@@ -439,6 +449,8 @@ export const useKnowledgeBases = () => {
     }
 
     await flushStorageV2KnowledgeMirror('delete-knowledge-base', { strict: true })
+    await deleteKnowledgeNotesAfterMetadataFlush(noteIds)
+    await cleanupKnowledgeIndex('delete-knowledge-base', () => window.api.knowledgeBase.delete(baseId))
     await FileManager.deleteFiles(files)
   }
 

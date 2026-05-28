@@ -21,8 +21,10 @@ const DURABLE_LOCAL_STORAGE_KEYS = [
 const MCP_PROVIDER_TOKEN_KEY_SET = new Set<string>(MCP_PROVIDER_TOKEN_KEYS)
 const DURABLE_LOCAL_STORAGE_KEY_SET = new Set<string>(DURABLE_LOCAL_STORAGE_KEYS)
 const DEFAULT_LOCAL_STORAGE_MIRROR_DEBOUNCE_MS = 0
+const LOCAL_STORAGE_MIRROR_RETRY_MS = 5000
 
 let localStorageMirrorTimer: ReturnType<typeof setTimeout> | null = null
+let localStorageMirrorRetryTimer: ReturnType<typeof setTimeout> | null = null
 let localStorageMirrorInflight: Promise<void> | null = null
 let localStorageMirrorNeedsFollowUp = false
 let lastLocalStorageMirrorSnapshotJson = ''
@@ -88,6 +90,8 @@ export function applyStorageV2LocalStorageSnapshot(snapshot: Partial<StorageV2Lo
 export function scheduleStorageV2LocalStorageMirror(debounceMs = DEFAULT_LOCAL_STORAGE_MIRROR_DEBOUNCE_MS) {
   if (typeof window === 'undefined' || !window.api?.storageV2) return
 
+  clearLocalStorageMirrorRetryTimer()
+
   if (localStorageMirrorTimer) {
     clearTimeout(localStorageMirrorTimer)
     localStorageMirrorTimer = null
@@ -106,6 +110,8 @@ export function scheduleStorageV2LocalStorageMirror(debounceMs = DEFAULT_LOCAL_S
 
 export async function flushStorageV2LocalStorageMirror() {
   if (typeof window === 'undefined' || !window.api?.storageV2) return
+
+  clearLocalStorageMirrorRetryTimer()
 
   if (localStorageMirrorTimer) {
     clearTimeout(localStorageMirrorTimer)
@@ -138,6 +144,7 @@ export async function flushStorageV2LocalStorageMirror() {
       logger.debug('Mirrored durable localStorage values to Storage v2')
     })
     .catch((error) => {
+      scheduleLocalStorageMirrorRetry()
       logger.warn('Failed to mirror durable localStorage values to Storage v2', error as Error)
     })
     .finally(() => {
@@ -145,4 +152,20 @@ export async function flushStorageV2LocalStorageMirror() {
     })
 
   await localStorageMirrorInflight
+}
+
+function clearLocalStorageMirrorRetryTimer() {
+  if (!localStorageMirrorRetryTimer) return
+
+  clearTimeout(localStorageMirrorRetryTimer)
+  localStorageMirrorRetryTimer = null
+}
+
+function scheduleLocalStorageMirrorRetry() {
+  if (localStorageMirrorRetryTimer || typeof window === 'undefined' || !window.api?.storageV2) return
+
+  localStorageMirrorRetryTimer = setTimeout(() => {
+    localStorageMirrorRetryTimer = null
+    void flushStorageV2LocalStorageMirror()
+  }, LOCAL_STORAGE_MIRROR_RETRY_MS)
 }

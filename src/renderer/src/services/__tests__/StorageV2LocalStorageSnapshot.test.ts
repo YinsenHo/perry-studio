@@ -128,4 +128,38 @@ describe('StorageV2LocalStorageSnapshot', () => {
       expect(importLegacyReduxSnapshot).toHaveBeenCalledTimes(1)
     })
   })
+
+  it('retries durable localStorage mirrors after a transient Storage v2 failure', async () => {
+    vi.useFakeTimers()
+    const importLegacyReduxSnapshot = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('database busy'))
+      .mockResolvedValueOnce({ dryRun: false })
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        storageV2: {
+          importLegacyReduxSnapshot
+        }
+      }
+    })
+    localStorage.setItem('memory_currentUserId', 'user-retry')
+
+    await flushStorageV2LocalStorageMirror()
+    expect(importLegacyReduxSnapshot).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(5000)
+
+    expect(importLegacyReduxSnapshot).toHaveBeenCalledTimes(2)
+    expect(importLegacyReduxSnapshot).toHaveBeenLastCalledWith(
+      {
+        localStorage: expect.objectContaining({
+          durableValues: {
+            memory_currentUserId: 'user-retry'
+          }
+        })
+      },
+      { dryRun: false }
+    )
+  })
 })

@@ -275,6 +275,91 @@ describe('AppDataIpcService', () => {
     expect(mocks.storageV2.listRecords).toHaveBeenCalledWith('agent-tools', true)
   })
 
+  it('merges Storage v2 app records into non-empty legacy app record lists', async () => {
+    const legacyRecord = {
+      scope: 'settings',
+      key: 'theme',
+      value: { mode: 'dark' },
+      valueHash: 'legacy-theme',
+      updatedAt: 1760000000000,
+      deletedAt: null,
+      deviceId: 'device',
+      version: 1
+    }
+    const storageOnlyRecord = {
+      scope: 'settings',
+      key: 'agent-tools',
+      value: { github: true },
+      valueHash: 'storage-agent-tools',
+      updatedAt: 1760000001000,
+      deletedAt: null,
+      deviceId: 'device',
+      version: 1
+    }
+
+    mocks.db.listRecords.mockResolvedValueOnce([legacyRecord]).mockResolvedValueOnce([legacyRecord])
+    mocks.storageV2.listRecords.mockResolvedValueOnce([storageOnlyRecord])
+
+    await expect(getHandler(IpcChannel.AppData_List)(null, 'settings', false)).resolves.toEqual(
+      expect.arrayContaining([legacyRecord, storageOnlyRecord])
+    )
+    expect(mocks.storageV2.listRecords).toHaveBeenCalledWith('settings', true)
+    expect(mocks.recovery.projectIfLegacyAppRecordListEmpty).not.toHaveBeenCalled()
+  })
+
+  it('does not resurrect legacy app records deleted by a newer Storage v2 tombstone', async () => {
+    const legacyRecord = {
+      scope: 'settings',
+      key: 'theme',
+      value: { mode: 'dark' },
+      valueHash: 'legacy-theme',
+      updatedAt: 1760000000000,
+      deletedAt: null,
+      deviceId: 'device',
+      version: 1
+    }
+    const storageTombstone = {
+      ...legacyRecord,
+      value: null,
+      valueHash: 'storage-theme-tombstone',
+      updatedAt: 1760000001000,
+      deletedAt: 1760000001000,
+      version: 2
+    }
+
+    mocks.db.listRecords.mockResolvedValueOnce([legacyRecord]).mockResolvedValueOnce([legacyRecord])
+    mocks.storageV2.listRecords.mockResolvedValueOnce([storageTombstone])
+
+    await expect(getHandler(IpcChannel.AppData_List)(null, 'settings', false)).resolves.toEqual([])
+  })
+
+  it('keeps legacy app record tombstones from falling back to older Storage v2 records', async () => {
+    const legacyTombstone = {
+      scope: 'settings',
+      key: 'theme',
+      value: null,
+      valueHash: 'legacy-theme-tombstone',
+      updatedAt: 1760000001000,
+      deletedAt: 1760000001000,
+      deviceId: 'device',
+      version: 2
+    }
+    const staleStorageRecord = {
+      ...legacyTombstone,
+      value: { mode: 'dark' },
+      valueHash: 'storage-theme',
+      updatedAt: 1760000000000,
+      deletedAt: null,
+      version: 1
+    }
+
+    mocks.db.listRecords.mockResolvedValueOnce([]).mockResolvedValueOnce([legacyTombstone])
+    mocks.storageV2.listRecords.mockResolvedValueOnce([staleStorageRecord])
+
+    await expect(getHandler(IpcChannel.AppData_List)(null, 'settings', false)).resolves.toEqual([])
+    expect(mocks.recovery.projectIfLegacyAppRecordListEmpty).not.toHaveBeenCalled()
+  })
+
   it('preserves null cache entries instead of falling back to stale Storage v2 cache', async () => {
     mocks.db.getCacheEntry.mockResolvedValueOnce({ found: true, value: null, expiresAt: null })
     mocks.storageV2.getCache.mockResolvedValue({ stale: true })

@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { storageV2AppDataKvMirrorService } from '@main/services/storageV2/AppDataKvMirrorService'
 import { storageV2AppDataRuntimeRecoveryService } from '@main/services/storageV2/AppDataRuntimeRecoveryService'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -5,7 +6,10 @@ import type { WebDavConfig } from '@types'
 import { ipcMain } from 'electron'
 
 import { createWorkbenchShortcutRecord, getAppDataDatabase } from './AppDataDatabase'
+import { filterAppDataRecords, mergeAppDataRecords } from './AppDataRecordMerge'
 import { appDataSyncService } from './AppDataSyncService'
+
+const logger = loggerService.withContext('AppDataIpcService')
 
 export function registerAppDataIpcHandlers() {
   ipcMain.handle(IpcChannel.AppData_Get, async (_, scope: string, key: string) => {
@@ -46,8 +50,16 @@ export function registerAppDataIpcHandlers() {
   ipcMain.handle(IpcChannel.AppData_List, async (_, scope?: string, includeDeleted?: boolean) => {
     let db = await getAppDataDatabase()
     const records = await db.listRecords(scope, includeDeleted)
-    if (records.length > 0) {
-      return records
+    const legacyRecords = includeDeleted ? records : await db.listRecords(scope, true)
+
+    if (legacyRecords.length > 0) {
+      try {
+        const storageRecords = await storageV2AppDataKvMirrorService.listRecords(scope, true)
+        return filterAppDataRecords(mergeAppDataRecords(legacyRecords, storageRecords), includeDeleted)
+      } catch (error) {
+        logger.warn('Failed to merge Storage v2 app records into app-data list', error as Error)
+        return records
+      }
     }
 
     if (await storageV2AppDataRuntimeRecoveryService.projectIfLegacyAppRecordListEmpty(scope, 'app-data-list-empty')) {

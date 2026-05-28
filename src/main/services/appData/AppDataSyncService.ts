@@ -8,6 +8,7 @@ import type { WebDavConfig } from '@types'
 import { createClient, type WebDAVClient } from 'webdav'
 
 import { type AppDataDatabase, type AppDataRecord, getAppDataDatabase } from './AppDataDatabase'
+import { mergeAppDataRecords } from './AppDataRecordMerge'
 
 const logger = loggerService.withContext('AppDataSyncService')
 
@@ -56,29 +57,6 @@ function encodePart(value: string) {
 
 function recordPath(record: Pick<AppDataRecord, 'scope' | 'key'>) {
   return `records/${encodePart(record.scope)}/${encodePart(record.key)}.json`
-}
-
-function compareRecords(left: AppDataRecord, right: AppDataRecord) {
-  if (left.updatedAt !== right.updatedAt) {
-    return left.updatedAt - right.updatedAt
-  }
-
-  return (left.version ?? 0) - (right.version ?? 0)
-}
-
-function mergeAppDataRecords(primary: AppDataRecord[], secondary: AppDataRecord[]) {
-  const records = new Map<string, AppDataRecord>()
-
-  for (const record of [...secondary, ...primary]) {
-    const id = recordId(record.scope, record.key)
-    const existing = records.get(id)
-
-    if (!existing || compareRecords(existing, record) <= 0) {
-      records.set(id, record)
-    }
-  }
-
-  return Array.from(records.values())
 }
 
 function normalizeBasePath(webdavPath?: string) {

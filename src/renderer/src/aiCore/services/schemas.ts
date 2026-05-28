@@ -15,24 +15,7 @@ export const OpenAIModelsResponseSchema = z.object({
       id: z.string(),
       object: z.string().optional().default('model'),
       created: z.number().optional(),
-      owned_by: z.string().optional(),
-      context_length: z.number().optional(),
-      max_context_length: z.number().optional(),
-      max_input_tokens: z.number().optional(),
-      max_output_tokens: z.number().optional(),
-      max_completion_tokens: z.number().optional(),
-      top_provider: z
-        .looseObject({
-          context_length: z.number().optional(),
-          max_completion_tokens: z.number().optional()
-        })
-        .optional(),
-      limits: z
-        .looseObject({
-          max_input_tokens: z.number().optional(),
-          max_output_tokens: z.number().optional()
-        })
-        .optional()
+      owned_by: z.string().optional()
     })
   ),
   object: z.string().optional()
@@ -112,13 +95,7 @@ export const GitHubModelsResponseSchema = z.array(
     publisher: z.string().optional(),
     name: z.string().optional(),
     description: z.string().optional(),
-    version: z.string().optional(),
-    limits: z
-      .looseObject({
-        max_input_tokens: z.number().optional(),
-        max_output_tokens: z.number().optional()
-      })
-      .optional()
+    version: z.string().optional()
   })
 )
 
@@ -149,11 +126,6 @@ export const NewApiModelsResponseSchema = z.object({
       object: z.string().optional().default('model'),
       created: z.number().optional(),
       owned_by: z.string().optional(),
-      context_length: z.number().optional(),
-      max_context_length: z.number().optional(),
-      max_input_tokens: z.number().optional(),
-      max_output_tokens: z.number().optional(),
-      max_completion_tokens: z.number().optional(),
       supported_endpoint_types: z
         .array(z.string())
         .nullable()

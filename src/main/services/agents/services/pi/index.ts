@@ -30,8 +30,6 @@ import type {
   AgentStreamEvent,
   AgentThinkingOptions
 } from '../../interfaces/AgentStreamInterface'
-import { buildContextWindowBudget, trimMessagesToBudget } from './contextWindow'
-import { resolvePiModelLimits } from './modelSpecs'
 import { createPiMcpTools, createPiTools } from './tools'
 import { PiStreamState } from './transform'
 
@@ -60,8 +58,7 @@ const ENDPOINT_API_MAP = {
   'openai-response': 'openai-responses'
 } satisfies Partial<Record<NonNullable<Model['endpoint_type']>, Api>>
 
-const MIN_HYDRATED_HISTORY_MESSAGES = 80
-const MAX_HYDRATED_HISTORY_MESSAGES = 400
+const MAX_HYDRATED_HISTORY_MESSAGES = 80
 
 class PiAgentStream extends EventEmitter implements AgentStream {
   declare emit: (event: 'data', data: AgentStreamEvent) => boolean
@@ -104,7 +101,7 @@ class PiAgentService implements AgentServiceInterface {
       return stream
     }
 
-    const piModel = await this.toPiModel(modelInfo.provider, modelInfo.modelId)
+    const piModel = this.toPiModel(modelInfo.provider, modelInfo.modelId)
     const apiKey = await this.resolveApiKey(modelInfo.provider)
     const sessionKey = this.buildSessionKey({
       api: piModel.api,
@@ -114,8 +111,6 @@ class PiAgentService implements AgentServiceInterface {
       instructions: session.instructions,
       name: this.getAgentDisplayName(session.name),
       model: session.model,
-      contextWindow: piModel.contextWindow,
-      maxTokens: piModel.maxTokens,
       permissionMode: session.configuration?.permission_mode,
       paths: session.accessible_paths,
       mcps: session.mcps,
@@ -218,7 +213,7 @@ class PiAgentService implements AgentServiceInterface {
         ? tools.filter((tool) => allowedToolSet.has(tool.name) || allowedToolSet.has(tool.label))
         : tools
     const systemPrompt = this.buildSystemPrompt(session, configuredTools)
-    const history = await this.loadHistory(session.id, model, systemPrompt, configuredTools)
+    const history = await this.loadHistory(session.id)
 
     return new Agent({
       initialState: {
@@ -228,7 +223,6 @@ class PiAgentService implements AgentServiceInterface {
         tools: configuredTools,
         thinkingLevel: this.mapThinkingLevel(thinkingOptions)
       },
-      transformContext: async (messages) => this.trimContext(messages, model, systemPrompt, configuredTools),
       streamFn: async (activeModel, context, options) => {
         return streamSimple(activeModel, context, {
           ...options,
@@ -308,44 +302,17 @@ Use the least expensive tool first:
 - Keep tool outputs small: prefer commands like rg, git status --short, and targeted test commands over full-directory dumps.`
   }
 
-  private async loadHistory(
-    sessionId: string,
-    model: PiModel<Api>,
-    systemPrompt: string,
-    tools: AgentTool<any>[]
-  ): Promise<AgentMessage[]> {
+  private async loadHistory(sessionId: string): Promise<AgentMessage[]> {
     try {
       const persisted = await agentMessageRepository.getSessionHistory(sessionId)
-      const historyLimit = this.getHydratedHistoryLimit(model.contextWindow)
-      const history = persisted
-        .slice(-historyLimit)
+      return persisted
+        .slice(-MAX_HYDRATED_HISTORY_MESSAGES)
         .map((message) => this.toPiHistoryMessage(message))
         .filter((message): message is PiMessage => Boolean(message))
-      return this.trimContext(history, model, systemPrompt, tools)
     } catch (error) {
       logger.warn('Failed to hydrate Pi agent history; continuing with an empty transcript', error as Error)
       return []
     }
-  }
-
-  private getHydratedHistoryLimit(contextWindow: number): number {
-    const scaledLimit = Math.ceil(contextWindow / 2_000)
-    return Math.max(MIN_HYDRATED_HISTORY_MESSAGES, Math.min(MAX_HYDRATED_HISTORY_MESSAGES, scaledLimit))
-  }
-
-  private trimContext(
-    messages: AgentMessage[],
-    model: PiModel<Api>,
-    systemPrompt: string,
-    tools: AgentTool<any>[]
-  ): AgentMessage[] {
-    const budget = buildContextWindowBudget({
-      contextWindow: model.contextWindow,
-      maxTokens: model.maxTokens,
-      systemPrompt,
-      tools
-    })
-    return trimMessagesToBudget(messages, budget)
   }
 
   private toPiHistoryMessage(message: AgentPersistedMessage): PiMessage | undefined {
@@ -429,21 +396,11 @@ Use the least expensive tool first:
     return apiKey || NO_KEY_PLACEHOLDERS[provider.id] || NO_KEY_PLACEHOLDERS[provider.type] || 'no-key-required'
   }
 
-  private async toPiModel(provider: Provider, modelId: string): Promise<PiModel<Api>> {
+  private toPiModel(provider: Provider, modelId: string): PiModel<Api> {
     const cherryModel = provider.models.find((model) => model.id === modelId)
     const api = this.determineApi(provider, cherryModel)
     const baseUrl = this.getBaseUrl(provider, api)
     const pricing = cherryModel?.pricing
-    const limits = await resolvePiModelLimits(provider, modelId, cherryModel)
-
-    logger.debug('Resolved Pi model limits', {
-      provider: provider.id,
-      model: modelId,
-      contextWindow: limits.contextWindow,
-      maxTokens: limits.maxTokens,
-      source: limits.source,
-      match: limits.match
-    })
 
     return {
       id: modelId,
@@ -459,8 +416,8 @@ Use the least expensive tool first:
         cacheRead: 0,
         cacheWrite: 0
       },
-      contextWindow: limits.contextWindow,
-      maxTokens: limits.maxTokens,
+      contextWindow: 128_000,
+      maxTokens: 16_384,
       headers: provider.extra_headers
     }
   }

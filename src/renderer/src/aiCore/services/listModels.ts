@@ -157,39 +157,6 @@ function pickPreferredString(values: Array<unknown>): string | undefined {
   return undefined
 }
 
-function pickPreferredNumber(values: Array<unknown>): number | undefined {
-  for (const value of values) {
-    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-      return Math.floor(value)
-    }
-  }
-  return undefined
-}
-
-function extractModelLimits(value: Record<string, any>): Partial<Model> {
-  const topProvider = value.top_provider && typeof value.top_provider === 'object' ? value.top_provider : undefined
-  const limits = value.limits && typeof value.limits === 'object' ? value.limits : undefined
-  const contextWindow = pickPreferredNumber([
-    value.context_window,
-    value.context_length,
-    value.max_context_length,
-    value.max_input_tokens,
-    topProvider?.context_length,
-    limits?.max_input_tokens
-  ])
-  const maxOutputTokens = pickPreferredNumber([
-    value.max_output_tokens,
-    value.max_completion_tokens,
-    topProvider?.max_completion_tokens,
-    limits?.max_output_tokens
-  ])
-
-  return {
-    ...(contextWindow !== undefined ? { context_window: contextWindow, max_input_tokens: contextWindow } : {}),
-    ...(maxOutputTokens !== undefined ? { max_output_tokens: maxOutputTokens } : {})
-  }
-}
-
 // === Fetchers ===
 
 const ollamaFetcher: ModelFetcher = {
@@ -221,11 +188,7 @@ const geminiFetcher: ModelFetcher = {
     })
     return dedup(response.models, (m) => m.name).map((m) => {
       const id = m.name.startsWith('models/') ? m.name.slice(7) : m.name
-      return toModel(id, provider, {
-        name: m.displayName || id,
-        description: m.description,
-        ...extractModelLimits({ max_input_tokens: m.inputTokenLimit, max_output_tokens: m.outputTokenLimit })
-      })
+      return toModel(id, provider, { name: m.displayName || id, description: m.description })
     })
   }
 }
@@ -326,13 +289,10 @@ const githubFetcher: ModelFetcher = {
       toModel(m.id, provider, {
         name: m.name || m.id,
         description: pickPreferredString([m.summary, m.description]),
-        owned_by: m.publisher,
-        ...extractModelLimits(m as Record<string, any>)
+        owned_by: m.publisher
       })
     )
-    const v1Models = v1Response.data.map((m) =>
-      toModel(m.id, provider, { owned_by: m.owned_by, ...extractModelLimits(m as Record<string, any>) })
-    )
+    const v1Models = v1Response.data.map((m) => toModel(m.id, provider, { owned_by: m.owned_by }))
     return dedup([...catalogModels, ...v1Models], (m) => m.id)
   }
 }
@@ -366,9 +326,7 @@ const copilotFetcher: ModelFetcher = {
       )
     })
 
-    return dedup(filtered, (m) => m.id).map((m) =>
-      toModel(m.id, provider, { owned_by: m.owned_by, ...extractModelLimits(m as Record<string, any>) })
-    )
+    return dedup(filtered, (m) => m.id).map((m) => toModel(m.id, provider, { owned_by: m.owned_by }))
   }
 }
 
@@ -403,8 +361,7 @@ const togetherFetcher: ModelFetcher = {
       toModel(m.id, provider, {
         name: m.display_name || m.id,
         description: m.description,
-        owned_by: m.organization,
-        ...extractModelLimits({ context_length: m.context_length })
+        owned_by: m.organization
       })
     )
   }
@@ -423,7 +380,6 @@ const newApiFetcher: ModelFetcher = {
     return dedup(response.data, (m) => m.id).map((m) =>
       toModel(m.id, provider, {
         owned_by: m.owned_by,
-        ...extractModelLimits(m as Record<string, any>),
         supported_endpoint_types: m.supported_endpoint_types as EndpointType[] | undefined
       })
     )
@@ -448,9 +404,7 @@ const openRouterFetcher: ModelFetcher = {
       }).catch(() => ({ data: [] }))
     ])
     const all = [...modelsResponse.data, ...embedModelsResponse.data]
-    return dedup(all, (m) => m.id).map((m) =>
-      toModel(m.id, provider, { owned_by: m.owned_by, ...extractModelLimits(m as Record<string, any>) })
-    )
+    return dedup(all, (m) => m.id).map((m) => toModel(m.id, provider, { owned_by: m.owned_by }))
   }
 }
 
@@ -479,9 +433,7 @@ const ppioFetcher: ModelFetcher = {
       }).catch(() => ({ data: [] }))
     ])
     const all = [...chat.data, ...embed.data, ...reranker.data]
-    return dedup(all, (m) => m.id).map((m) =>
-      toModel(m.id, provider, { owned_by: m.owned_by, ...extractModelLimits(m as Record<string, any>) })
-    )
+    return dedup(all, (m) => m.id).map((m) => toModel(m.id, provider, { owned_by: m.owned_by }))
   }
 }
 
@@ -497,8 +449,7 @@ const aiHubMixFetcher: ModelFetcher = {
     return dedup(response.data, (m) => m.model_id).map((m) =>
       toModel(m.model_id, provider, {
         name: m.model_name || m.model_id,
-        description: m.desc,
-        ...extractModelLimits({ context_length: m.context_length, max_output_tokens: m.max_output })
+        description: m.desc
       })
     )
   }
@@ -537,9 +488,7 @@ const openAICompatibleFetcher: ModelFetcher = {
       responseSchema: OpenAIModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.data, (m) => m.id).map((m) =>
-      toModel(m.id, provider, { owned_by: m.owned_by, ...extractModelLimits(m as Record<string, any>) })
-    )
+    return dedup(response.data, (m) => m.id).map((m) => toModel(m.id, provider, { owned_by: m.owned_by }))
   }
 }
 

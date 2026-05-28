@@ -331,9 +331,6 @@ export type Model = {
    */
   type?: ModelType[]
   pricing?: ModelPricing
-  context_window?: number
-  max_input_tokens?: number
-  max_output_tokens?: number
   endpoint_type?: EndpointType
   supported_endpoint_types?: EndpointType[]
   supported_text_delta?: boolean

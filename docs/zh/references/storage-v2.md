@@ -802,7 +802,7 @@ files.upsert(file)
 - 模型 provider 新增、删除、排序、字段更新、模型列表更新、Vertex / AWS Bedrock 敏感配置更新，以及默认 / quick / 翻译模型切换后会主动 flush Redux -> Storage v2 mirror，降低 API key、服务端地址、service account private key、默认模型这类关键设置在防抖窗口内丢失的风险；provider 模型列表更新时，缺失模型会写 `deleted_at` 软删除，而不是物理删除 `models` 行；仍存在或重新出现的模型会走 upsert 并清空 `deleted_at`，避免重复保存 provider 时主键冲突，也避免自定义模型删除证据在未来同步/恢复中丢失。
 - assistant 新增、复制、插入、删除、排序、编辑、默认助手更新、模型和 settings 更新后会主动 flush Redux -> Storage v2 mirror；assistant topic 消息仍由普通对话 mirror 负责，核心 assistant 元数据不会只依赖低频防抖写入。
 - 网页搜索 provider/订阅源/压缩设置、文档预处理 provider/default provider、OCR provider/image provider/config 写入后也会主动 flush Redux -> Storage v2 mirror；这些配置可能包含 API key、basic auth、OCR/预处理服务端地址，不能只等待低频防抖。
-- Storage v2 Redux mirror 还会对所有持久化 Redux 配置 slice 跳过 1.2 秒防抖并立即 flush；普通聊天流仍由 conversation mirror 负责，避免高频消息把 settings 表写爆，同时兜住设置页直接 dispatch 的路径。
+- Storage v2 Redux mirror 还会对所有持久化 Redux 配置 slice 跳过 1.2 秒防抖并立即 flush；普通聊天流仍由 conversation mirror 负责，避免高频消息把 settings 表写爆，同时兜住设置页直接 dispatch 的路径。画作历史删除会在相关文件 tombstone 成功后要求 Redux mirror strict flush，再返回删除操作，避免图片历史这种本地资产在恢复时复活。
 - conversations / messages 查询与普通对话直接写入接口，迁移后可以校验普通对话和 agent session 历史；普通聊天 mirror 已优先通过单会话原子 `conversation.sync` 写入 Storage v2，并保留 `conversation.upsert`、`message.upsert`、`message_blocks.upsert` 作为后续更细粒度主写路径，删除的消息和消息块会补 tombstone。
 - legacy Redux snapshot 导入入口，默认 `dryRun`；导入会把已删除的 providers / assistants 标记为 tombstone，并额外镜像所有持久化 Redux 配置 slice。
 - legacy Redux 导入支持局部 snapshot：只有传入 `llm.providers` 或 `assistants.assistants` 时才会 prune 对应实体；localStorage-only mirror、settings-only mirror 这类小域写入不会把缺失的数据域误判为空列表而删除 Storage v2 里的 provider / assistant。

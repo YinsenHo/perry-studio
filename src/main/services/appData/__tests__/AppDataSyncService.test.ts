@@ -16,7 +16,8 @@ const mocks = vi.hoisted(() => ({
     upsertSyncState: vi.fn(),
     getSyncState: vi.fn(),
     upsertSyncConflict: vi.fn(),
-    listSyncConflicts: vi.fn()
+    listSyncConflicts: vi.fn(),
+    listRecords: vi.fn()
   },
   recovery: {
     projectIfLegacyAppRecordListEmpty: vi.fn()
@@ -106,6 +107,7 @@ describe('AppDataSyncService', () => {
     mocks.storageV2.getSyncState.mockResolvedValue(null)
     mocks.storageV2.upsertSyncConflict.mockResolvedValue(undefined)
     mocks.storageV2.listSyncConflicts.mockResolvedValue([])
+    mocks.storageV2.listRecords.mockResolvedValue([])
     mocks.recovery.projectIfLegacyAppRecordListEmpty.mockResolvedValue(false)
     mocks.webdav.exists.mockResolvedValue(true)
     mocks.webdav.createDirectory.mockResolvedValue(undefined)
@@ -235,6 +237,34 @@ describe('AppDataSyncService', () => {
     expect(mocks.storageV2.getSyncState).toHaveBeenCalledWith('record:settings:theme:hash')
     expect(mocks.storageV2.upsertRecordSnapshot).toHaveBeenCalledWith(remoteRecord)
     expect(mocks.db.createConflict).not.toHaveBeenCalled()
+  })
+
+  it('uploads Storage v2 app records when legacy runtime projection is unavailable', async () => {
+    const localRecord = {
+      ...remoteRecord,
+      valueHash: 'local-hash',
+      updatedAt: 1760000000001,
+      deviceId: 'storage-v2-device'
+    }
+    mocks.webdav.getFileContents.mockImplementation(async (filePath: string) => {
+      if (filePath.endsWith('/manifest.json')) {
+        return JSON.stringify({ version: 1, updatedAt: 0, records: {} })
+      }
+      throw new Error(`Unexpected WebDAV read: ${filePath}`)
+    })
+    mocks.db.listRecords.mockResolvedValue([])
+    mocks.recovery.projectIfLegacyAppRecordListEmpty.mockResolvedValueOnce(false)
+    mocks.storageV2.listRecords.mockResolvedValueOnce([localRecord])
+
+    const summary = await new AppDataSyncService().syncNow(config)
+
+    expect(summary.uploaded).toBe(1)
+    expect(mocks.storageV2.listRecords).toHaveBeenCalledWith(undefined, true)
+    expect(mocks.webdav.putFileContents).toHaveBeenCalledWith(
+      expect.stringContaining('/records/settings/theme.json'),
+      expect.stringContaining('"local-hash"'),
+      { overwrite: true }
+    )
   })
 
   it('reads sync status summary from Storage v2 when the legacy app database is missing it', async () => {

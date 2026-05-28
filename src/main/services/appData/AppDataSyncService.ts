@@ -207,6 +207,9 @@ export class AppDataSyncService {
       db = await getAppDataDatabase()
       localRecords = await db.listRecords(undefined, true)
     }
+    if (localRecords.length === 0) {
+      localRecords = await storageV2AppDataKvMirrorService.listRecords(undefined, true)
+    }
     const localById = new Map(localRecords.map((record) => [recordId(record.scope, record.key), record]))
     const manifest = (await this.readJson<RemoteManifest>(client, manifestPath)) || makeManifest()
     const allIds = new Set([...localById.keys(), ...Object.keys(manifest.records)])

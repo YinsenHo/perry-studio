@@ -1,4 +1,7 @@
+import { createHash } from 'node:crypto'
+
 import type { Client } from '@libsql/client'
+import type { AppDataRecord } from '@main/services/appData/AppDataDatabase'
 
 import { storageV2SecretVaultService } from './SecretVaultService'
 import { storageV2Database } from './StorageV2Database'
@@ -95,6 +98,13 @@ function epochMs(value: unknown, fallback = Date.now()) {
   return fallback
 }
 
+function hashValue(value: unknown, deletedAt?: number | null) {
+  const payload = deletedAt ? { deletedAt } : value
+  return createHash('sha256')
+    .update(JSON.stringify(payload ?? null))
+    .digest('hex')
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
 }
@@ -131,6 +141,50 @@ export class StorageV2AppDataKvMirrorService {
       value: (await this.restoreSecrets(parseJson(row.value_json, null))) as T,
       deletedAt: null
     }
+  }
+
+  async listRecords(scope?: string, includeDeleted = false): Promise<AppDataRecord[]> {
+    const client = await storageV2Database.getClient()
+    const filters = scope ? ['scope = ?'] : []
+    const args: string[] = [...APP_RECORD_SOURCES]
+    if (scope) {
+      args.push(scope)
+    }
+    const deviceId = (await this.getSyncState<string>('device-id')) ?? 'storage-v2'
+
+    const result = await client.execute({
+      sql: `
+        SELECT scope, key, value_json, updated_at, deleted_at, version
+        FROM kv_records
+        WHERE source IN (${APP_RECORD_SOURCES.map(() => '?').join(', ')})
+          ${filters.length ? `AND ${filters.join(' AND ')}` : ''}
+          ${includeDeleted ? '' : 'AND deleted_at IS NULL'}
+        ORDER BY updated_at DESC
+      `,
+      args
+    })
+
+    const records: AppDataRecord[] = []
+    for (const row of result.rows) {
+      const recordScope = typeof row.scope === 'string' ? row.scope : null
+      const key = typeof row.key === 'string' ? row.key : null
+      if (!recordScope || !key) continue
+
+      const deletedAt = row.deleted_at ? epochMs(row.deleted_at) : null
+      const value = deletedAt == null ? await this.restoreSecrets(parseJson(row.value_json, null)) : null
+      records.push({
+        scope: recordScope,
+        key,
+        value,
+        valueHash: hashValue(value, deletedAt),
+        updatedAt: epochMs(row.updated_at),
+        deletedAt,
+        deviceId,
+        version: Number(row.version ?? 1)
+      })
+    }
+
+    return records
   }
 
   async getCache(namespace: string, key: string): Promise<unknown | null> {

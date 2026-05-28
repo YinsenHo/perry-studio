@@ -55,7 +55,7 @@ export function registerAppDataIpcHandlers() {
       return db.listRecords(scope, includeDeleted)
     }
 
-    return records
+    return storageV2AppDataKvMirrorService.listRecords(scope, includeDeleted)
   })
 
   ipcMain.handle(IpcChannel.AppCache_Get, async (_, namespace: string, key: string) => {

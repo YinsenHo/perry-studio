@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   storageV2: {
     getRecord: vi.fn(),
     getRecordEntry: vi.fn(),
+    listRecords: vi.fn(),
     upsertRecord: vi.fn(),
     deleteRecord: vi.fn(),
     getCache: vi.fn(),
@@ -121,6 +122,7 @@ describe('AppDataIpcService', () => {
     mocks.storageV2.deleteCache.mockResolvedValue(undefined)
     mocks.storageV2.upsertWorkbenchShortcut.mockResolvedValue(undefined)
     mocks.storageV2.getRecordEntry.mockResolvedValue({ found: false, value: null, deletedAt: null })
+    mocks.storageV2.listRecords.mockResolvedValue([])
     mocks.recovery.projectIfAppRecordMissing.mockResolvedValue(false)
     mocks.recovery.projectIfLegacyAppRecordListEmpty.mockResolvedValue(false)
     mocks.recovery.projectIfLegacyWorkbenchShortcutListEmpty.mockResolvedValue(false)
@@ -253,6 +255,24 @@ describe('AppDataIpcService', () => {
     await expect(getHandler(IpcChannel.AppData_List)(null, 'agent-tools', true)).resolves.toEqual([restoredRecord])
     expect(mocks.recovery.projectIfLegacyAppRecordListEmpty).toHaveBeenCalledWith('agent-tools', 'app-data-list-empty')
     expect(mocks.db.listRecords).toHaveBeenCalledTimes(2)
+  })
+
+  it('falls back to direct Storage v2 app record lists when runtime projection is unavailable', async () => {
+    const restoredRecord = {
+      scope: 'agent-tools',
+      key: 'github',
+      value: { restored: true },
+      valueHash: 'hash',
+      updatedAt: 1760000000000,
+      deviceId: 'device',
+      version: 1
+    }
+    mocks.db.listRecords.mockResolvedValueOnce([])
+    mocks.recovery.projectIfLegacyAppRecordListEmpty.mockResolvedValueOnce(false)
+    mocks.storageV2.listRecords.mockResolvedValueOnce([restoredRecord])
+
+    await expect(getHandler(IpcChannel.AppData_List)(null, 'agent-tools', true)).resolves.toEqual([restoredRecord])
+    expect(mocks.storageV2.listRecords).toHaveBeenCalledWith('agent-tools', true)
   })
 
   it('preserves null cache entries instead of falling back to stale Storage v2 cache', async () => {

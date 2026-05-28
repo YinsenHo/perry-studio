@@ -23,6 +23,39 @@ function createMockClient() {
       }
     }
 
+    if (sql.includes('SELECT value_json FROM sync_state') && args[0] === 'legacy-app.device-id') {
+      return {
+        rows: [{ value_json: JSON.stringify('device-1') }],
+        columns: [],
+        columnTypes: []
+      }
+    }
+
+    if (sql.includes('SELECT scope, key, value_json')) {
+      return {
+        rows: [
+          {
+            scope: 'settings',
+            key: 'theme',
+            value_json: JSON.stringify({ mode: 'dark' }),
+            updated_at: '2026-01-01T00:00:00.000Z',
+            deleted_at: null,
+            version: 3
+          },
+          {
+            scope: 'settings',
+            key: 'old-theme',
+            value_json: null,
+            updated_at: '2026-01-02T00:00:00.000Z',
+            deleted_at: '2026-01-02T00:00:00.000Z',
+            version: 4
+          }
+        ],
+        columns: [],
+        columnTypes: []
+      }
+    }
+
     if (sql.includes('FROM sync_conflicts') && sql.includes("entity_type = 'app-record'")) {
       return {
         rows: [
@@ -184,6 +217,34 @@ describe('StorageV2AppDataKvMirrorService', () => {
       value: null,
       deletedAt: null
     })
+  })
+
+  it('lists app records from Storage v2 for direct app-data fallback reads', async () => {
+    const { client } = createMockClient()
+    vi.spyOn(storageV2Database, 'getClient').mockResolvedValue(client)
+
+    await expect(new StorageV2AppDataKvMirrorService().listRecords('settings', true)).resolves.toEqual([
+      {
+        scope: 'settings',
+        key: 'theme',
+        value: { mode: 'dark' },
+        valueHash: 'e1b46b0528a8f30c9d819820cb67ba6daa128e14c91711cc6ccb5d6779a8fa17',
+        updatedAt: 1767225600000,
+        deletedAt: null,
+        deviceId: 'device-1',
+        version: 3
+      },
+      {
+        scope: 'settings',
+        key: 'old-theme',
+        value: null,
+        valueHash: 'eb164972688e36f77a8cc1eebc90c1b80bf06b3d508a4b0ec4885c8515988ea9',
+        updatedAt: 1767312000000,
+        deletedAt: 1767312000000,
+        deviceId: 'device-1',
+        version: 4
+      }
+    ])
   })
 
   it('reads app sync state from Storage v2 sync_state', async () => {

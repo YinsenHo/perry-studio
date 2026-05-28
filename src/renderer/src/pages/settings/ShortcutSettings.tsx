@@ -5,6 +5,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getShortcutLabel } from '@renderer/i18n/label'
+import { persistStorageV2ReduxSlice } from '@renderer/services/StorageV2ReduxSliceService'
 import { useAppDispatch } from '@renderer/store'
 import { initialState, resetShortcuts, toggleShortcut, updateShortcut } from '@renderer/store/shortcuts'
 import type { Shortcut } from '@renderer/types'
@@ -307,7 +308,10 @@ const ShortcutSettings: FC = () => {
     window.modal.confirm({
       title: t('settings.shortcuts.reset_defaults_confirm'),
       centered: true,
-      onOk: () => dispatch(resetShortcuts())
+      onOk: async () => {
+        await persistStorageV2ReduxSlice('shortcuts', initialState)
+        dispatch(resetShortcuts())
+      }
     })
   }
 

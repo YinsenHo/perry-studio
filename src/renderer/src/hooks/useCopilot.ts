@@ -1,5 +1,6 @@
 import { useDispatch, useSelector } from 'react-redux'
 
+import { persistStorageV2ReduxSlice } from '../services/StorageV2ReduxSliceService'
 import type { RootState } from '../store'
 import {
   type CopilotState,
@@ -34,7 +35,11 @@ export function useCopilot() {
     dispatch(updateCopilotState(state))
   }
 
-  const resetState = () => {
+  const resetState = async () => {
+    await persistStorageV2ReduxSlice('copilot', {
+      username: '',
+      avatar: ''
+    })
     dispatch(resetCopilotState())
   }
 

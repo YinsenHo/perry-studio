@@ -64,6 +64,7 @@ type RuntimeHydrationTarget = {
       | ReturnType<typeof hydrateWebSearchState>
   ) => unknown
   flush?: () => Promise<unknown>
+  shouldHydrateWhenDisabled?: () => boolean
 }
 
 type StorageV2CoreSnapshot = {
@@ -324,6 +325,10 @@ async function applyRuntimeSnapshot(snapshot: StorageV2CoreSnapshot, target: Run
 }
 
 export async function getStorageV2AutoHydrateEnabled(): Promise<boolean> {
+  if (typeof window === 'undefined' || typeof window.api?.storageV2?.getSetting !== 'function') {
+    return false
+  }
+
   const value = await window.api.storageV2.getSetting(AUTO_HYDRATE_SETTING_KEY)
   return parseAutoHydrateSetting(value)
 }
@@ -352,7 +357,10 @@ export async function hydrateRuntimeCacheFromStorageV2(target: RuntimeHydrationT
 export async function maybeHydrateRuntimeCacheFromStorageV2(
   target: RuntimeHydrationTarget
 ): Promise<AutoHydrateResult> {
-  if (!(await getStorageV2AutoHydrateEnabled())) {
+  const autoHydrateEnabled = await getStorageV2AutoHydrateEnabled()
+  const shouldBootstrapFromStorageV2 = !autoHydrateEnabled && target.shouldHydrateWhenDisabled?.() === true
+
+  if (!autoHydrateEnabled && !shouldBootstrapFromStorageV2) {
     return {
       hydrated: false,
       reason: 'disabled'
@@ -368,7 +376,12 @@ export async function maybeHydrateRuntimeCacheFromStorageV2(
   }
 
   await applyRuntimeSnapshot(snapshot, target)
-  logger.info('Auto hydrated runtime cache from Storage v2', snapshot.metadata ?? {})
+  logger.info(
+    shouldBootstrapFromStorageV2
+      ? 'Bootstrapped runtime cache from Storage v2 because legacy Redux persist cache is missing'
+      : 'Auto hydrated runtime cache from Storage v2',
+    snapshot.metadata ?? {}
+  )
 
   return {
     hydrated: true,

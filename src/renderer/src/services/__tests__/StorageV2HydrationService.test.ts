@@ -191,6 +191,72 @@ describe('StorageV2HydrationService', () => {
     expect(target.flush).not.toHaveBeenCalled()
   })
 
+  it('does not read the Storage v2 snapshot when auto hydrate is disabled and bootstrap is not requested', async () => {
+    ;(window.api.storageV2.getSetting as ReturnType<typeof vi.fn>).mockResolvedValue({ enabled: false })
+    const target = { dispatch: vi.fn(), flush: vi.fn(), shouldHydrateWhenDisabled: vi.fn(() => false) }
+
+    await expect(maybeHydrateRuntimeCacheFromStorageV2(target)).resolves.toEqual({
+      hydrated: false,
+      reason: 'disabled'
+    })
+
+    expect(target.shouldHydrateWhenDisabled).toHaveBeenCalled()
+    expect(mocks.getStorageV2CoreSnapshot).not.toHaveBeenCalled()
+    expect(target.dispatch).not.toHaveBeenCalled()
+  })
+
+  it('bootstraps from Storage v2 when auto hydrate is disabled but the Redux persist cache is missing', async () => {
+    ;(window.api.storageV2.getSetting as ReturnType<typeof vi.fn>).mockResolvedValue({ enabled: false })
+    mocks.getStorageV2CoreSnapshot.mockResolvedValue({
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      settings: { language: 'zh-CN' },
+      llm: {
+        providers: [
+          {
+            id: 'openai',
+            name: 'OpenAI'
+          }
+        ]
+      },
+      assistants: { assistants: [] },
+      redux: {},
+      localStorage: {},
+      metadata: {
+        includeSecrets: true,
+        settingCount: 1,
+        providerCount: 1,
+        assistantCount: 0,
+        topicCount: 0,
+        reduxSliceCount: 0,
+        missingSecretCount: 0
+      }
+    })
+    const target = { dispatch: vi.fn(), flush: vi.fn(), shouldHydrateWhenDisabled: vi.fn(() => true) }
+
+    await expect(maybeHydrateRuntimeCacheFromStorageV2(target)).resolves.toEqual({
+      hydrated: true,
+      snapshot: expect.objectContaining({
+        settings: { language: 'zh-CN' }
+      })
+    })
+
+    expect(target.shouldHydrateWhenDisabled).toHaveBeenCalled()
+    expect(mocks.getStorageV2CoreSnapshot).toHaveBeenCalledWith({ includeSecrets: true })
+    expect(target.dispatch).toHaveBeenCalledWith({ type: 'settings/hydrate', payload: { language: 'zh-CN' } })
+    expect(target.dispatch).toHaveBeenCalledWith({
+      type: 'llm/hydrate',
+      payload: {
+        providers: [
+          {
+            id: 'openai',
+            name: 'OpenAI'
+          }
+        ]
+      }
+    })
+    expect(target.flush).toHaveBeenCalled()
+  })
+
   it('does not treat localStorage token clear markers alone as recoverable runtime data', async () => {
     mocks.getStorageV2CoreSnapshot.mockResolvedValue({
       generatedAt: '2026-01-01T00:00:00.000Z',

@@ -101,6 +101,13 @@ const persistedReducer = persistReducer(
   rootReducer
 )
 
+const REDUX_PERSIST_STORAGE_KEY = 'persist:cherry-studio'
+
+function isReduxPersistCacheMissing() {
+  if (typeof localStorage === 'undefined') return false
+  return localStorage.getItem(REDUX_PERSIST_STORAGE_KEY) == null
+}
+
 /**
  * Configures the store sync service to synchronize specific state slices across all windows.
  * For detailed implementation, see @renderer/services/StoreSyncService.ts
@@ -161,7 +168,8 @@ export const persistor = persistStore(store, undefined, () => {
 
   void maybeHydrateRuntimeCacheFromStorageV2({
     dispatch: store.dispatch,
-    flush: () => persistor.flush()
+    flush: () => persistor.flush(),
+    shouldHydrateWhenDisabled: isReduxPersistCacheMissing
   })
     .then((result) => {
       if (result.hydrated) {

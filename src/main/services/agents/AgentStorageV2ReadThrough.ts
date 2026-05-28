@@ -1,5 +1,6 @@
 import { storageV2AgentDbMirrorService } from '@main/services/storageV2/AgentDbMirrorService'
 import { storageV2AgentRuntimeRecoveryService } from '@main/services/storageV2/AgentRuntimeRecoveryService'
+import { storageV2AgentRuntimeTombstoneService } from '@main/services/storageV2/AgentRuntimeTombstoneService'
 import type {
   AgentMessagePersistExchangePayload,
   AgentMessagePersistExchangeResult,
@@ -99,6 +100,7 @@ export async function deleteAgentWithStorageV2Recovery(id: string): Promise<bool
     deleted = await agentService.deleteAgent(id)
   }
   if (deleted) {
+    await storageV2AgentRuntimeTombstoneService.tombstoneAgent(id)
     await flushAgentRuntimeMutationToStorageV2({ strict: true })
   }
   return deleted
@@ -201,6 +203,7 @@ export async function deleteSessionWithStorageV2Recovery(agentId: string, sessio
     deleted = await sessionService.deleteSession(agentId, sessionId)
   }
   if (deleted) {
+    await storageV2AgentRuntimeTombstoneService.tombstoneSession(sessionId)
     await flushAgentRuntimeMutationToStorageV2({ strict: true })
   }
   return deleted
@@ -269,6 +272,7 @@ export async function deleteAgentSessionMessageWithStorageV2Recovery(
     deleted = await sessionMessageService.deleteSessionMessage(sessionId, messageId)
   }
   if (deleted) {
+    await storageV2AgentRuntimeTombstoneService.tombstoneSessionMessage(messageId)
     await flushAgentRuntimeMutationToStorageV2({ strict: true })
   }
   return deleted
@@ -378,6 +382,7 @@ export async function deleteTaskWithStorageV2Recovery(agentId: string, taskId: s
     deleted = await taskService.deleteTask(agentId, taskId)
   }
   if (deleted) {
+    await storageV2AgentRuntimeTombstoneService.tombstoneTask(taskId)
     await flushAgentRuntimeMutationToStorageV2({ strict: true })
   }
   return deleted
@@ -392,6 +397,7 @@ export async function deleteTaskByIdWithStorageV2Recovery(taskId: string): Promi
     deleted = await taskService.deleteTaskById(taskId)
   }
   if (deleted) {
+    await storageV2AgentRuntimeTombstoneService.tombstoneTask(taskId)
     await flushAgentRuntimeMutationToStorageV2({ strict: true })
   }
   return deleted
@@ -508,6 +514,7 @@ export async function deleteChannelWithStorageV2Recovery(channelId: string): Pro
     deleted = await channelService.deleteChannel(channelId)
   }
   if (deleted) {
+    await storageV2AgentRuntimeTombstoneService.tombstoneChannel(channelId)
     await flushAgentRuntimeMutationToStorageV2({ strict: true })
   }
   return deleted

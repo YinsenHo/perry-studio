@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { db } from '@renderer/databases'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
+import FileManager from '@renderer/services/FileManager'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import { storageV2DexieTableMirrorService } from '@renderer/services/StorageV2DexieTableMirrorService'
 import { storageV2DexieTableRecoveryService } from '@renderer/services/StorageV2DexieTableRecoveryService'
@@ -405,6 +406,11 @@ export const useKnowledgeBases = () => {
   const deleteKnowledgeBase = async (baseId: string) => {
     const base = bases.find((b) => b.id === baseId)
     if (!base) return
+
+    await window.api.knowledgeBase.delete(baseId)
+
+    const files = base.items.filter(isKnowledgeFileItem).map((item) => item.content as FileMetadata)
+    await FileManager.deleteFiles(files)
 
     const noteIds = base.items.filter(isKnowledgeNoteItem).map((item) => item.id)
     if (noteIds.length > 0) {

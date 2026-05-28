@@ -17,8 +17,7 @@
 import { loggerService } from '@logger'
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import FileManager from '@renderer/services/FileManager'
-import type { FileMetadata, KnowledgeBase, KnowledgeItem, PreprocessProvider, ProcessingStatus } from '@renderer/types'
+import type { KnowledgeBase, KnowledgeItem, PreprocessProvider, ProcessingStatus } from '@renderer/types'
 
 const logger = loggerService.withContext('Store:Knowledge')
 
@@ -49,9 +48,6 @@ const knowledgeSlice = createSlice({
       const base = state.bases.find((b) => b.id === action.payload.baseId)
       if (base) {
         state.bases = state.bases.filter((b) => b.id !== action.payload.baseId)
-        const files = base.items.filter((item) => item.type === 'file')
-        void FileManager.deleteFiles(files.map((item) => item.content) as FileMetadata[])
-        void window.api.knowledgeBase.delete(action.payload.baseId)
       }
     },
 

@@ -39,7 +39,7 @@ import {
   type PpioConfigItem,
   type PpioMode
 } from './config/ppioConfig'
-import { checkProviderEnabled } from './utils'
+import { checkProviderEnabled, cleanupReplacedPaintingFiles } from './utils'
 import PpioService from './utils/PpioService'
 
 const logger = loggerService.withContext('PpioPage')
@@ -225,12 +225,15 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     // 检查是否需要重新生成
+    let filesToDeleteAfterSuccess: typeof painting.files = []
+
     if (painting.files && painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
         content: t('paintings.regenerate.confirm'),
         centered: true
       })
       if (!confirmed) return
+      filesToDeleteAfterSuccess = painting.files
     }
 
     setIsLoading(true)
@@ -296,6 +299,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
           urls: imageUrls,
           ppioStatus: 'succeeded'
         })
+        await cleanupReplacedPaintingFiles(filesToDeleteAfterSuccess, validFiles)
 
         setCurrentImageIndex(0)
       }

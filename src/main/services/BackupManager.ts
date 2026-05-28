@@ -32,6 +32,7 @@ import { isPathInside, resolveAndValidatePath } from '../utils/file'
 import S3Storage from './S3Storage'
 import selectionService from './SelectionService'
 import { storageV2DataRootService } from './storageV2/DataRootService'
+import { storageV2SecretVaultService } from './storageV2/SecretVaultService'
 import { storageV2Database } from './storageV2/StorageV2Database'
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
@@ -885,6 +886,7 @@ class BackupManager {
       return null
     }
 
+    await storageV2SecretVaultService.waitForIdle()
     const snapshot = await storageV2Database.createSnapshot('direct-backup')
     logger.info('[backupDirect] Created Storage v2 database snapshot for backup', {
       snapshotPath: snapshot.path

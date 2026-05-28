@@ -38,28 +38,37 @@ vi.mock('path', async () => {
 })
 
 // Use vi.hoisted to define mocks that are available during hoisting
-const { mockLogger, mockStorageV2Database, mockStorageV2DataRootService, mockStreamZipAsync, mockStreamZipInstance } =
-  vi.hoisted(() => ({
-    mockLogger: {
-      debug: vi.fn(),
-      info: vi.fn(),
-      verbose: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn()
-    },
-    mockStorageV2Database: {
-      createSnapshot: vi.fn()
-    },
-    mockStorageV2DataRootService: {
-      activateDataRoot: vi.fn(),
-      createFreshDataRootManifest: vi.fn(),
-      resolveDataRoot: vi.fn()
-    },
-    mockStreamZipAsync: vi.fn(),
-    mockStreamZipInstance: {
-      extract: vi.fn()
-    }
-  }))
+const {
+  mockLogger,
+  mockStorageV2Database,
+  mockStorageV2DataRootService,
+  mockStorageV2SecretVaultService,
+  mockStreamZipAsync,
+  mockStreamZipInstance
+} = vi.hoisted(() => ({
+  mockLogger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    verbose: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn()
+  },
+  mockStorageV2Database: {
+    createSnapshot: vi.fn()
+  },
+  mockStorageV2DataRootService: {
+    activateDataRoot: vi.fn(),
+    createFreshDataRootManifest: vi.fn(),
+    resolveDataRoot: vi.fn()
+  },
+  mockStorageV2SecretVaultService: {
+    waitForIdle: vi.fn()
+  },
+  mockStreamZipAsync: vi.fn(),
+  mockStreamZipInstance: {
+    extract: vi.fn()
+  }
+}))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -151,6 +160,10 @@ vi.mock('../storageV2/StorageV2Database', () => ({
   storageV2Database: mockStorageV2Database
 }))
 
+vi.mock('../storageV2/SecretVaultService', () => ({
+  storageV2SecretVaultService: mockStorageV2SecretVaultService
+}))
+
 vi.mock('archiver', () => ({
   default: vi.fn()
 }))
@@ -185,6 +198,7 @@ describe('BackupManager.copyDirWithProgress - Symlink Handling', () => {
     vi.mocked(fs.copy).mockResolvedValue(undefined as never)
     vi.mocked(fs.realpath).mockImplementation(async (entryPath) => String(entryPath) as never)
     mockStorageV2DataRootService.resolveDataRoot.mockReturnValue({ dataRoot: '/mock/userData/Data' })
+    mockStorageV2SecretVaultService.waitForIdle.mockResolvedValue(undefined)
     mockStorageV2Database.createSnapshot.mockResolvedValue({
       path: '/mock/userData/Data/snapshots/direct-backup.db',
       reason: 'direct-backup',
@@ -419,6 +433,10 @@ describe('BackupManager Storage v2 backup snapshot handling', () => {
     const snapshotPath = await (backupManager as any).createStorageV2SnapshotIfAvailable('/mock/userData/Data')
     await (backupManager as any).replaceStorageV2DatabaseCopy('/tmp/cherry-studio/backup/temp/Data', snapshotPath)
 
+    expect(mockStorageV2SecretVaultService.waitForIdle).toHaveBeenCalledTimes(1)
+    expect(mockStorageV2SecretVaultService.waitForIdle.mock.invocationCallOrder[0]).toBeLessThan(
+      mockStorageV2Database.createSnapshot.mock.invocationCallOrder[0]
+    )
     expect(mockStorageV2Database.createSnapshot).toHaveBeenCalledWith('direct-backup')
     expect(fs.copy).toHaveBeenCalledWith(
       '/mock/userData/Data/snapshots/direct-backup.db',

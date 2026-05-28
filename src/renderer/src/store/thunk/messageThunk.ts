@@ -62,7 +62,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { defaultAppHeaders } from '@shared/utils'
 import type { TextStreamPart } from 'ai'
 import { t } from 'i18next'
-import { isEmpty, throttle } from 'lodash'
+import { throttle } from 'lodash'
 import { LRUCache } from 'lru-cache'
 import { mutate } from 'swr'
 
@@ -450,25 +450,25 @@ export const cancelThrottledBlockUpdate = (id: string) => {
 /**
  * 批量清理多个消息块。
  */
+const getFilesForBlocks = async (blockIds: string[]): Promise<FileMetadata[]> => {
+  if (blockIds.length === 0) return []
+
+  const blocks = await db.message_blocks.where('id').anyOf(blockIds).toArray()
+  return blocks
+    .filter((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE)
+    .map((block) => block.file)
+    .filter((file): file is FileMetadata => file !== undefined)
+}
+
+const cleanupFilesAfterStorageV2Mirror = async (files: FileMetadata[]) => {
+  if (files.length === 0) return
+  await FileManager.deleteFiles(files)
+}
+
 export const cleanupMultipleBlocks = (dispatch: AppDispatch, blockIds: string[]) => {
   blockIds.forEach((id) => {
     cancelThrottledBlockUpdate(id)
   })
-
-  const getBlocksFiles = async (blockIds: string[]) => {
-    const blocks = await db.message_blocks.where('id').anyOf(blockIds).toArray()
-    const files = blocks
-      .filter((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE)
-      .map((block) => block.file)
-      .filter((file): file is FileMetadata => file !== undefined)
-    return isEmpty(files) ? [] : files
-  }
-
-  const cleanupFiles = async (files: FileMetadata[]) => {
-    await Promise.all(files.map((file) => FileManager.deleteFile(file.id, false)))
-  }
-
-  void getBlocksFiles(blockIds).then(cleanupFiles)
 
   if (blockIds.length > 0) {
     dispatch(removeManyBlocks(blockIds))
@@ -1169,6 +1169,8 @@ export const resendMessageThunk =
         dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
       }
 
+      const filesToDelete = await getFilesForBlocks(allBlockIdsToDelete)
+
       messagesToUpdateInRedux.forEach((update) => dispatch(newMessagesActions.updateMessage(update)))
       cleanupMultipleBlocks(dispatch, allBlockIdsToDelete)
 
@@ -1179,6 +1181,7 @@ export const resendMessageThunk =
         const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
         await db.topics.update(topicId, { messages: finalMessagesToSave })
         await flushStorageV2TopicMirror(topicId, { destructive: allBlockIdsToDelete.length > 0 })
+        await cleanupFilesAfterStorageV2Mirror(filesToDelete)
       } catch (dbError) {
         logger.error('[resendMessageThunk] Error updating database:', dbError as Error)
       }
@@ -1302,6 +1305,8 @@ export const regenerateAssistantResponseThunk =
         })
       )
 
+      const filesToDelete = await getFilesForBlocks(blockIdsToDelete)
+
       // 6. Remove old blocks from Redux
       cleanupMultipleBlocks(dispatch, blockIdsToDelete)
 
@@ -1318,6 +1323,7 @@ export const regenerateAssistantResponseThunk =
         }
       })
       await flushStorageV2TopicMirror(topicId, { destructive: blockIdsToDelete.length > 0 })
+      await cleanupFilesAfterStorageV2Mirror(filesToDelete)
 
       // 8. Add fetch/process call to the queue
       const queue = getTopicQueue(topicId)
@@ -1759,6 +1765,7 @@ export const removeBlocksThunk =
         return
       }
       const blockIdsToRemoveSet = new Set(blockIdsToRemove)
+      const filesToDelete = await getFilesForBlocks(blockIdsToRemove)
 
       const updatedBlockIds = (message.blocks || []).filter((id) => !blockIdsToRemoveSet.has(id))
 
@@ -1790,6 +1797,7 @@ export const removeBlocksThunk =
       }
 
       await flushStorageV2TopicMirror(topicId, { destructive: true })
+      await cleanupFilesAfterStorageV2Mirror(filesToDelete)
       dispatch(updateTopicUpdatedAt({ topicId }))
     } catch (error) {
       logger.error(`[removeBlocksThunk] Failed to remove blocks from message ${messageId}:`, error as Error)

@@ -294,6 +294,110 @@ describe('StorageV2DataRootService', () => {
     )
   })
 
+  it('registers the selected app data path Data directory as active', async () => {
+    const configPath = '/mock/home/.cherrystudio/config/config.json'
+    const previousRoot = '/mock/appData/Perry Studio/Data'
+    const selectedRoot = '/mock/selected-user-data/Data'
+    vi.mocked(fs.existsSync).mockImplementation((candidate) =>
+      [configPath, previousRoot, selectedRoot, `${selectedRoot}/manifest.json`].includes(String(candidate))
+    )
+    vi.mocked(fs.readFileSync).mockImplementation((candidate) => {
+      if (String(candidate) === configPath) {
+        return JSON.stringify({
+          dataRoots: [
+            {
+              app: 'perry-studio',
+              profileId: 'default',
+              path: previousRoot,
+              active: true,
+              createdAt: '2025-01-01T00:00:00.000Z'
+            }
+          ]
+        })
+      }
+
+      return JSON.stringify(manifest)
+    })
+
+    const { StorageV2DataRootService } = await import('../DataRootService')
+    const activated = new StorageV2DataRootService().activateAppDataRoot('/mock/selected-user-data')
+
+    expect(activated.workspaceId).toBe('workspace-1')
+    expect(fs.mkdirSync).toHaveBeenCalledWith(selectedRoot, { recursive: true })
+
+    const configWrite = vi
+      .mocked(fs.writeFileSync)
+      .mock.calls.map((call) => String(call[1]))
+      .find((content) => content.includes('"dataRoots"'))
+    const nextConfig = JSON.parse(configWrite!)
+
+    expect(nextConfig.dataRoots).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: previousRoot,
+          active: false
+        }),
+        expect.objectContaining({
+          path: selectedRoot,
+          active: true
+        })
+      ])
+    )
+  })
+
+  it('creates a fresh active data root when the selected app data path has no Data manifest', async () => {
+    const configPath = '/mock/home/.cherrystudio/config/config.json'
+    const previousRoot = '/mock/appData/Perry Studio/Data'
+    const selectedRoot = '/mock/fresh-user-data/Data'
+    vi.mocked(fs.existsSync).mockImplementation((candidate) => [configPath, previousRoot].includes(String(candidate)))
+    vi.mocked(fs.readFileSync).mockImplementation((candidate) => {
+      if (String(candidate) === configPath) {
+        return JSON.stringify({
+          dataRoots: [
+            {
+              app: 'perry-studio',
+              profileId: 'default',
+              path: previousRoot,
+              active: true,
+              createdAt: '2025-01-01T00:00:00.000Z'
+            }
+          ]
+        })
+      }
+
+      return JSON.stringify(manifest)
+    })
+
+    const { StorageV2DataRootService } = await import('../DataRootService')
+    const activated = new StorageV2DataRootService().activateAppDataRoot('/mock/fresh-user-data')
+
+    expect(activated.format).toBe('cherry-studio-pi-storage')
+    expect(activated.workspaceId).toBeTruthy()
+    expect(fs.writeFileSync).toHaveBeenCalledWith(
+      expect.stringContaining(`${selectedRoot}/manifest.json.`),
+      expect.stringContaining('"format": "cherry-studio-pi-storage"')
+    )
+
+    const configWrite = vi
+      .mocked(fs.writeFileSync)
+      .mock.calls.map((call) => String(call[1]))
+      .find((content) => content.includes('"dataRoots"'))
+    const nextConfig = JSON.parse(configWrite!)
+
+    expect(nextConfig.dataRoots).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: previousRoot,
+          active: false
+        }),
+        expect.objectContaining({
+          path: selectedRoot,
+          active: true
+        })
+      ])
+    )
+  })
+
   it('creates a fresh manifest for a staged reset data root without registering it early', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(false)
 

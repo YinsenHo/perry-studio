@@ -94,6 +94,7 @@ import {
   tokenUsage
 } from './services/SpanCacheService'
 import { storageV2AgentDbMirrorService } from './services/storageV2/AgentDbMirrorService'
+import { storageV2DataRootService } from './services/storageV2/DataRootService'
 import { registerStorageV2IpcHandlers } from './services/storageV2/StorageV2IpcService'
 import storeSyncService from './services/StoreSyncService'
 import { themeService } from './services/ThemeService'
@@ -430,8 +431,13 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // Set app data path
   ipcMain.handle(IpcChannel.App_SetAppDataPath, async (_, filePath: string) => {
+    const manifest = storageV2DataRootService.activateAppDataRoot(filePath)
     updateAppDataConfig(filePath)
     app.setPath('userData', filePath)
+    logger.info('Activated Storage v2 data root for selected app data path', {
+      appDataPath: filePath,
+      workspaceId: manifest.workspaceId
+    })
   })
 
   ipcMain.handle(IpcChannel.App_GetDataPathFromArgs, () => {

@@ -209,6 +209,16 @@ export class StorageV2DataRootService {
     return nextManifest
   }
 
+  activateAppDataRoot(appDataPath: string): StorageV2Manifest {
+    const dataRoot = path.resolve(appDataPath, 'Data')
+    fs.mkdirSync(dataRoot, { recursive: true })
+
+    const manifest = readManifest(dataRoot)
+    const nextManifest = manifest ? this.touchManifest(dataRoot, manifest) : this.createManifest(dataRoot)
+    this.registerActiveDataRoot(dataRoot, nextManifest, 'current-user-data')
+    return nextManifest
+  }
+
   createFreshDataRootManifest(dataRoot: string): StorageV2Manifest {
     fs.mkdirSync(dataRoot, { recursive: true })
     return this.createManifest(path.resolve(dataRoot))

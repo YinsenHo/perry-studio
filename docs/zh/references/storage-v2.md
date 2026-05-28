@@ -781,6 +781,7 @@ files.upsert(file)
 当前代码已经完成 Storage v2 的安全并行骨架：
 
 - `StorageService`、data root discovery、`manifest.json`；manifest 和全局 data root config 都使用临时文件原子 rename 写入，选中的 data root 会登记到 `~/.cherrystudio/config/config.json`，避免产品名或 userData 默认路径变化后丢失入口。
+- 自定义 App Data 路径变更会同步把新路径下的 `Data` 注册为 active Storage v2 data root；如果用户选择不复制数据，也会在新 `Data` 下创建 fresh manifest，避免全局 `dataRoots` 中旧的 active 根在重启后重新抢占。
 - `main.db` 初始化、`PRAGMA quick_check`、`VACUUM INTO` snapshot；Storage v2 主库事务和 snapshot 通过进程内 exclusive queue 串行化，避免多个 mirror / 迁移入口并发时在同一 SQLite/libSQL 连接上互相抢 `BEGIN IMMEDIATE`。
 - Storage v2 backup 入口，可生成一致 DB 快照，并在等待 secret vault 写队列落盘、按当前 DB secret ref 清理未引用的 vault secret 后复制 `blobs` / `secrets` / `KnowledgeBase` / `Memory` / `Skills` / `Agents` 到带 stats、secret prune 结果与 integrity metadata 的备份目录；Renderer 手动触发 snapshot / backup 前会按 Redux、普通对话、文件、Dexie settings、Dexie 辅助表、agent 的顺序 flush mirror 队列，主进程 StorageService 也会在 snapshot / backup / restore 前等待 agent mirror flush，避免绕过 renderer 入口时漏掉最近的 agent 写入。
 - Storage v2 backup 会同时保存 `KnowledgeBase` 和 `Memory` 目录，其中 `Memory/memories.db` 通过 `VACUUM INTO` 生成一致快照。

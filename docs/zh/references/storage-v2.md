@@ -791,7 +791,7 @@ files.upsert(file)
 - 旧的 direct / legacy 备份恢复在 staging `Data.restore` 时也会使用当前选中的 active data root，而不是固定写到 Electron `userData/Data.restore`；启动恢复和重置流程因此能在自定义 data root、产品改名或旧 Perry/Cherry 数据根被重新选中时命中同一套恢复目录。
 - 旧的 direct 备份如果是 `skipBackupFile` 生成的运行时缓存备份、没有可恢复的 `Data` payload，恢复 staging 完成后会显式关闭一次 `storage_v2.runtime.auto_hydrate`，避免下一次启动用当前旧 Storage v2 快照覆盖刚恢复的 `IndexedDB` / `Local Storage`。
 - Storage v2 restore 入口，可校验 backup 目录，恢复前创建 pre-restore 备份，并把旧文件归档到 `legacy/pre-restore-*` 后再恢复。
-- 旧版 `.bak` / JSON 备份恢复成功后，会显式关闭一次 `storage_v2.runtime.auto_hydrate`，避免用户之前开启过 Storage v2 启动恢复时，下一次启动用旧 Storage v2 快照覆盖刚恢复的 legacy localStorage / IndexedDB。
+- 旧版 `.bak` / JSON 备份恢复成功后，会先把刚恢复的 legacy IndexedDB（普通会话、message blocks、files、Dexie settings 和辅助表）全量导入 Storage v2，再显式关闭一次 `storage_v2.runtime.auto_hydrate`，避免用户之前开启过 Storage v2 启动恢复时，下一次启动用旧 Storage v2 快照覆盖刚恢复的 legacy localStorage / IndexedDB；如果这次导入失败，legacy 恢复仍完成并保留关闭 auto hydrate 的保护，避免旧 Storage v2 快照抢跑覆盖恢复结果。
 - 只读迁移审计报告；会以当前 active data root 作为 `Data` 目录审计目标，并提示多个 Storage v2 manifest、缺失的已配置 data root，以及活动根之外仍存在旧版数据目录的风险。
 - Storage v2 stats / integrity 统计与完整性检查接口，用于迁移后校验核心表数量、SQLite integrity、foreign key、孤儿记录、缺失 blob 文件、blob checksum mismatch，以及 DB secret ref 是否能在 vault 中找到对应密钥。
 - Storage v2 backup 校验在扫描 secret ref 时会兼容早期备份缺少后续新增表/列的情况：缺失 schema source 会记录 warning 并继续扫描其余表；校验会报告缺失/无效 secret ref，也会把备份中已经不被 DB 引用的 vault secret、当前设备无法解密的 safeStorage secret 作为 warning，避免旧备份因非关键新表不存在而无法通过校验，同时降低过期 token 被长期带进备份、跨设备恢复后用户误以为密钥仍可用的风险。

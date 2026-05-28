@@ -12,7 +12,8 @@ const mocks = vi.hoisted(() => ({
     error: vi.fn(),
     verbose: vi.fn(),
     warn: vi.fn()
-  }
+  },
+  importLegacyDexieToStorageV2: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -70,6 +71,10 @@ vi.mock('../NotificationService', () => ({
   }
 }))
 
+vi.mock('../StorageV2Service', () => ({
+  importLegacyDexieToStorageV2: mocks.importLegacyDexieToStorageV2
+}))
+
 import { handleData } from '../BackupService'
 
 describe('BackupService legacy restore', () => {
@@ -98,6 +103,7 @@ describe('BackupService legacy restore', () => {
         success: vi.fn()
       }
     })
+    mocks.importLegacyDexieToStorageV2.mockResolvedValue({ dryRun: false })
   })
 
   afterEach(() => {
@@ -133,9 +139,36 @@ describe('BackupService legacy restore', () => {
       }),
       'storage-v2'
     )
+    expect(mocks.importLegacyDexieToStorageV2).toHaveBeenCalledWith({ pruneMissing: true })
     expect(window.toast.success).toHaveBeenCalledWith('message.restore.success')
 
     vi.advanceTimersByTime(1000)
     expect(window.api.relaunchApp).toHaveBeenCalledTimes(1)
+  })
+
+  it('continues legacy restore when the Storage v2 Dexie mirror fails', async () => {
+    mocks.importLegacyDexieToStorageV2.mockRejectedValueOnce(new Error('storage unavailable'))
+
+    await handleData({
+      version: 2,
+      localStorage: {
+        'persist:cherry-studio': '{"settings":"{}"}'
+      },
+      indexedDB: {}
+    })
+
+    expect(mocks.logger.warn).toHaveBeenCalledWith(
+      'Failed to mirror restored legacy IndexedDB to Storage v2',
+      expect.any(Error)
+    )
+    expect(window.api.storageV2.setSetting).toHaveBeenCalledWith(
+      'storage_v2.runtime.auto_hydrate',
+      expect.objectContaining({
+        enabled: false,
+        reason: 'legacy-backup-restore'
+      }),
+      'storage-v2'
+    )
+    expect(window.toast.success).toHaveBeenCalledWith('message.restore.success')
   })
 })

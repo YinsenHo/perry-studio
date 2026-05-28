@@ -9,6 +9,7 @@ import { uuid } from '@renderer/utils'
 import dayjs from 'dayjs'
 
 import { NotificationService } from './NotificationService'
+import { importLegacyDexieToStorageV2 } from './StorageV2Service'
 
 const logger = loggerService.withContext('BackupService')
 const STORAGE_V2_AUTO_HYDRATE_SETTING_KEY = 'storage_v2.runtime.auto_hydrate'
@@ -26,6 +27,14 @@ async function disableStorageV2AutoHydrateAfterLegacyRestore() {
     )
   } catch (error) {
     logger.warn('Failed to disable Storage v2 auto hydrate after legacy restore', error as Error)
+  }
+}
+
+async function mirrorRestoredLegacyDexieToStorageV2() {
+  try {
+    await importLegacyDexieToStorageV2({ pruneMissing: true })
+  } catch (error) {
+    logger.warn('Failed to mirror restored legacy IndexedDB to Storage v2', error as Error)
   }
 }
 
@@ -931,6 +940,7 @@ export async function handleData(data: Record<string, any>) {
     }
 
     localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
+    await mirrorRestoredLegacyDexieToStorageV2()
     await disableStorageV2AutoHydrateAfterLegacyRestore()
     window.toast.success(i18n.t('message.restore.success'))
     setTimeout(() => window.api.relaunchApp(), 1000)
@@ -960,6 +970,7 @@ export async function handleData(data: Record<string, any>) {
       })
     }
 
+    await mirrorRestoredLegacyDexieToStorageV2()
     await disableStorageV2AutoHydrateAfterLegacyRestore()
     window.toast.success(i18n.t('message.restore.success'))
     setTimeout(() => window.api.relaunchApp(), 1000)

@@ -8,7 +8,6 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getThemeModeLabel, getTitleLabel } from '@renderer/i18n/label'
 import UpdateAppButton from '@renderer/pages/home/components/UpdateAppButton'
@@ -41,7 +40,6 @@ import {
   Terminal,
   X
 } from 'lucide-react'
-import type { CSSProperties } from 'react'
 import { startTransition, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -142,18 +140,9 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children, withSidebar = f
   const { hideMinappPopup, minAppsCache } = useMinappPopup()
   const { minapps } = useMinapps()
   const { useSystemTitleBar } = useSettings()
-  const backgroundColor = useNavBackgroundColor()
   const { t } = useTranslation()
   const pendingNavigationFrame = useRef<number | null>(null)
   const pendingNavigationPath = useRef<string | null>(null)
-  const tabsBarStyle = useMemo(
-    () =>
-      ({
-        backgroundColor,
-        '--tabs-bar-background': backgroundColor
-      }) as CSSProperties & Record<'--tabs-bar-background', string>,
-    [backgroundColor]
-  )
 
   const getLocationPath = () => `${location.pathname}${location.search}`
 
@@ -293,43 +282,40 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children, withSidebar = f
     onUpdate: (newTabs) => dispatch(setTabs(newTabs)),
     itemKey: 'id'
   })
-  const hasMultipleVisibleTabs = visibleTabs.length > 1
   const tabScrollKey = useMemo(() => visibleTabs.map((tab) => tab.id).join('|'), [visibleTabs])
 
   return (
     <Container>
-      <TabsBar $isFullscreen={isFullscreen} $withSidebar={withSidebar} style={tabsBarStyle}>
-        <HorizontalScrollContainer
-          dependencies={[tabScrollKey]}
-          gap="4px"
-          className="tab-scroll-container"
-          classNames={{ content: 'tab-scroll-content' }}>
-          {hasMultipleVisibleTabs && (
-            <Sortable
-              items={visibleTabs}
-              itemKey="id"
-              layout="list"
-              horizontal
-              gap={'4px'}
-              onSortEnd={onSortEnd}
-              className="tabs-sortable"
-              renderItem={(tab) => {
-                return (
-                  <Tab
-                    key={tab.id}
-                    active={tab.id === activeTabId}
-                    onClick={() => handleTabClick(tab)}
-                    onAuxClick={(e) => {
-                      if (e.button === 1) {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        closeTab(tab.id)
-                      }
-                    }}>
-                    <TabHeader>
-                      {tab.id && <TabIcon>{getTabIcon(tab.id, minapps, minAppsCache)}</TabIcon>}
-                      <TabTitle>{getTabTitle(tab.id)}</TabTitle>
-                    </TabHeader>
+      <TabsBar $isFullscreen={isFullscreen} $withSidebar={withSidebar}>
+        <HorizontalScrollContainer dependencies={[tabScrollKey]} gap="6px" className="tab-scroll-container">
+          <Sortable
+            items={visibleTabs}
+            itemKey="id"
+            layout="list"
+            horizontal
+            gap={'6px'}
+            onSortEnd={onSortEnd}
+            className="tabs-sortable"
+            renderItem={(tab) => {
+              const isClosable = !['home', 'agents'].includes(getTabBaseId(tab.id))
+
+              return (
+                <Tab
+                  key={tab.id}
+                  active={tab.id === activeTabId}
+                  onClick={() => handleTabClick(tab)}
+                  onAuxClick={(e) => {
+                    if (e.button === 1 && isClosable) {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      closeTab(tab.id)
+                    }
+                  }}>
+                  <TabHeader>
+                    {tab.id && <TabIcon>{getTabIcon(tab.id, minapps, minAppsCache)}</TabIcon>}
+                    <TabTitle>{getTabTitle(tab.id)}</TabTitle>
+                  </TabHeader>
+                  {isClosable && (
                     <CloseButton
                       className="close-button"
                       data-no-dnd
@@ -339,11 +325,11 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children, withSidebar = f
                       }}>
                       <X size={12} />
                     </CloseButton>
-                  </Tab>
-                )
-              }}
-            />
-          )}
+                  )}
+                </Tab>
+              )
+            }}
+          />
           <AddTabButton
             onClick={handleAddTab}
             className={classNames({ active: getTabBaseId(activeTabId) === 'launchpad' })}>
@@ -374,7 +360,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children, withSidebar = f
         )}
         <WindowControls />
       </TabsBar>
-      <TabContent $withSidebar={withSidebar} $hasTabCards={hasMultipleVisibleTabs}>
+      <TabContent $withSidebar={withSidebar}>
         {/* MiniApp WebView 池（Tab 模式保活） */}
         <MinAppTabsPool />
         {children}
@@ -393,15 +379,15 @@ const Container = styled.div`
 const TabsBar = styled.div<{ $isFullscreen: boolean; $withSidebar: boolean }>`
   display: flex;
   flex-direction: row;
-  align-items: flex-end;
-  gap: 4px;
+  align-items: center;
+  gap: 5px;
   padding-left: ${({ $isFullscreen, $withSidebar }) =>
     $withSidebar
       ? !$isFullscreen && isMac
         ? '30px'
         : '8px'
       : !$isFullscreen && isMac
-        ? 'calc(env(titlebar-area-x) + 74px)'
+        ? 'calc(env(titlebar-area-x) + 4px)'
         : '15px'};
   padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : '0')};
   height: var(--navbar-height);
@@ -410,7 +396,6 @@ const TabsBar = styled.div<{ $isFullscreen: boolean; $withSidebar: boolean }>`
   position: relative;
   z-index: 2;
   border-bottom: none;
-  background: var(--tabs-bar-background, var(--navbar-background));
   -webkit-app-region: drag;
 
   /* 确保交互元素在拖拽区域之上 */
@@ -421,20 +406,11 @@ const TabsBar = styled.div<{ $isFullscreen: boolean; $withSidebar: boolean }>`
   }
 
   .tab-scroll-container {
-    align-items: flex-end;
-    height: 100%;
     -webkit-app-region: drag;
 
     > * {
-      align-items: flex-end;
-      height: 100%;
-      overflow-y: visible;
       -webkit-app-region: no-drag;
     }
-  }
-
-  .tab-scroll-content {
-    overflow-y: visible;
   }
 `
 
@@ -442,43 +418,14 @@ const Tab = styled.div<{ active?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 8px 0 9px;
-  position: relative;
-  align-self: flex-end;
-  z-index: ${(props) => (props.active ? 2 : 1)};
-  margin-bottom: -1px;
-  background: ${(props) => (props.active ? 'var(--color-background)' : 'transparent')};
-  border: none;
-  transition:
-    background 0.2s,
-    box-shadow 0.2s;
-  border-radius: ${(props) => (props.active ? '9px 9px 0 0' : '7px')};
+  padding: 4px 10px;
+  padding-right: 8px;
+  background: ${(props) => (props.active ? 'var(--color-list-item)' : 'transparent')};
+  transition: background 0.2s;
+  border-radius: var(--list-item-border-radius);
   user-select: none;
-  height: 33px;
-  min-width: 108px;
-  max-width: 168px;
-  box-shadow: ${(props) =>
-    props.active
-      ? `inset 0 0.5px 0 var(--color-border),
-         inset 0.5px 0 0 var(--color-border),
-         inset -0.5px 0 0 var(--color-border)`
-      : 'none'};
-  contain: layout;
-
-  ${(props) =>
-    props.active &&
-    `
-      &::after {
-        content: '';
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: -2px;
-        height: 3px;
-        background: var(--color-background);
-        pointer-events: none;
-      }
-    `}
+  height: 30px;
+  min-width: 90px;
 
   .close-button {
     opacity: 0;
@@ -486,8 +433,7 @@ const Tab = styled.div<{ active?: boolean }>`
   }
 
   &:hover {
-    background: ${(props) =>
-      props.active ? 'var(--color-background)' : 'color-mix(in srgb, var(--color-list-item) 70%, transparent)'};
+    background: var(--color-list-item);
     .close-button {
       opacity: 1;
     }
@@ -497,7 +443,7 @@ const Tab = styled.div<{ active?: boolean }>`
 const TabHeader = styled.div`
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   min-width: 0;
   flex: 1;
 `
@@ -511,39 +457,31 @@ const TabIcon = styled.span`
 
 const TabTitle = styled.span`
   color: var(--color-text);
-  font-size: 12px;
+  font-size: 13px;
   display: flex;
   align-items: center;
-  margin-right: 6px;
+  margin-right: 4px;
   overflow: hidden;
   white-space: nowrap;
-  text-overflow: ellipsis;
 `
 
 const CloseButton = styled.span`
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-
-  &:hover {
-    background: color-mix(in srgb, var(--color-text) 10%, transparent);
-  }
+  width: 14px;
+  height: 14px;
 `
 
 const AddTabButton = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
+  width: 30px;
   height: 30px;
-  align-self: flex-end;
-  margin-bottom: 3px;
   cursor: pointer;
   color: var(--color-text-2);
-  border-radius: 7px;
+  border-radius: var(--list-item-border-radius);
   flex-shrink: 0;
   &.active {
     background: var(--color-list-item);
@@ -592,16 +530,15 @@ const SettingsButton = styled.div<{ $active: boolean }>`
   }
 `
 
-const TabContent = styled.div<{ $withSidebar: boolean; $hasTabCards: boolean }>`
+const TabContent = styled.div<{ $withSidebar: boolean }>`
   display: flex;
   flex: 1;
   overflow: hidden;
   width: ${({ $withSidebar }) => ($withSidebar ? '100%' : 'calc(100% - 12px)')};
   margin: ${({ $withSidebar }) => ($withSidebar ? '0' : '6px')};
-  margin-top: ${({ $hasTabCards }) => ($hasTabCards ? '-1px' : '0')};
-  padding-top: ${({ $hasTabCards }) => ($hasTabCards ? '1px' : '0')};
+  margin-top: 0;
+  padding-top: 0;
   border-radius: ${({ $withSidebar }) => ($withSidebar ? '10px 0 0 0' : '8px')};
-  background: var(--color-background);
   overflow: hidden;
   position: relative; /* 约束 MinAppTabsPool 绝对定位范围 */
   z-index: 1;

@@ -138,4 +138,36 @@ describe('AgentService built-in agent lifecycle', () => {
       })
     )
   })
+
+  it('soft-deletes user-created agents so Storage v2 recovery cannot resurrect them', async () => {
+    const deleteWhere = vi.fn().mockResolvedValue({ rowsAffected: 1 })
+    const txDelete = vi.fn(() => ({ where: deleteWhere }))
+    const updateWhere = vi.fn().mockResolvedValue(undefined)
+    const txUpdateSet = vi.fn(() => ({ where: updateWhere }))
+    const txUpdate = vi.fn(() => ({ set: txUpdateSet }))
+    const database = {
+      select: vi.fn(() => createSelectQuery([{ id: 'agent-user-1', deleted_at: null }])),
+      transaction: vi.fn(async (callback: (tx: unknown) => Promise<void>) =>
+        callback({ delete: txDelete, update: txUpdate })
+      ),
+      delete: vi.fn(() => ({ where: deleteWhere }))
+    }
+
+    vi.spyOn(service as never, 'getDatabase').mockResolvedValue(database as never)
+
+    const deleted = await service.deleteAgent('agent-user-1')
+
+    expect(deleted).toBe(true)
+    expect(database.transaction).toHaveBeenCalledTimes(1)
+    expect(txDelete).toHaveBeenCalledTimes(3)
+    expect(txUpdate).toHaveBeenCalledTimes(2)
+    expect(database.delete).not.toHaveBeenCalled()
+    expect(txUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ agentId: null }))
+    expect(txUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deleted_at: expect.any(String),
+        updated_at: expect.any(String)
+      })
+    )
+  })
 })

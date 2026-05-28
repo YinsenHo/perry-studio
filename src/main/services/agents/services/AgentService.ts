@@ -25,7 +25,7 @@ import {
 } from '../database/schema'
 import type { AgentModelField } from '../errors'
 import { skillService } from '../skills/SkillService'
-import { CHERRY_CLAW_AGENT_ID, isBuiltinAgentId } from './builtin/BuiltinAgentIds'
+import { CHERRY_CLAW_AGENT_ID } from './builtin/BuiltinAgentIds'
 import { seedWorkspaceTemplates } from './cherryclaw/seedWorkspace'
 
 const logger = loggerService.withContext('AgentService')
@@ -567,23 +567,17 @@ export class AgentService extends BaseService {
       return false
     }
 
-    if (isBuiltinAgentId(id)) {
-      const now = new Date().toISOString()
+    const now = new Date().toISOString()
 
-      await database.transaction(async (tx) => {
-        await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agent_id, id))
-        await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agent_id, id))
-        await tx.delete(sessionsTable).where(eq(sessionsTable.agent_id, id))
-        await tx.update(channelsTable).set({ agentId: null }).where(eq(channelsTable.agentId, id))
-        await tx.update(agentsTable).set({ deleted_at: now, updated_at: now }).where(eq(agentsTable.id, id))
-      })
+    await database.transaction(async (tx) => {
+      await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agent_id, id))
+      await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agent_id, id))
+      await tx.delete(sessionsTable).where(eq(sessionsTable.agent_id, id))
+      await tx.update(channelsTable).set({ agentId: null }).where(eq(channelsTable.agentId, id))
+      await tx.update(agentsTable).set({ deleted_at: now, updated_at: now }).where(eq(agentsTable.id, id))
+    })
 
-      return true
-    }
-
-    const result = await database.delete(agentsTable).where(eq(agentsTable.id, id))
-
-    return result.rowsAffected > 0
+    return true
   }
 
   async agentExists(id: string): Promise<boolean> {

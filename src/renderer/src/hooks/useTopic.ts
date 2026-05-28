@@ -241,13 +241,15 @@ export const TopicManager = {
 
   async removeTopic(id: string) {
     await TopicManager.clearTopicMessages(id)
-    if (window.api?.storageV2?.deleteConversation) {
-      try {
-        await window.api.storageV2.deleteConversation(id)
-      } catch (error) {
-        logger.warn(`Failed to tombstone topic ${id} in Storage v2:`, error as Error)
-        throw error
-      }
+    if (typeof window.api?.storageV2?.deleteConversation !== 'function') {
+      throw new Error('Storage v2 conversation delete API unavailable')
+    }
+
+    try {
+      await window.api.storageV2.deleteConversation(id)
+    } catch (error) {
+      logger.warn(`Failed to tombstone topic ${id} in Storage v2:`, error as Error)
+      throw error
     }
     await db.topics.delete(id)
   },

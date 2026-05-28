@@ -4,6 +4,7 @@ import { DeleteIcon } from '@renderer/components/Icons'
 import { Box, HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
+import { persistStorageV2PartialReduxSnapshot } from '@renderer/services/StorageV2ReduxSliceService'
 import type { AssistantPreset } from '@renderer/types'
 import { Button, Checkbox, Empty, Modal, Segmented } from 'antd'
 import { useState } from 'react'
@@ -80,8 +81,13 @@ const PopupContainer: React.FC = () => {
     window.modal.confirm({
       centered: true,
       content: t('assistants.presets.manage.batch_delete.confirm', { count: selectedIds.size }),
-      onOk: () => {
+      onOk: async () => {
         const remainingPresets = presets.filter((p) => !selectedIds.has(p.id))
+        await persistStorageV2PartialReduxSnapshot({
+          assistants: {
+            presets: remainingPresets
+          }
+        })
         setAssistantPresets(remainingPresets)
         setSelectedIds(new Set())
       }

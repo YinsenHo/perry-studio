@@ -503,6 +503,12 @@ export async function restoreStorageV2Backup(backupPath: string): Promise<Storag
 
   const result = await window.api.storageV2.restoreBackup(backupPath)
 
+  suspendStorageV2RuntimeMirrorsUntilReload()
+
+  return result
+}
+
+export function suspendStorageV2RuntimeMirrorsUntilReload() {
   storageV2MirrorService.suspendUntilReload()
   storageV2ConversationMirrorService.suspendUntilReload()
   storageV2FileMirrorService.suspendUntilReload()
@@ -510,8 +516,6 @@ export async function restoreStorageV2Backup(backupPath: string): Promise<Storag
   storageV2DexieTableMirrorService.suspendUntilReload()
   storageV2AgentMirrorService.suspendUntilReload()
   suspendStorageV2LocalStorageMirrorUntilReload()
-
-  return result
 }
 
 export async function runLegacyMigrationToStorageV2(

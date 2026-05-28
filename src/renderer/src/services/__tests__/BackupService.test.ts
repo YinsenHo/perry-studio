@@ -13,7 +13,8 @@ const mocks = vi.hoisted(() => ({
     verbose: vi.fn(),
     warn: vi.fn()
   },
-  importLegacyDexieToStorageV2: vi.fn()
+  importLegacyDexieToStorageV2: vi.fn(),
+  suspendStorageV2RuntimeMirrorsUntilReload: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -72,13 +73,15 @@ vi.mock('../NotificationService', () => ({
 }))
 
 vi.mock('../StorageV2Service', () => ({
-  importLegacyDexieToStorageV2: mocks.importLegacyDexieToStorageV2
+  importLegacyDexieToStorageV2: mocks.importLegacyDexieToStorageV2,
+  suspendStorageV2RuntimeMirrorsUntilReload: mocks.suspendStorageV2RuntimeMirrorsUntilReload
 }))
 
-import { handleData } from '../BackupService'
+import { handleData, reset } from '../BackupService'
 
 describe('BackupService legacy restore', () => {
   let originalApi: unknown
+  let originalModal: unknown
   let originalToast: unknown
 
   beforeEach(() => {
@@ -88,14 +91,22 @@ describe('BackupService legacy restore', () => {
     mocks.db.table.mockReset()
     localStorage.clear()
     originalApi = window.api
+    originalModal = window.modal
     originalToast = window.toast
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
         relaunchApp: vi.fn(),
+        resetData: vi.fn().mockResolvedValue(undefined),
         storageV2: {
           setSetting: vi.fn().mockResolvedValue(undefined)
         }
+      }
+    })
+    Object.defineProperty(window, 'modal', {
+      configurable: true,
+      value: {
+        confirm: vi.fn()
       }
     })
     Object.defineProperty(window, 'toast', {
@@ -115,6 +126,10 @@ describe('BackupService legacy restore', () => {
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: originalApi
+    })
+    Object.defineProperty(window, 'modal', {
+      configurable: true,
+      value: originalModal
     })
     Object.defineProperty(window, 'toast', {
       configurable: true,
@@ -208,5 +223,52 @@ describe('BackupService legacy restore', () => {
     expect(messageBlocksTable.clear).toHaveBeenCalledTimes(1)
     expect(topicsTable.bulkAdd).toHaveBeenCalledWith([{ id: 'topic-1', messages: [] }])
     expect(messageBlocksTable.bulkAdd).not.toHaveBeenCalled()
+  })
+
+  it('stages factory reset before clearing renderer storage and suspends mirrors until relaunch', async () => {
+    const localStorageClear = vi.spyOn(Storage.prototype, 'clear')
+    const tableClear = vi.fn().mockResolvedValue(undefined)
+    mocks.db.tables = [{ name: 'topics' }, { name: 'settings' }]
+    ;(mocks.db as any).topics = { clear: tableClear }
+    ;(mocks.db as any).settings = { clear: tableClear }
+
+    reset()
+
+    const confirmCalls = vi.mocked(window.modal.confirm).mock.calls
+    expect(confirmCalls).toHaveLength(1)
+    await confirmCalls[0][0].onOk?.()
+    expect(confirmCalls).toHaveLength(2)
+    await confirmCalls[1][0].onOk?.()
+
+    expect(vi.mocked(window.api.resetData).mock.invocationCallOrder[0]).toBeLessThan(
+      localStorageClear.mock.invocationCallOrder[0]
+    )
+    expect(mocks.suspendStorageV2RuntimeMirrorsUntilReload.mock.invocationCallOrder[0]).toBeLessThan(
+      localStorageClear.mock.invocationCallOrder[0]
+    )
+    expect(tableClear).toHaveBeenCalledTimes(2)
+    expect(window.toast.success).toHaveBeenCalledWith('message.reset.success')
+
+    vi.advanceTimersByTime(1000)
+    expect(window.api.relaunchApp).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not clear renderer storage when factory reset staging fails', async () => {
+    vi.mocked(window.api.resetData).mockRejectedValueOnce(new Error('stage failed'))
+    const localStorageClear = vi.spyOn(Storage.prototype, 'clear')
+    const tableClear = vi.fn().mockResolvedValue(undefined)
+    mocks.db.tables = [{ name: 'topics' }]
+    ;(mocks.db as any).topics = { clear: tableClear }
+
+    reset()
+
+    const confirmCalls = vi.mocked(window.modal.confirm).mock.calls
+    await confirmCalls[0][0].onOk?.()
+    await confirmCalls[1][0].onOk?.()
+
+    expect(localStorageClear).not.toHaveBeenCalled()
+    expect(tableClear).not.toHaveBeenCalled()
+    expect(mocks.suspendStorageV2RuntimeMirrorsUntilReload).not.toHaveBeenCalled()
+    expect(window.toast.error).toHaveBeenCalledWith('notes.settings.data.reset_failed')
   })
 })

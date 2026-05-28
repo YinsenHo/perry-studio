@@ -9,7 +9,7 @@ import { uuid } from '@renderer/utils'
 import dayjs from 'dayjs'
 
 import { NotificationService } from './NotificationService'
-import { importLegacyDexieToStorageV2 } from './StorageV2Service'
+import { importLegacyDexieToStorageV2, suspendStorageV2RuntimeMirrorsUntilReload } from './StorageV2Service'
 
 const logger = loggerService.withContext('BackupService')
 const STORAGE_V2_AUTO_HYDRATE_SETTING_KEY = 'storage_v2.runtime.auto_hydrate'
@@ -189,11 +189,17 @@ export async function reset() {
         content: i18n.t('message.reset.double.confirm.content'),
         centered: true,
         onOk: async () => {
-          localStorage.clear()
-          await clearDatabase()
-          await window.api.resetData()
-          window.toast.success(i18n.t('message.reset.success'))
-          setTimeout(() => window.api.relaunchApp(), 1000)
+          try {
+            await window.api.resetData()
+            suspendStorageV2RuntimeMirrorsUntilReload()
+            localStorage.clear()
+            await clearDatabase()
+            window.toast.success(i18n.t('message.reset.success'))
+            setTimeout(() => window.api.relaunchApp(), 1000)
+          } catch (error) {
+            logger.error('reset: Error resetting app data:', error as Error)
+            window.toast.error(i18n.t('notes.settings.data.reset_failed'))
+          }
         }
       })
     }

@@ -1,3 +1,5 @@
+import type { Client } from '@libsql/client'
+
 import { storageV2Database } from './StorageV2Database'
 import { storageV2ConversationRepository } from './StorageV2Repositories'
 import { storageV2SyncLogService } from './SyncLogService'
@@ -26,8 +28,13 @@ export class StorageV2AgentRuntimeTombstoneService {
   }
 
   async tombstoneSession(sessionId: string) {
-    await this.tombstoneEntity('agent_sessions', sessionId)
-    await storageV2ConversationRepository.delete(`agent-session:${sessionId}`)
+    const client = await storageV2Database.getClient()
+    const deletedAt = now()
+
+    await storageV2Database.withTransaction(client, async () => {
+      await this.tombstoneEntityInTransaction(client, 'agent_sessions', sessionId, deletedAt)
+      await storageV2ConversationRepository.deleteWithClient(client, `agent-session:${sessionId}`, deletedAt)
+    })
   }
 
   async tombstoneSkill(skillId: string) {
@@ -107,29 +114,38 @@ export class StorageV2AgentRuntimeTombstoneService {
     const deletedAt = now()
 
     await storageV2Database.withTransaction(client, async () => {
-      const existingResult = await client.execute({
-        sql: `SELECT version FROM ${table} WHERE id = ? AND deleted_at IS NULL`,
-        args: [entityId]
-      })
-      const existingVersion = Number(existingResult.rows[0]?.version ?? 0)
+      await this.tombstoneEntityInTransaction(client, table, entityId, deletedAt)
+    })
+  }
 
-      await client.execute({
-        sql: `
-          UPDATE ${table}
-          SET deleted_at = ?, updated_at = ?, version = version + 1
-          WHERE id = ? AND deleted_at IS NULL
-        `,
-        args: [deletedAt, deletedAt, entityId]
-      })
+  private async tombstoneEntityInTransaction(
+    client: Client,
+    table: AgentRuntimeEntityTable,
+    entityId: string,
+    deletedAt: string
+  ) {
+    const existingResult = await client.execute({
+      sql: `SELECT version FROM ${table} WHERE id = ? AND deleted_at IS NULL`,
+      args: [entityId]
+    })
+    const existingVersion = Number(existingResult.rows[0]?.version ?? 0)
 
-      await storageV2SyncLogService.recordChange({
-        client,
-        entityType: ENTITY_TYPE_BY_TABLE[table],
-        entityId,
-        operation: 'delete',
-        payload: { id: entityId, deletedAt },
-        version: existingVersion > 0 ? existingVersion + 1 : 1
-      })
+    await client.execute({
+      sql: `
+        UPDATE ${table}
+        SET deleted_at = ?, updated_at = ?, version = version + 1
+        WHERE id = ? AND deleted_at IS NULL
+      `,
+      args: [deletedAt, deletedAt, entityId]
+    })
+
+    await storageV2SyncLogService.recordChange({
+      client,
+      entityType: ENTITY_TYPE_BY_TABLE[table],
+      entityId,
+      operation: 'delete',
+      payload: { id: entityId, deletedAt },
+      version: existingVersion > 0 ? existingVersion + 1 : 1
     })
   }
 }

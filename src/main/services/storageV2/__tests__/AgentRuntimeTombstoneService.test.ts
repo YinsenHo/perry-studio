@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
     execute: vi.fn()
   },
   conversationDelete: vi.fn(),
+  conversationDeleteWithClient: vi.fn(),
   recordChange: vi.fn(),
   withTransaction: vi.fn(async (_client: unknown, fn: () => Promise<void>) => fn())
 }))
@@ -18,7 +19,8 @@ vi.mock('../StorageV2Database', () => ({
 
 vi.mock('../StorageV2Repositories', () => ({
   storageV2ConversationRepository: {
-    delete: mocks.conversationDelete
+    delete: mocks.conversationDelete,
+    deleteWithClient: mocks.conversationDeleteWithClient
   }
 }))
 
@@ -35,6 +37,7 @@ describe('StorageV2AgentRuntimeTombstoneService', () => {
     vi.clearAllMocks()
     mocks.client.execute.mockResolvedValue({ rows: [], columns: [], columnTypes: [] })
     mocks.conversationDelete.mockResolvedValue({ deleted: true })
+    mocks.conversationDeleteWithClient.mockResolvedValue({ deleted: true })
   })
 
   it('tombstones agent runtime entities and records delete changes', async () => {
@@ -69,7 +72,26 @@ describe('StorageV2AgentRuntimeTombstoneService', () => {
   it('tombstones the Storage v2 agent conversation when deleting a session', async () => {
     await new StorageV2AgentRuntimeTombstoneService().tombstoneSession('session-1')
 
-    expect(mocks.conversationDelete).toHaveBeenCalledWith('agent-session:session-1')
+    expect(mocks.withTransaction).toHaveBeenCalledTimes(1)
+    expect(mocks.client.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining('FROM agent_sessions'),
+        args: ['session-1']
+      })
+    )
+    expect(mocks.recordChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'agent_session',
+        entityId: 'session-1',
+        operation: 'delete'
+      })
+    )
+    expect(mocks.conversationDeleteWithClient).toHaveBeenCalledWith(
+      mocks.client,
+      'agent-session:session-1',
+      expect.any(String)
+    )
+    expect(mocks.conversationDelete).not.toHaveBeenCalled()
   })
 
   it('tombstones skills and records delete changes', async () => {

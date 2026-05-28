@@ -1427,102 +1427,103 @@ export class StorageV2ConversationRepository {
   async delete(conversationId: string): Promise<{ deleted: boolean }> {
     const client = await storageV2Database.getClient()
     const deletedAt = now()
-    let deleted = false
 
-    await withTransaction(client, async () => {
-      const existingResult = await client.execute({
-        sql: 'SELECT version FROM conversations WHERE id = ? AND deleted_at IS NULL',
-        args: [conversationId]
-      })
-      const existingVersion = Number(existingResult.rows[0]?.version ?? 0)
-      deleted = existingVersion > 0
+    return withTransaction(client, () => this.deleteWithClient(client, conversationId, deletedAt))
+  }
 
-      const messagesResult = await client.execute({
-        sql: `
-          SELECT id, version
-          FROM messages
-          WHERE conversation_id = ? AND deleted_at IS NULL
-        `,
-        args: [conversationId]
-      })
-      const blocksResult = await client.execute({
-        sql: `
-          SELECT b.id, b.message_id, b.version
-          FROM message_blocks b
-          INNER JOIN messages m ON m.id = b.message_id
-          WHERE m.conversation_id = ? AND b.deleted_at IS NULL
-        `,
-        args: [conversationId]
-      })
+  async deleteWithClient(client: Client, conversationId: string, deletedAt = now()): Promise<{ deleted: boolean }> {
+    const existingResult = await client.execute({
+      sql: 'SELECT version FROM conversations WHERE id = ? AND deleted_at IS NULL',
+      args: [conversationId]
+    })
+    const existingVersion = Number(existingResult.rows[0]?.version ?? 0)
+    const deleted = existingVersion > 0
 
-      await client.execute({
-        sql: `
-          UPDATE message_blocks
-          SET deleted_at = ?, updated_at = ?, version = version + 1
-          WHERE message_id IN (
-            SELECT id FROM messages WHERE conversation_id = ?
-          ) AND deleted_at IS NULL
-        `,
-        args: [deletedAt, deletedAt, conversationId]
-      })
-      await client.execute({
-        sql: `
-          UPDATE messages
-          SET deleted_at = ?, updated_at = ?, version = version + 1
-          WHERE conversation_id = ? AND deleted_at IS NULL
-        `,
-        args: [deletedAt, deletedAt, conversationId]
-      })
-      await client.execute({
-        sql: `
-          UPDATE conversations
-          SET deleted_at = ?, updated_at = ?, version = version + 1
-          WHERE id = ? AND deleted_at IS NULL
-        `,
-        args: [deletedAt, deletedAt, conversationId]
-      })
+    const messagesResult = await client.execute({
+      sql: `
+        SELECT id, version
+        FROM messages
+        WHERE conversation_id = ? AND deleted_at IS NULL
+      `,
+      args: [conversationId]
+    })
+    const blocksResult = await client.execute({
+      sql: `
+        SELECT b.id, b.message_id, b.version
+        FROM message_blocks b
+        INNER JOIN messages m ON m.id = b.message_id
+        WHERE m.conversation_id = ? AND b.deleted_at IS NULL
+      `,
+      args: [conversationId]
+    })
 
-      for (const row of blocksResult.rows) {
-        const blockId = String(row.id)
-        await storageV2SyncLogService.recordChange({
-          client,
-          entityType: 'message_block',
-          entityId: blockId,
-          operation: 'delete',
-          payload: {
-            id: blockId,
-            messageId: String(row.message_id),
-            conversationId,
-            deletedAt
-          },
-          version: Number(row.version ?? 0) + 1
-        })
-      }
+    await client.execute({
+      sql: `
+        UPDATE message_blocks
+        SET deleted_at = ?, updated_at = ?, version = version + 1
+        WHERE message_id IN (
+          SELECT id FROM messages WHERE conversation_id = ?
+        ) AND deleted_at IS NULL
+      `,
+      args: [deletedAt, deletedAt, conversationId]
+    })
+    await client.execute({
+      sql: `
+        UPDATE messages
+        SET deleted_at = ?, updated_at = ?, version = version + 1
+        WHERE conversation_id = ? AND deleted_at IS NULL
+      `,
+      args: [deletedAt, deletedAt, conversationId]
+    })
+    await client.execute({
+      sql: `
+        UPDATE conversations
+        SET deleted_at = ?, updated_at = ?, version = version + 1
+        WHERE id = ? AND deleted_at IS NULL
+      `,
+      args: [deletedAt, deletedAt, conversationId]
+    })
 
-      for (const row of messagesResult.rows) {
-        const messageId = String(row.id)
-        await storageV2SyncLogService.recordChange({
-          client,
-          entityType: 'message',
-          entityId: messageId,
-          operation: 'delete',
-          payload: {
-            id: messageId,
-            conversationId,
-            deletedAt
-          },
-          version: Number(row.version ?? 0) + 1
-        })
-      }
-
+    for (const row of blocksResult.rows) {
+      const blockId = String(row.id)
       await storageV2SyncLogService.recordChange({
         client,
-        entityType: 'conversation',
-        entityId: conversationId,
+        entityType: 'message_block',
+        entityId: blockId,
         operation: 'delete',
-        payload: { id: conversationId, deletedAt },
-        version: existingVersion > 0 ? existingVersion + 1 : 1
+        payload: {
+          id: blockId,
+          messageId: String(row.message_id),
+          conversationId,
+          deletedAt
+        },
+        version: Number(row.version ?? 0) + 1
       })
+    }
+
+    for (const row of messagesResult.rows) {
+      const messageId = String(row.id)
+      await storageV2SyncLogService.recordChange({
+        client,
+        entityType: 'message',
+        entityId: messageId,
+        operation: 'delete',
+        payload: {
+          id: messageId,
+          conversationId,
+          deletedAt
+        },
+        version: Number(row.version ?? 0) + 1
+      })
+    }
+
+    await storageV2SyncLogService.recordChange({
+      client,
+      entityType: 'conversation',
+      entityId: conversationId,
+      operation: 'delete',
+      payload: { id: conversationId, deletedAt },
+      version: existingVersion > 0 ? existingVersion + 1 : 1
     })
 
     return {

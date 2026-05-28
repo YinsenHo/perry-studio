@@ -22,6 +22,14 @@ function createMockClient() {
       return { rows: [{ id: 'stale-message', version: 4 }], columns: [], columnTypes: [] }
     }
 
+    if (sql.includes('FROM message_blocks b') && sql.includes('m.conversation_id = ?') && args[0] === 'topic-1') {
+      return {
+        rows: [{ id: 'stale-block', message_id: 'stale-message', version: 2 }],
+        columns: [],
+        columnTypes: []
+      }
+    }
+
     if (sql.includes('FROM message_blocks') && sql.includes('WHERE message_id = ?') && args[0] === 'stale-message') {
       return { rows: [{ id: 'stale-block', version: 2 }], columns: [], columnTypes: [] }
     }
@@ -143,6 +151,35 @@ describe('StorageV2ConversationRepository', () => {
     expect(
       execute.mock.calls.some(([input]) => typeof input !== 'string' && input.sql.includes('UPDATE message_blocks'))
     ).toBe(true)
+  })
+
+  it('can tombstone a conversation inside a caller-owned transaction', async () => {
+    const { client, execute } = createMockClient()
+    const recordChange = vi.spyOn(storageV2SyncLogService, 'recordChange').mockResolvedValue(undefined)
+    const withTransaction = vi
+      .spyOn(storageV2Database, 'withTransaction')
+      .mockImplementation(async (_client, fn) => fn())
+
+    await expect(
+      new StorageV2ConversationRepository().deleteWithClient(client, 'topic-1', '2026-01-01T00:00:00.000Z')
+    ).resolves.toEqual({ deleted: true })
+
+    expect(withTransaction).not.toHaveBeenCalled()
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining('UPDATE conversations'),
+        args: ['2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z', 'topic-1']
+      })
+    )
+    expect(recordChange).toHaveBeenCalledWith(
+      expect.objectContaining({ entityType: 'message_block', entityId: 'stale-block', operation: 'delete', version: 3 })
+    )
+    expect(recordChange).toHaveBeenCalledWith(
+      expect.objectContaining({ entityType: 'message', entityId: 'stale-message', operation: 'delete', version: 5 })
+    )
+    expect(recordChange).toHaveBeenCalledWith(
+      expect.objectContaining({ entityType: 'conversation', entityId: 'topic-1', operation: 'delete', version: 4 })
+    )
   })
 })
 

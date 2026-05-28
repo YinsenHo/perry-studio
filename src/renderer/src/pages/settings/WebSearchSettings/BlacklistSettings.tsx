@@ -156,7 +156,7 @@ const BlacklistSettings: FC = () => {
 
       if (updatedSources.length > 0) {
         // 更新 Redux store
-        setSubscribeSources(updatedSources)
+        await setSubscribeSources(updatedSources)
         setSubscribeValid(true)
         // 显示成功消息
         window.toast.success({
@@ -216,14 +216,14 @@ const BlacklistSettings: FC = () => {
     }
     setSubscribeChecking(false)
   }
-  function handleDeleteSubscribe() {
+  async function handleDeleteSubscribe() {
     try {
       // 过滤掉被选中要删除的项目
       const remainingSources =
         websearch.subscribeSources?.filter((source) => !selectedRowKeys.includes(source.key)) || []
 
       // 更新 Redux store
-      setSubscribeSources(remainingSources)
+      await setSubscribeSources(remainingSources)
 
       // 清空选中状态
       setSelectedRowKeys([])

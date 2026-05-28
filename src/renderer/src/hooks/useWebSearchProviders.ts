@@ -14,8 +14,13 @@ import {
 } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 
-const flushWebSearchMirror = (reason: string) => {
-  void flushStorageV2ReduxMirror(reason)
+function flushWebSearchMirror(reason: string): void
+function flushWebSearchMirror(reason: string, options: { strict: true }): Promise<void>
+function flushWebSearchMirror(reason: string, options?: { strict?: boolean }) {
+  const task = flushStorageV2ReduxMirror(reason, options)
+  if (options?.strict) return task
+  void task
+  return undefined
 }
 
 export const useDefaultWebSearchProvider = () => {
@@ -87,9 +92,9 @@ export const useBlacklist = () => {
     flushWebSearchMirror('websearch-add-subscribe-source')
   }
 
-  const removeSubscribeSource = (key: number) => {
+  const removeSubscribeSource = async (key: number) => {
     dispatch(_removeSubscribeSource(key))
-    flushWebSearchMirror('websearch-remove-subscribe-source')
+    await flushWebSearchMirror('websearch-remove-subscribe-source', { strict: true })
   }
 
   const updateSubscribeBlacklist = (key: number, blacklist: string[]) => {
@@ -97,9 +102,9 @@ export const useBlacklist = () => {
     flushWebSearchMirror('websearch-update-subscribe-blacklist')
   }
 
-  const setSubscribeSources = (sources: { key: number; url: string; name: string; blacklist?: string[] }[]) => {
+  const setSubscribeSources = async (sources: { key: number; url: string; name: string; blacklist?: string[] }[]) => {
     dispatch(_setSubscribeSources(sources))
-    flushWebSearchMirror('websearch-set-subscribe-sources')
+    await flushWebSearchMirror('websearch-set-subscribe-sources', { strict: true })
   }
 
   return {

@@ -15,6 +15,7 @@
  * --------------------------------------------------------------------------
  */
 import { loggerService } from '@logger'
+import FileManager from '@renderer/services/FileManager'
 import {
   fetchStorageV2TopicMessages,
   shouldPreferStorageV2ConversationReads,
@@ -23,6 +24,7 @@ import {
 import { storageV2ConversationMirrorService } from '@renderer/services/StorageV2ConversationMirrorService'
 import { storageV2FileMirrorService } from '@renderer/services/StorageV2FileMirrorService'
 import store from '@renderer/store'
+import type { FileMetadata } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 
 import { AgentMessageDataSource } from './AgentMessageDataSource'
@@ -127,6 +129,11 @@ class DbService implements MessageDataSource {
     )
   }
 
+  private async cleanupFilesAfterConversationMirror(files: void | FileMetadata[]): Promise<void> {
+    if (!files || files.length === 0) return
+    await FileManager.deleteFiles(files)
+  }
+
   // ============ Read Operations ============
 
   async fetchMessages(
@@ -181,14 +188,16 @@ class DbService implements MessageDataSource {
 
   async deleteMessage(topicId: string, messageId: string): Promise<void> {
     const source = this.getDataSource(topicId)
-    await source.deleteMessage(topicId, messageId)
+    const filesToDelete = await source.deleteMessage(topicId, messageId)
     await this.flushRegularTopicMirror(topicId, { destructive: true })
+    await this.cleanupFilesAfterConversationMirror(filesToDelete)
   }
 
   async deleteMessages(topicId: string, messageIds: string[]): Promise<void> {
     const source = this.getDataSource(topicId)
-    await source.deleteMessages(topicId, messageIds)
+    const filesToDelete = await source.deleteMessages(topicId, messageIds)
     await this.flushRegularTopicMirror(topicId, { destructive: true })
+    await this.cleanupFilesAfterConversationMirror(filesToDelete)
   }
 
   // ============ Block Operations ============
@@ -234,16 +243,18 @@ class DbService implements MessageDataSource {
     // Similar limitation as updateBlocks
     // Default to Dexie since agent blocks can't be deleted individually
     const topicIds = await storageV2ConversationMirrorService.findTopicIdsForBlockIds(blockIds, () => this.getState())
-    await this.dexieSource.deleteBlocks(blockIds)
+    const filesToDelete = await this.dexieSource.deleteBlocks(blockIds)
     await this.flushRegularTopicMirrors(topicIds, { destructive: true })
+    await this.cleanupFilesAfterConversationMirror(filesToDelete)
   }
 
   // ============ Batch Operations ============
 
   async clearMessages(topicId: string): Promise<void> {
     const source = this.getDataSource(topicId)
-    await source.clearMessages(topicId)
+    const filesToDelete = await source.clearMessages(topicId)
     await this.flushRegularTopicMirror(topicId, { destructive: true })
+    await this.cleanupFilesAfterConversationMirror(filesToDelete)
   }
 
   async topicExists(topicId: string): Promise<boolean> {

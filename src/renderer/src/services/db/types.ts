@@ -1,3 +1,4 @@
+import type { FileMetadata } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 
 /**
@@ -61,12 +62,12 @@ export interface MessageDataSource {
   /**
    * Delete a single message and its blocks
    */
-  deleteMessage(topicId: string, messageId: string): Promise<void>
+  deleteMessage(topicId: string, messageId: string): Promise<void | FileMetadata[]>
 
   /**
    * Delete multiple messages and their blocks
    */
-  deleteMessages(topicId: string, messageIds: string[]): Promise<void>
+  deleteMessages(topicId: string, messageIds: string[]): Promise<void | FileMetadata[]>
 
   // ============ Block Operations ============
   /**
@@ -87,13 +88,13 @@ export interface MessageDataSource {
   /**
    * Delete multiple blocks
    */
-  deleteBlocks(blockIds: string[]): Promise<void>
+  deleteBlocks(blockIds: string[]): Promise<void | FileMetadata[]>
 
   // ============ Batch Operations ============
   /**
    * Clear all messages in a topic
    */
-  clearMessages(topicId: string): Promise<void>
+  clearMessages(topicId: string): Promise<void | FileMetadata[]>
 
   /**
    * Check if topic exists

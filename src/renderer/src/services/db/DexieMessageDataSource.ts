@@ -20,12 +20,19 @@ import FileManager from '@renderer/services/FileManager'
 import { storageV2FileRecoveryService } from '@renderer/services/StorageV2FileRecoveryService'
 import store from '@renderer/store'
 import { updateTopicUpdatedAt } from '@renderer/store/assistants'
+import type { FileMetadata } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
-import { isEmpty } from 'lodash'
 
 import type { MessageDataSource } from './types'
 
 const logger = loggerService.withContext('DexieMessageDataSource')
+
+function collectFilesFromBlocks(blocks: MessageBlock[]): FileMetadata[] {
+  return blocks
+    .filter((block) => block.type === 'file' || block.type === 'image')
+    .map((block: any) => block.file)
+    .filter((file): file is FileMetadata => Boolean(file?.id))
+}
 
 /**
  * Dexie-based implementation of MessageDataSource
@@ -180,8 +187,10 @@ export class DexieMessageDataSource implements MessageDataSource {
     }
   }
 
-  async deleteMessage(topicId: string, messageId: string): Promise<void> {
+  async deleteMessage(topicId: string, messageId: string): Promise<void | FileMetadata[]> {
     try {
+      let filesToDelete: FileMetadata[] = []
+
       await db.transaction('rw', db.topics, db.message_blocks, db.files, async () => {
         const topic = await db.topics.get(topicId)
         if (!topic) return
@@ -195,15 +204,7 @@ export class DexieMessageDataSource implements MessageDataSource {
         // Delete blocks and handle files
         if (blockIds.length > 0) {
           const blocks = await db.message_blocks.where('id').anyOf(blockIds).toArray()
-          const files = blocks
-            .filter((block) => block.type === 'file' || block.type === 'image')
-            .map((block: any) => block.file)
-            .filter((file) => file !== undefined)
-
-          // Clean up files
-          if (!isEmpty(files)) {
-            await Promise.all(files.map((file) => FileManager.deleteFile(file.id, false)))
-          }
+          filesToDelete = collectFilesFromBlocks(blocks)
 
           await db.message_blocks.bulkDelete(blockIds)
         }
@@ -214,14 +215,17 @@ export class DexieMessageDataSource implements MessageDataSource {
       })
 
       store.dispatch(updateTopicUpdatedAt({ topicId }))
+      return filesToDelete
     } catch (error) {
       logger.error(`Failed to delete message ${messageId} from topic ${topicId}:`, error as Error)
       throw error
     }
   }
 
-  async deleteMessages(topicId: string, messageIds: string[]): Promise<void> {
+  async deleteMessages(topicId: string, messageIds: string[]): Promise<void | FileMetadata[]> {
     try {
+      let filesToDelete: FileMetadata[] = []
+
       await db.transaction('rw', db.topics, db.message_blocks, db.files, async () => {
         const topic = await db.topics.get(topicId)
         if (!topic) return
@@ -243,15 +247,7 @@ export class DexieMessageDataSource implements MessageDataSource {
         // Delete blocks and handle files
         if (allBlockIds.length > 0) {
           const blocks = await db.message_blocks.where('id').anyOf(allBlockIds).toArray()
-          const files = blocks
-            .filter((block) => block.type === 'file' || block.type === 'image')
-            .map((block: any) => block.file)
-            .filter((file) => file !== undefined)
-
-          // Clean up files
-          if (!isEmpty(files)) {
-            await Promise.all(files.map((file) => FileManager.deleteFile(file.id, false)))
-          }
+          filesToDelete = collectFilesFromBlocks(blocks)
           await db.message_blocks.bulkDelete(allBlockIds)
         }
 
@@ -260,6 +256,7 @@ export class DexieMessageDataSource implements MessageDataSource {
         await db.topics.update(topicId, { messages: remainingMessages })
       })
       store.dispatch(updateTopicUpdatedAt({ topicId }))
+      return filesToDelete
     } catch (error) {
       logger.error(`Failed to delete messages from topic ${topicId}:`, error as Error)
       throw error
@@ -297,23 +294,16 @@ export class DexieMessageDataSource implements MessageDataSource {
     }
   }
 
-  async deleteBlocks(blockIds: string[]): Promise<void> {
+  async deleteBlocks(blockIds: string[]): Promise<void | FileMetadata[]> {
     try {
       if (blockIds.length === 0) return
 
       // Get blocks to find associated files
       const blocks = await db.message_blocks.where('id').anyOf(blockIds).toArray()
-      const files = blocks
-        .filter((block) => block.type === 'file' || block.type === 'image')
-        .map((block: any) => block.file)
-        .filter((file) => file !== undefined)
-
-      // Clean up files
-      if (!isEmpty(files)) {
-        await Promise.all(files.map((file) => FileManager.deleteFile(file.id, false)))
-      }
+      const filesToDelete = collectFilesFromBlocks(blocks)
 
       await db.message_blocks.bulkDelete(blockIds)
+      return filesToDelete
     } catch (error) {
       logger.error('Failed to delete blocks:', error as Error)
       throw error
@@ -322,11 +312,11 @@ export class DexieMessageDataSource implements MessageDataSource {
 
   // ============ Batch Operations ============
 
-  async clearMessages(topicId: string): Promise<void> {
+  async clearMessages(topicId: string): Promise<void | FileMetadata[]> {
     try {
       // First, collect file information and block IDs within a read transaction
       let blockIds: string[] = []
-      let files: any[] = []
+      let filesToDelete: FileMetadata[] = []
 
       await db.transaction('r', db.topics, db.message_blocks, async () => {
         const topic = await db.topics.get(topicId)
@@ -338,17 +328,9 @@ export class DexieMessageDataSource implements MessageDataSource {
         // Get blocks and extract file info
         if (blockIds.length > 0) {
           const blocks = await db.message_blocks.where('id').anyOf(blockIds).toArray()
-          files = blocks
-            .filter((block) => block.type === 'file' || block.type === 'image')
-            .map((block: any) => block.file)
-            .filter((file) => file !== undefined)
+          filesToDelete = collectFilesFromBlocks(blocks)
         }
       })
-
-      // Delete files outside the transaction to avoid transaction timeout
-      if (!isEmpty(files)) {
-        await Promise.all(files.map((file) => FileManager.deleteFile(file.id, false)))
-      }
 
       // Perform the actual database cleanup in a separate write transaction
       await db.transaction('rw', db.topics, db.message_blocks, async () => {
@@ -365,6 +347,7 @@ export class DexieMessageDataSource implements MessageDataSource {
       })
 
       store.dispatch(updateTopicUpdatedAt({ topicId }))
+      return filesToDelete
     } catch (error) {
       logger.error(`Failed to clear messages for topic ${topicId}:`, error as Error)
       throw error

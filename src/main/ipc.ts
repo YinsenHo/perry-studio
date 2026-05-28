@@ -47,6 +47,7 @@ import { skillService } from './services/agents/skills/SkillService'
 import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
 import { registerAppDataIpcHandlers } from './services/appData/AppDataIpcService'
+import { appDataMigrationService } from './services/AppDataMigrationService'
 import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
@@ -468,15 +469,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   // Copy user data to new location
   ipcMain.handle(IpcChannel.App_Copy, async (_, oldPath: string, newPath: string, occupiedDirs: string[] = []) => {
     try {
-      await fs.promises.cp(oldPath, newPath, {
-        recursive: true,
-        filter: (src) => {
-          if (occupiedDirs.some((dir) => src.startsWith(path.resolve(dir)))) {
-            return false
-          }
-          return true
-        }
-      })
+      await appDataMigrationService.copyUserData(oldPath, newPath, occupiedDirs)
       return { success: true }
     } catch (error: any) {
       logger.error('Failed to copy user data:', error)

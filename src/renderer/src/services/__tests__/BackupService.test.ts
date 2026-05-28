@@ -141,7 +141,11 @@ describe('BackupService legacy restore', () => {
       }),
       'storage-v2'
     )
-    expect(mocks.importLegacyDexieToStorageV2).toHaveBeenCalledWith({ pruneMissing: true })
+    expect(mocks.importLegacyDexieToStorageV2).toHaveBeenCalledWith({
+      includeReduxOnlyTopics: false,
+      preferMessageAssistantId: true,
+      pruneMissing: true
+    })
     expect(window.toast.success).toHaveBeenCalledWith('message.restore.success')
 
     vi.advanceTimersByTime(1000)

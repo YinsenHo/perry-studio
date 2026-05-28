@@ -16,6 +16,13 @@ export type StorageV2LegacyImportOptions = {
   pruneMissing?: boolean
 }
 
+type StorageV2LegacyDexieSnapshotOptions = {
+  includeReduxOnlyTopics?: boolean
+  preferMessageAssistantId?: boolean
+}
+
+export type StorageV2LegacyDexieImportOptions = StorageV2LegacyImportOptions & StorageV2LegacyDexieSnapshotOptions
+
 export type StorageV2LegacyAgentDbImportOptions = StorageV2LegacyImportOptions & {
   dbPath?: string
   createSnapshot?: boolean
@@ -31,6 +38,13 @@ type StorageV2LegacyDexieConversationSnapshot = {
   topic: Omit<Topic, 'messages'> & { messages: [] }
   messages: Message[]
   blocks: MessageBlock[]
+}
+
+type StorageV2LegacyDexieSnapshot = {
+  conversations: StorageV2LegacyDexieConversationSnapshot[]
+  files: FileMetadata[]
+  settings: Array<{ id: string; value: unknown }>
+  dexieTables: Record<(typeof STORAGE_V2_DEXIE_TABLE_NAMES)[number], Array<{ id: string } & object>>
 }
 
 export type StorageV2LegacyMigrationOptions = StorageV2LegacyImportOptions & {
@@ -263,29 +277,42 @@ function stripAssistantRuntimeData<T extends { topics?: unknown }>(assistant: T)
   }
 }
 
-export async function getLegacyDexieSnapshotForStorageV2(): Promise<{
-  conversations: StorageV2LegacyDexieConversationSnapshot[]
-  files: FileMetadata[]
-  settings: Array<{ id: string; value: unknown }>
-  dexieTables: Record<(typeof STORAGE_V2_DEXIE_TABLE_NAMES)[number], Array<{ id: string } & object>>
-}> {
+export async function getLegacyDexieSnapshotForStorageV2(
+  options: StorageV2LegacyDexieSnapshotOptions = {}
+): Promise<StorageV2LegacyDexieSnapshot> {
   const conversations: StorageV2LegacyDexieConversationSnapshot[] = []
   const includedTopicIds = new Set<string>()
   const state = store.getState()
   const fallbackAssistantId = state.assistants.defaultAssistant?.id ?? getUniqueAssistants()[0]?.id
+  const includeReduxOnlyTopics = options.includeReduxOnlyTopics ?? true
+  const preferMessageAssistantId = options.preferMessageAssistantId === true
 
   for (const assistant of getUniqueAssistants()) {
     for (const topic of assistant.topics ?? []) {
       const persistedTopic = await db.topics.get(topic.id)
+      if (!persistedTopic && !includeReduxOnlyTopics) continue
+
+      const persistedTopicMetadata = persistedTopic as Partial<Topic> | undefined
       const messages = persistedTopic?.messages ?? topic.messages ?? []
+      const messageAssistantId = messages.find((message) => message.assistantId)?.assistantId
+      const assistantId = preferMessageAssistantId
+        ? (persistedTopicMetadata?.assistantId ?? messageAssistantId ?? topic.assistantId ?? assistant.id)
+        : (topic.assistantId ?? persistedTopicMetadata?.assistantId ?? messageAssistantId ?? assistant.id)
       const messageIds = messages
         .map((message) => message.id)
         .filter((messageId): messageId is string => typeof messageId === 'string' && messageId.length > 0)
       const blocks = messageIds.length ? await db.message_blocks.where('messageId').anyOf(messageIds).toArray() : []
+      const topicSnapshot = {
+        ...topic,
+        ...(persistedTopic ?? {}),
+        id: topic.id,
+        assistantId,
+        messages: []
+      } as Topic
 
       conversations.push({
-        assistantId: assistant.id,
-        topic: stripTopicMessages(topic),
+        assistantId,
+        topic: stripTopicMessages(topicSnapshot),
         messages,
         blocks
       })
@@ -352,12 +379,20 @@ export async function dryRunLegacyDexieImportToStorageV2() {
   return window.api.storageV2.importLegacyDexieSnapshot(await getLegacyDexieSnapshotForStorageV2(), { dryRun: true })
 }
 
-export async function importLegacyDexieToStorageV2(options: StorageV2LegacyImportOptions = {}) {
-  return window.api.storageV2.importLegacyDexieSnapshot(await getLegacyDexieSnapshotForStorageV2(), {
-    ...options,
-    dryRun: options.dryRun ?? false,
-    pruneMissing: options.pruneMissing ?? true
-  })
+export async function importLegacyDexieToStorageV2(options: StorageV2LegacyDexieImportOptions = {}) {
+  const { includeReduxOnlyTopics, preferMessageAssistantId, ...importOptions } = options
+
+  return window.api.storageV2.importLegacyDexieSnapshot(
+    await getLegacyDexieSnapshotForStorageV2({
+      includeReduxOnlyTopics,
+      preferMessageAssistantId
+    }),
+    {
+      ...importOptions,
+      dryRun: importOptions.dryRun ?? false,
+      pruneMissing: importOptions.pruneMissing ?? true
+    }
+  )
 }
 
 export function dryRunLegacyAgentDbImportToStorageV2() {

@@ -32,7 +32,11 @@ async function disableStorageV2AutoHydrateAfterLegacyRestore() {
 
 async function mirrorRestoredLegacyDexieToStorageV2() {
   try {
-    await importLegacyDexieToStorageV2({ pruneMissing: true })
+    await importLegacyDexieToStorageV2({
+      includeReduxOnlyTopics: false,
+      preferMessageAssistantId: true,
+      pruneMissing: true
+    })
   } catch (error) {
     logger.warn('Failed to mirror restored legacy IndexedDB to Storage v2', error as Error)
   }

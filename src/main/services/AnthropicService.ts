@@ -12,11 +12,16 @@ import { net, shell } from 'electron'
 import { promises } from 'fs'
 import { dirname } from 'path'
 
+import { storageV2SecretVaultService } from './storageV2/SecretVaultService'
+import { storageV2SettingsRepository } from './storageV2/StorageV2Repositories'
+
 const logger = loggerService.withContext('AnthropicOAuth')
 
 // Constants
 const CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
 const CREDS_PATH = path.join(getConfigDir(), 'oauth', 'anthropic.json')
+const STORAGE_V2_ANTHROPIC_OAUTH_SCOPE = 'anthropic-oauth'
+const STORAGE_V2_ANTHROPIC_OAUTH_SETTING_KEY = 'anthropic.oauth.credentials'
 
 // Types
 interface Credentials {
@@ -28,6 +33,43 @@ interface Credentials {
 interface PKCEPair {
   verifier: string
   challenge: string
+}
+
+type AnthropicOAuthStorageV2Setting = {
+  clearedAt?: string
+  credentialsSecretRef?: string
+  legacyFallbackAt?: string
+  updatedAt?: string
+}
+
+type AnthropicOAuthStorageV2ReadResult = {
+  cleared: boolean
+  credentials: Credentials | null
+}
+
+function isCredentials(value: unknown): value is Credentials {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const candidate = value as Credentials
+  return (
+    typeof candidate.access_token === 'string' &&
+    Boolean(candidate.access_token) &&
+    typeof candidate.refresh_token === 'string' &&
+    Boolean(candidate.refresh_token) &&
+    typeof candidate.expires_at === 'number' &&
+    Number.isFinite(candidate.expires_at)
+  )
+}
+
+function getStorageV2CredentialsSecretRef(value: unknown): string | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const secretRef = (value as AnthropicOAuthStorageV2Setting).credentialsSecretRef
+  return typeof secretRef === 'string' && secretRef ? secretRef : null
+}
+
+function isStorageV2CredentialsCleared(value: unknown): boolean {
+  return Boolean(
+    value && typeof value === 'object' && !Array.isArray(value) && (value as AnthropicOAuthStorageV2Setting).clearedAt
+  )
 }
 
 class AnthropicService extends Error {
@@ -119,16 +161,121 @@ class AnthropicService extends Error {
     await promises.mkdir(dirname(CREDS_PATH), { recursive: true })
     await promises.writeFile(CREDS_PATH, JSON.stringify(creds, null, 2))
     await promises.chmod(CREDS_PATH, 0o600) // Read/write for owner only
+    await this.saveCredentialsToStorageV2(creds).catch(async (error) => {
+      logger.warn('Failed to save Anthropic OAuth credentials to Storage v2:', error as Error)
+      await this.markStorageV2LegacyFallback().catch((fallbackError) => {
+        logger.warn(
+          'Failed to clear Anthropic OAuth Storage v2 cleared marker after legacy write:',
+          fallbackError as Error
+        )
+      })
+    })
   }
 
   // 6. Load credentials
   private async loadCredentials(): Promise<Credentials | null> {
+    const storageV2Result = await this.loadCredentialsFromStorageV2().catch(
+      (error): AnthropicOAuthStorageV2ReadResult => {
+        logger.warn('Failed to load Anthropic OAuth credentials from Storage v2:', error as Error)
+        return {
+          cleared: false,
+          credentials: null
+        }
+      }
+    )
+
+    if (storageV2Result.cleared) {
+      return null
+    }
+
+    if (storageV2Result.credentials) {
+      return storageV2Result.credentials
+    }
+
     try {
       const data = await promises.readFile(CREDS_PATH, 'utf-8')
-      return JSON.parse(data)
+      const parsed = JSON.parse(data)
+      if (!isCredentials(parsed)) return null
+      await this.saveCredentialsToStorageV2(parsed).catch((error) => {
+        logger.warn('Failed to mirror legacy Anthropic OAuth credentials to Storage v2:', error as Error)
+      })
+      return parsed
     } catch {
       return null
     }
+  }
+
+  private async loadCredentialsFromStorageV2(): Promise<AnthropicOAuthStorageV2ReadResult> {
+    const setting = await storageV2SettingsRepository.get(STORAGE_V2_ANTHROPIC_OAUTH_SETTING_KEY)
+    if (isStorageV2CredentialsCleared(setting)) {
+      return {
+        cleared: true,
+        credentials: null
+      }
+    }
+
+    const secretRef = getStorageV2CredentialsSecretRef(setting)
+    if (!secretRef) {
+      return {
+        cleared: false,
+        credentials: null
+      }
+    }
+
+    const secret = await storageV2SecretVaultService.getSecret(secretRef)
+    if (!secret) {
+      return {
+        cleared: false,
+        credentials: null
+      }
+    }
+
+    const parsed = JSON.parse(secret)
+    return {
+      cleared: false,
+      credentials: isCredentials(parsed) ? parsed : null
+    }
+  }
+
+  private async saveCredentialsToStorageV2(creds: Credentials): Promise<void> {
+    const secretRef = await storageV2SecretVaultService.setSecret(
+      STORAGE_V2_ANTHROPIC_OAUTH_SCOPE,
+      'default',
+      'credentials',
+      JSON.stringify(creds)
+    )
+    await storageV2SettingsRepository.set(
+      STORAGE_V2_ANTHROPIC_OAUTH_SETTING_KEY,
+      {
+        credentialsSecretRef: secretRef,
+        updatedAt: new Date().toISOString()
+      } satisfies AnthropicOAuthStorageV2Setting,
+      STORAGE_V2_ANTHROPIC_OAUTH_SCOPE
+    )
+  }
+
+  private async markStorageV2LegacyFallback(): Promise<void> {
+    const timestamp = new Date().toISOString()
+    await storageV2SettingsRepository.set(
+      STORAGE_V2_ANTHROPIC_OAUTH_SETTING_KEY,
+      {
+        legacyFallbackAt: timestamp,
+        updatedAt: timestamp
+      } satisfies AnthropicOAuthStorageV2Setting,
+      STORAGE_V2_ANTHROPIC_OAUTH_SCOPE
+    )
+  }
+
+  private async clearCredentialsInStorageV2(): Promise<void> {
+    const timestamp = new Date().toISOString()
+    await storageV2SettingsRepository.set(
+      STORAGE_V2_ANTHROPIC_OAUTH_SETTING_KEY,
+      {
+        clearedAt: timestamp,
+        updatedAt: timestamp
+      } satisfies AnthropicOAuthStorageV2Setting,
+      STORAGE_V2_ANTHROPIC_OAUTH_SCOPE
+    )
   }
 
   // 7. Get valid access token (refresh if needed)
@@ -205,6 +352,14 @@ class AnthropicService extends Error {
 
   // 11. Clear stored credentials
   public async clearCredentials(): Promise<void> {
+    let storageV2Error: unknown = null
+    try {
+      await this.clearCredentialsInStorageV2()
+    } catch (error) {
+      storageV2Error = error
+      logger.error('Failed to clear Anthropic OAuth credentials in Storage v2:', error as Error)
+    }
+
     try {
       await promises.unlink(CREDS_PATH)
       logger.info('Credentials cleared')
@@ -213,6 +368,10 @@ class AnthropicService extends Error {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
         throw error
       }
+    }
+
+    if (storageV2Error) {
+      throw storageV2Error
     }
   }
 

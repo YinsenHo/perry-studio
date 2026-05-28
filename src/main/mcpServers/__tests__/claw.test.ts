@@ -26,6 +26,19 @@ vi.mock('@main/services/agents/services/TaskService', () => ({
   }
 }))
 
+vi.mock('@main/services/agents/AgentStorageV2ReadThrough', () => ({
+  createTaskWithStorageV2Recovery: mockCreateTask,
+  listTasksWithStorageV2Recovery: mockListTasks,
+  deleteTaskWithStorageV2Recovery: mockDeleteTask,
+  getAgentWithStorageV2Recovery: mockGetAgent,
+  updateAgentWithStorageV2Recovery: mockUpdateAgent,
+  listChannelsWithStorageV2Recovery: mockListChannels,
+  createChannelWithStorageV2Recovery: mockCreateChannel,
+  getChannelWithStorageV2Recovery: mockGetChannel,
+  updateChannelWithStorageV2Recovery: mockUpdateChannel,
+  deleteChannelWithStorageV2Recovery: mockDeleteChannel
+}))
+
 vi.mock('@main/services/agents/services/AgentService', () => ({
   agentService: {
     getAgent: mockGetAgent,

@@ -95,12 +95,16 @@ export async function reorderAgentsWithStorageV2Recovery(orderedIds: string[]): 
 }
 
 export async function deleteAgentWithStorageV2Recovery(id: string): Promise<boolean> {
-  let deleted = await agentService.deleteAgent(id)
-  if (!deleted && (await storageV2AgentRuntimeRecoveryService.projectIfAgentMissing(id, 'agent-delete-missing'))) {
-    deleted = await agentService.deleteAgent(id)
+  let agent = await agentService.getAgent(id)
+  if (!agent && (await storageV2AgentRuntimeRecoveryService.projectIfAgentMissing(id, 'agent-delete-missing'))) {
+    agent = await agentService.getAgent(id)
   }
+
+  if (!agent) return false
+
+  await storageV2AgentRuntimeTombstoneService.tombstoneAgent(id)
+  const deleted = await agentService.deleteAgent(id)
   if (deleted) {
-    await storageV2AgentRuntimeTombstoneService.tombstoneAgent(id)
     await flushAgentRuntimeMutationToStorageV2({ strict: true })
   }
   return deleted
@@ -191,19 +195,23 @@ export async function updateSessionWithStorageV2Recovery(
 }
 
 export async function deleteSessionWithStorageV2Recovery(agentId: string, sessionId: string): Promise<boolean> {
-  let deleted = await sessionService.deleteSession(agentId, sessionId)
+  let session = await sessionService.getSession(agentId, sessionId)
   if (
-    !deleted &&
+    !session &&
     (await storageV2AgentRuntimeRecoveryService.projectIfSessionMissing(
       agentId,
       sessionId,
       'agent-session-delete-missing'
     ))
   ) {
-    deleted = await sessionService.deleteSession(agentId, sessionId)
+    session = await sessionService.getSession(agentId, sessionId)
   }
+
+  if (!session) return false
+
+  await storageV2AgentRuntimeTombstoneService.tombstoneSession(sessionId)
+  const deleted = await sessionService.deleteSession(agentId, sessionId)
   if (deleted) {
-    await storageV2AgentRuntimeTombstoneService.tombstoneSession(sessionId)
     await flushAgentRuntimeMutationToStorageV2({ strict: true })
   }
   return deleted
@@ -261,18 +269,22 @@ export async function deleteAgentSessionMessageWithStorageV2Recovery(
   sessionId: string,
   messageId: number
 ): Promise<boolean> {
-  let deleted = await sessionMessageService.deleteSessionMessage(sessionId, messageId)
+  let messageExists = await sessionMessageService.sessionMessageExists(messageId)
   if (
-    !deleted &&
+    !messageExists &&
     (await storageV2AgentRuntimeRecoveryService.projectIfSessionMessagesEmpty(
       sessionId,
       'agent-message-delete-missing'
     ))
   ) {
-    deleted = await sessionMessageService.deleteSessionMessage(sessionId, messageId)
+    messageExists = await sessionMessageService.sessionMessageExists(messageId)
   }
+
+  if (!messageExists) return false
+
+  await storageV2AgentRuntimeTombstoneService.tombstoneSessionMessage(messageId)
+  const deleted = await sessionMessageService.deleteSessionMessage(sessionId, messageId)
   if (deleted) {
-    await storageV2AgentRuntimeTombstoneService.tombstoneSessionMessage(messageId)
     await flushAgentRuntimeMutationToStorageV2({ strict: true })
   }
   return deleted
@@ -374,30 +386,35 @@ export async function updateTaskAfterRunWithStorageV2Recovery(
 }
 
 export async function deleteTaskWithStorageV2Recovery(agentId: string, taskId: string): Promise<boolean> {
-  let deleted = await taskService.deleteTask(agentId, taskId)
-  if (
-    !deleted &&
-    (await storageV2AgentRuntimeRecoveryService.projectIfTaskMissing(taskId, 'agent-task-delete-missing'))
-  ) {
-    deleted = await taskService.deleteTask(agentId, taskId)
+  let task = await taskService.getTask(agentId, taskId)
+  if (!task && (await storageV2AgentRuntimeRecoveryService.projectIfTaskMissing(taskId, 'agent-task-delete-missing'))) {
+    task = await taskService.getTask(agentId, taskId)
   }
+
+  if (!task) return false
+
+  await storageV2AgentRuntimeTombstoneService.tombstoneTask(taskId)
+  const deleted = await taskService.deleteTask(agentId, taskId)
   if (deleted) {
-    await storageV2AgentRuntimeTombstoneService.tombstoneTask(taskId)
     await flushAgentRuntimeMutationToStorageV2({ strict: true })
   }
   return deleted
 }
 
 export async function deleteTaskByIdWithStorageV2Recovery(taskId: string): Promise<boolean> {
-  let deleted = await taskService.deleteTaskById(taskId)
+  let task = await taskService.getTaskById(taskId)
   if (
-    !deleted &&
+    !task &&
     (await storageV2AgentRuntimeRecoveryService.projectIfTaskMissing(taskId, 'agent-task-delete-by-id-missing'))
   ) {
-    deleted = await taskService.deleteTaskById(taskId)
+    task = await taskService.getTaskById(taskId)
   }
+
+  if (!task) return false
+
+  await storageV2AgentRuntimeTombstoneService.tombstoneTask(taskId)
+  const deleted = await taskService.deleteTaskById(taskId)
   if (deleted) {
-    await storageV2AgentRuntimeTombstoneService.tombstoneTask(taskId)
     await flushAgentRuntimeMutationToStorageV2({ strict: true })
   }
   return deleted
@@ -506,15 +523,19 @@ export async function updateChannelWithStorageV2Recovery(channelId: string, upda
 }
 
 export async function deleteChannelWithStorageV2Recovery(channelId: string): Promise<boolean> {
-  let deleted = await channelService.deleteChannel(channelId)
+  let channel = await channelService.getChannel(channelId)
   if (
-    !deleted &&
+    !channel &&
     (await storageV2AgentRuntimeRecoveryService.projectIfChannelMissing(channelId, 'agent-channel-delete-missing'))
   ) {
-    deleted = await channelService.deleteChannel(channelId)
+    channel = await channelService.getChannel(channelId)
   }
+
+  if (!channel) return false
+
+  await storageV2AgentRuntimeTombstoneService.tombstoneChannel(channelId)
+  const deleted = await channelService.deleteChannel(channelId)
   if (deleted) {
-    await storageV2AgentRuntimeTombstoneService.tombstoneChannel(channelId)
     await flushAgentRuntimeMutationToStorageV2({ strict: true })
   }
   return deleted

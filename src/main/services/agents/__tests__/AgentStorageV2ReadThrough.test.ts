@@ -3,21 +3,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   agentService: {
     createAgent: vi.fn(),
+    getAgent: vi.fn(),
     updateAgent: vi.fn(),
     reorderAgents: vi.fn(),
     deleteAgent: vi.fn()
   },
   sessionService: {
     createSession: vi.fn(),
+    getSession: vi.fn(),
     updateSession: vi.fn(),
     reorderSessions: vi.fn(),
     deleteSession: vi.fn()
   },
   sessionMessageService: {
+    sessionMessageExists: vi.fn(),
     deleteSessionMessage: vi.fn()
   },
   taskService: {
     createTask: vi.fn(),
+    getTask: vi.fn(),
+    getTaskById: vi.fn(),
     updateTask: vi.fn(),
     updateTaskById: vi.fn(),
     updateTaskAfterRun: vi.fn(),
@@ -28,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   },
   channelService: {
     createChannel: vi.fn(),
+    getChannel: vi.fn(),
     updateChannel: vi.fn(),
     deleteChannel: vi.fn()
   },
@@ -119,7 +125,7 @@ import { agentMessageRepository } from '../database/sessionMessageRepository'
 
 describe('AgentStorageV2ReadThrough mutation wrappers', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     mocks.mirror.flush.mockResolvedValue(undefined)
     mocks.mirror.flushStrict.mockResolvedValue(undefined)
     mocks.tombstone.tombstoneAgent.mockResolvedValue(undefined)
@@ -136,11 +142,17 @@ describe('AgentStorageV2ReadThrough mutation wrappers', () => {
   })
 
   it('flushes the Storage v2 agent mirror after destructive writes', async () => {
+    mocks.agentService.getAgent.mockResolvedValue({ id: 'agent-1' })
     mocks.agentService.deleteAgent.mockResolvedValue(true)
+    mocks.sessionService.getSession.mockResolvedValue({ id: 'session-1' })
     mocks.sessionService.deleteSession.mockResolvedValue(true)
+    mocks.sessionMessageService.sessionMessageExists.mockResolvedValue(true)
     mocks.sessionMessageService.deleteSessionMessage.mockResolvedValue(true)
+    mocks.taskService.getTask.mockResolvedValue({ id: 'task-1' })
+    mocks.taskService.getTaskById.mockResolvedValue({ id: 'task-1' })
     mocks.taskService.deleteTask.mockResolvedValue(true)
     mocks.taskService.deleteTaskById.mockResolvedValue(true)
+    mocks.channelService.getChannel.mockResolvedValue({ id: 'channel-1' })
     mocks.channelService.deleteChannel.mockResolvedValue(true)
 
     await expect(deleteAgentWithStorageV2Recovery('agent-1')).resolves.toBe(true)
@@ -211,7 +223,8 @@ describe('AgentStorageV2ReadThrough mutation wrappers', () => {
   })
 
   it('recovers from Storage v2 before deleting a missing session and then flushes the tombstone', async () => {
-    mocks.sessionService.deleteSession.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    mocks.sessionService.getSession.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'session-1' })
+    mocks.sessionService.deleteSession.mockResolvedValueOnce(true)
     mocks.recovery.projectIfSessionMissing.mockResolvedValueOnce(true)
 
     await expect(deleteSessionWithStorageV2Recovery('agent-1', 'session-1')).resolves.toBe(true)
@@ -221,7 +234,8 @@ describe('AgentStorageV2ReadThrough mutation wrappers', () => {
       'session-1',
       'agent-session-delete-missing'
     )
-    expect(mocks.sessionService.deleteSession).toHaveBeenCalledTimes(2)
+    expect(mocks.sessionService.getSession).toHaveBeenCalledTimes(2)
+    expect(mocks.sessionService.deleteSession).toHaveBeenCalledTimes(1)
     expect(mocks.mirror.schedule).not.toHaveBeenCalled()
     expect(mocks.mirror.flush).not.toHaveBeenCalled()
     expect(mocks.mirror.flushStrict).toHaveBeenCalledTimes(1)
@@ -229,11 +243,12 @@ describe('AgentStorageV2ReadThrough mutation wrappers', () => {
   })
 
   it('does not flush when the delete target is absent from both runtimes', async () => {
-    mocks.channelService.deleteChannel.mockResolvedValue(false)
+    mocks.channelService.getChannel.mockResolvedValue(null)
     mocks.recovery.projectIfChannelMissing.mockResolvedValue(false)
 
     await expect(deleteChannelWithStorageV2Recovery('channel-1')).resolves.toBe(false)
 
+    expect(mocks.channelService.deleteChannel).not.toHaveBeenCalled()
     expect(mocks.mirror.schedule).not.toHaveBeenCalled()
     expect(mocks.mirror.flush).not.toHaveBeenCalled()
     expect(mocks.mirror.flushStrict).not.toHaveBeenCalled()
@@ -242,6 +257,7 @@ describe('AgentStorageV2ReadThrough mutation wrappers', () => {
 
   it('surfaces strict Storage v2 mirror failures after destructive deletes', async () => {
     const error = new Error('storage unavailable')
+    mocks.sessionService.getSession.mockResolvedValue({ id: 'session-1' })
     mocks.sessionService.deleteSession.mockResolvedValue(true)
     mocks.mirror.flushStrict.mockRejectedValueOnce(error)
 
@@ -250,6 +266,17 @@ describe('AgentStorageV2ReadThrough mutation wrappers', () => {
     expect(mocks.sessionService.deleteSession).toHaveBeenCalledTimes(1)
     expect(mocks.tombstone.tombstoneSession).toHaveBeenCalledWith('session-1')
     expect(mocks.mirror.flushStrict).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not delete legacy runtime rows when the Storage v2 tombstone fails first', async () => {
+    const error = new Error('storage unavailable')
+    mocks.taskService.getTask.mockResolvedValue({ id: 'task-1' })
+    mocks.tombstone.tombstoneTask.mockRejectedValueOnce(error)
+
+    await expect(deleteTaskWithStorageV2Recovery('agent-1', 'task-1')).rejects.toThrow('storage unavailable')
+
+    expect(mocks.taskService.deleteTask).not.toHaveBeenCalled()
+    expect(mocks.mirror.flushStrict).not.toHaveBeenCalled()
   })
 
   it('flushes the Storage v2 agent mirror after persisting a message exchange', async () => {

@@ -36,11 +36,18 @@ import { useTimer } from './useTimer'
 
 const logger = loggerService.withContext('useKnowledge')
 
-async function flushStorageV2KnowledgeMirror(reason: string) {
+async function flushStorageV2KnowledgeMirror(reason: string, options: { strict?: boolean } = {}) {
   try {
-    await storageV2MirrorService.flush()
+    if (options.strict) {
+      await storageV2MirrorService.flushStrict()
+    } else {
+      await storageV2MirrorService.flush()
+    }
   } catch (error) {
     logger.warn(`Failed to flush Storage v2 knowledge mirror: ${reason}`, error as Error)
+    if (options.strict) {
+      throw error
+    }
   }
 }
 
@@ -158,9 +165,9 @@ export const useKnowledge = (baseId: string) => {
     }
 
     if (isKnowledgeNoteItem(item)) {
-      await db.knowledge_notes.delete(item.id)
       storageV2DexieTableMirrorService.scheduleDelete('knowledge_notes', item.id)
-      await storageV2DexieTableMirrorService.flush()
+      await storageV2DexieTableMirrorService.flushStrict()
+      await db.knowledge_notes.delete(item.id)
     }
 
     if (item?.uniqueId && item?.uniqueIds) {
@@ -182,7 +189,7 @@ export const useKnowledge = (baseId: string) => {
     }
 
     dispatch(removeItemAction({ baseId, item }))
-    await flushStorageV2KnowledgeMirror('remove-item')
+    await flushStorageV2KnowledgeMirror('remove-item', { strict: true })
   }
   // 刷新项目
   const refreshItem = async (item: KnowledgeItem) => {
@@ -396,9 +403,9 @@ export const useKnowledgeBases = () => {
 
     const noteIds = base.items.filter(isKnowledgeNoteItem).map((item) => item.id)
     if (noteIds.length > 0) {
-      await db.knowledge_notes.bulkDelete(noteIds)
       storageV2DexieTableMirrorService.scheduleDeletes('knowledge_notes', noteIds)
-      await storageV2DexieTableMirrorService.flush()
+      await storageV2DexieTableMirrorService.flushStrict()
+      await db.knowledge_notes.bulkDelete(noteIds)
     }
 
     // remove assistant knowledge_base
@@ -432,7 +439,7 @@ export const useKnowledgeBases = () => {
       storageV2MirrorService.resumeRuntimeMirroring()
     }
 
-    await flushStorageV2KnowledgeMirror('delete-knowledge-base')
+    await flushStorageV2KnowledgeMirror('delete-knowledge-base', { strict: true })
   }
 
   const updateKnowledgeBases = async (bases: KnowledgeBase[]) => {

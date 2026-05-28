@@ -52,7 +52,12 @@ class StorageV2FileMirrorService {
       return
     }
 
-    if (this.pendingFileIds.size === 0 || !window.api?.storageV2) return
+    if (this.pendingFileIds.size === 0) return
+
+    if (!window.api?.storageV2) {
+      this.scheduleFlush(DEFAULT_DEBOUNCE_MS)
+      return
+    }
 
     this.inflight = this.mirrorPendingNow().finally(() => {
       this.inflight = null

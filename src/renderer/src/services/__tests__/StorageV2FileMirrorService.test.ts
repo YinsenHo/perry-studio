@@ -193,6 +193,52 @@ describe('StorageV2FileMirrorService', () => {
     )
   })
 
+  it('retries pending file mirrors when Storage v2 API becomes available later', async () => {
+    const file = {
+      id: 'file-late-api',
+      name: 'file-late-api.txt',
+      origin_name: 'late-api.txt',
+      path: '/tmp/cherry-files/file-late-api.txt',
+      size: 42,
+      ext: '.txt',
+      type: 'text',
+      created_at: '2026-01-01T00:00:00.000Z',
+      count: 1
+    }
+    const upsertFile = vi.fn().mockResolvedValue(undefined)
+
+    mocks.filesAnyOf.mockReturnValue({
+      toArray: vi.fn().mockResolvedValue([file])
+    })
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {}
+    })
+
+    const { storageV2FileMirrorService } = await import('../StorageV2FileMirrorService')
+
+    storageV2FileMirrorService.scheduleFile('file-late-api', 1000)
+    await storageV2FileMirrorService.flush()
+
+    expect(mocks.filesWhere).not.toHaveBeenCalled()
+
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        storageV2: {
+          upsertFile,
+          deleteFile: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+    })
+
+    await vi.advanceTimersByTimeAsync(1499)
+    expect(upsertFile).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(upsertFile).toHaveBeenCalledWith(file)
+  })
+
   it('falls back to the legacy Dexie snapshot import when direct file upsert is unavailable', async () => {
     const file = {
       id: 'file-fallback',

@@ -4,7 +4,7 @@
  * Inlined from @pinixai/weixin-bot to avoid the external dependency
  * and its fragile postinstall build step.
  */
-import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from 'node:crypto'
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -13,6 +13,9 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { loggerService } from '@logger'
 import { net } from 'electron'
 import * as z from 'zod'
+
+import { storageV2SecretVaultService } from '../../../../../storageV2/SecretVaultService'
+import { storageV2SettingsRepository } from '../../../../../storageV2/StorageV2Repositories'
 
 const logger = loggerService.withContext('WeChatProtocol')
 
@@ -149,6 +152,18 @@ type QrStatusResponse = z.infer<typeof QrStatusResponseSchema>
 type GetConfigResp = z.infer<typeof GetConfigRespSchema>
 type Credentials = z.infer<typeof CredentialsSchema>
 
+type WeChatCredentialsStorageV2Setting = {
+  clearedAt?: string
+  credentialsSecretRef?: string
+  legacyFallbackAt?: string
+  updatedAt?: string
+}
+
+type WeChatCredentialsStorageV2ReadResult = {
+  cleared: boolean
+  credentials?: Credentials
+}
+
 interface SendTypingReq {
   ilink_user_id: string
   typing_ticket: string
@@ -163,6 +178,8 @@ const CDN_BASE_URL = 'https://novac2c.cdn.weixin.qq.com/c2c'
 const CHANNEL_VERSION = '1.0.0'
 const QR_POLL_INTERVAL_MS = 2_000
 const MAX_CONTEXT_TOKENS = 1000
+const STORAGE_V2_WECHAT_CREDENTIALS_SCOPE = 'wechat'
+const STORAGE_V2_WECHAT_CREDENTIALS_SETTING_PREFIX = 'wechat.credentials.'
 
 // --------------- AES-128-ECB helpers ---------------
 
@@ -524,13 +541,129 @@ function buildTextMessage(
 
 // --------------- Auth ---------------
 
+function getCredentialStorageOwnerId(tokenPath: string): string {
+  return createHash('sha256').update(tokenPath).digest('hex')
+}
+
+function getCredentialStorageSettingKey(tokenPath: string): string {
+  return `${STORAGE_V2_WECHAT_CREDENTIALS_SETTING_PREFIX}${getCredentialStorageOwnerId(tokenPath)}`
+}
+
+function getCredentialsSecretRef(value: unknown): string | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const secretRef = (value as WeChatCredentialsStorageV2Setting).credentialsSecretRef
+  return typeof secretRef === 'string' && secretRef ? secretRef : null
+}
+
+function isCredentialsCleared(value: unknown): boolean {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      (value as WeChatCredentialsStorageV2Setting).clearedAt
+  )
+}
+
+async function loadCredentialsFromStorageV2(tokenPath: string): Promise<WeChatCredentialsStorageV2ReadResult> {
+  const setting = await storageV2SettingsRepository.get(getCredentialStorageSettingKey(tokenPath))
+  if (isCredentialsCleared(setting)) {
+    return {
+      cleared: true
+    }
+  }
+
+  const secretRef = getCredentialsSecretRef(setting)
+  if (!secretRef) {
+    return {
+      cleared: false
+    }
+  }
+
+  const secret = await storageV2SecretVaultService.getSecret(secretRef)
+  if (!secret) {
+    return {
+      cleared: false
+    }
+  }
+
+  const result = CredentialsSchema.safeParse(JSON.parse(secret))
+  return result.success
+    ? {
+        cleared: false,
+        credentials: result.data
+      }
+    : {
+        cleared: false
+      }
+}
+
+async function saveCredentialsToStorageV2(credentials: Credentials, tokenPath: string): Promise<void> {
+  const ownerId = getCredentialStorageOwnerId(tokenPath)
+  const secretRef = await storageV2SecretVaultService.setSecret(
+    STORAGE_V2_WECHAT_CREDENTIALS_SCOPE,
+    ownerId,
+    'credentials',
+    JSON.stringify(credentials)
+  )
+  await storageV2SettingsRepository.set(
+    getCredentialStorageSettingKey(tokenPath),
+    {
+      credentialsSecretRef: secretRef,
+      updatedAt: new Date().toISOString()
+    } satisfies WeChatCredentialsStorageV2Setting,
+    STORAGE_V2_WECHAT_CREDENTIALS_SCOPE
+  )
+}
+
+async function markCredentialsLegacyFallback(tokenPath: string): Promise<void> {
+  const timestamp = new Date().toISOString()
+  await storageV2SettingsRepository.set(
+    getCredentialStorageSettingKey(tokenPath),
+    {
+      legacyFallbackAt: timestamp,
+      updatedAt: timestamp
+    } satisfies WeChatCredentialsStorageV2Setting,
+    STORAGE_V2_WECHAT_CREDENTIALS_SCOPE
+  )
+}
+
+async function clearCredentialsInStorageV2(tokenPath: string): Promise<void> {
+  const timestamp = new Date().toISOString()
+  await storageV2SettingsRepository.set(
+    getCredentialStorageSettingKey(tokenPath),
+    {
+      clearedAt: timestamp,
+      updatedAt: timestamp
+    } satisfies WeChatCredentialsStorageV2Setting,
+    STORAGE_V2_WECHAT_CREDENTIALS_SCOPE
+  )
+}
+
 async function loadCredentials(tokenPath: string): Promise<Credentials | undefined> {
+  const storageV2Result = await loadCredentialsFromStorageV2(tokenPath).catch(
+    (error): WeChatCredentialsStorageV2ReadResult => {
+      logger.warn('Failed to load WeChat credentials from Storage v2', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return {
+        cleared: false
+      }
+    }
+  )
+  if (storageV2Result.cleared) return undefined
+  if (storageV2Result.credentials) return storageV2Result.credentials
+
   try {
     const raw = await readFile(tokenPath, 'utf8')
     const result = CredentialsSchema.safeParse(JSON.parse(raw))
     if (!result.success) {
       throw new Error(`Invalid credentials format in ${tokenPath}`)
     }
+    await saveCredentialsToStorageV2(result.data, tokenPath).catch((error) => {
+      logger.warn('Failed to mirror legacy WeChat credentials to Storage v2', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    })
     return result.data
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -544,10 +677,28 @@ async function saveCredentials(credentials: Credentials, tokenPath: string): Pro
   await mkdir(path.dirname(tokenPath), { recursive: true, mode: 0o700 })
   await writeFile(tokenPath, `${JSON.stringify(credentials, null, 2)}\n`, { mode: 0o600 })
   await chmod(tokenPath, 0o600)
+  await saveCredentialsToStorageV2(credentials, tokenPath).catch(async (error) => {
+    logger.warn('Failed to save WeChat credentials to Storage v2', {
+      error: error instanceof Error ? error.message : String(error)
+    })
+    await markCredentialsLegacyFallback(tokenPath).catch((fallbackError) => {
+      logger.warn('Failed to clear WeChat Storage v2 cleared marker after legacy write', {
+        error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
+      })
+    })
+  })
 }
 
 async function clearCredentials(tokenPath: string): Promise<void> {
+  let storageV2Error: unknown = null
+  await clearCredentialsInStorageV2(tokenPath).catch((error) => {
+    storageV2Error = error
+    logger.warn('Failed to clear WeChat credentials in Storage v2', {
+      error: error instanceof Error ? error.message : String(error)
+    })
+  })
   await rm(tokenPath, { force: true })
+  if (storageV2Error) throw storageV2Error
 }
 
 interface LoginOptions {

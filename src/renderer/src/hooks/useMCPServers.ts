@@ -1,10 +1,11 @@
 import { createSelector } from '@reduxjs/toolkit'
 import NavigationService from '@renderer/services/NavigationService'
 import { flushStorageV2ReduxMirror } from '@renderer/services/StorageV2ReduxMirrorFlush'
+import { persistStorageV2ReduxSlice } from '@renderer/services/StorageV2ReduxSliceService'
 import type { RootState } from '@renderer/store'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { addMCPServer, deleteMCPServer, setMCPServers, updateMCPServer } from '@renderer/store/mcp'
-import type { MCPServer } from '@renderer/types'
+import type { MCPConfig, MCPServer } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
 // Listen for server changes from main process
@@ -32,7 +33,15 @@ function flushMcpMirror(reason: string, options?: { strict?: boolean }) {
   return undefined
 }
 
+async function persistMcpServerDelete(mcpState: MCPConfig, id: string) {
+  await persistStorageV2ReduxSlice('mcp', {
+    ...mcpState,
+    servers: mcpState.servers.filter((server) => server.id !== id)
+  })
+}
+
 export const useMCPServers = () => {
+  const mcpState = useAppSelector((state) => state.mcp)
   const mcpServers = useAppSelector(selectMcpServers)
   const activedMcpServers = useAppSelector(selectActiveMcpServers)
   const dispatch = useAppDispatch()
@@ -49,6 +58,7 @@ export const useMCPServers = () => {
       flushMcpMirror('mcp-update-server')
     },
     deleteMCPServer: async (id: string) => {
+      await persistMcpServerDelete(mcpState, id)
       dispatch(deleteMCPServer(id))
       await flushMcpMirror('mcp-delete-server', { strict: true })
     },
@@ -65,6 +75,7 @@ export const useMCPServers = () => {
 }
 
 export const useMCPServer = (id: string) => {
+  const mcpState = useAppSelector((state) => state.mcp)
   const server = useAppSelector((state) => (state.mcp.servers || []).find((server) => server.id === id))
   const dispatch = useAppDispatch()
 
@@ -79,6 +90,7 @@ export const useMCPServer = (id: string) => {
       flushMcpMirror('mcp-set-server-active')
     },
     deleteMCPServer: async (id: string) => {
+      await persistMcpServerDelete(mcpState, id)
       dispatch(deleteMCPServer(id))
       await flushMcpMirror('mcp-delete-server', { strict: true })
     }

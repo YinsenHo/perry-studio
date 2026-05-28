@@ -39,9 +39,9 @@ export function usePaintings() {
       return painting
     },
     removePainting: async (namespace: keyof PaintingsState, painting: PaintingAction) => {
-      await FileManager.deleteFiles(painting.files)
       dispatch(removePainting({ namespace, painting }))
       await storageV2MirrorService.flushStrict()
+      await FileManager.deleteFiles(painting.files)
     },
     updatePainting: (namespace: keyof PaintingsState, painting: PaintingAction) => {
       dispatch(updatePainting({ namespace, painting }))

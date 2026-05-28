@@ -49,7 +49,7 @@ describe('usePaintings', () => {
     mocks.flushStrict.mockResolvedValue(undefined)
   })
 
-  it('strictly flushes Storage v2 after deleting a painting', async () => {
+  it('strictly flushes Storage v2 before deleting painting files', async () => {
     const { usePaintings } = await import('../usePaintings')
     const files = [{ id: 'file-1', ext: '.png' }] as PaintingAction['files']
     const painting = { id: 'painting-1', files, urls: [] } satisfies PaintingAction
@@ -66,7 +66,7 @@ describe('usePaintings', () => {
     })
     expect(mocks.flushStrict).toHaveBeenCalledTimes(1)
     expect(mocks.flush).not.toHaveBeenCalled()
-    expect(mocks.deleteFiles.mock.invocationCallOrder[0]).toBeLessThan(mocks.dispatch.mock.invocationCallOrder[0])
     expect(mocks.dispatch.mock.invocationCallOrder[0]).toBeLessThan(mocks.flushStrict.mock.invocationCallOrder[0])
+    expect(mocks.flushStrict.mock.invocationCallOrder[0]).toBeLessThan(mocks.deleteFiles.mock.invocationCallOrder[0])
   })
 })

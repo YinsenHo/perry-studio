@@ -1,9 +1,14 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { storageV2AgentDbMirrorService } from '../AgentDbMirrorService'
+import { storageV2AgentRuntimeRecoveryService } from '../AgentRuntimeRecoveryService'
 import { storageV2LegacyAgentDbImportService } from '../LegacyAgentDbImportService'
 
 describe('StorageV2AgentDbMirrorService', () => {
+  beforeEach(() => {
+    vi.spyOn(storageV2AgentRuntimeRecoveryService, 'projectIfStorageHasAnyAgentRuntimeRows').mockResolvedValue(false)
+  })
+
   afterEach(async () => {
     await storageV2AgentDbMirrorService.flush()
     vi.restoreAllMocks()
@@ -16,6 +21,9 @@ describe('StorageV2AgentDbMirrorService', () => {
     await storageV2AgentDbMirrorService.flush()
 
     expect(importSnapshot).toHaveBeenCalledWith({ dryRun: false, createSnapshot: false })
+    expect(storageV2AgentRuntimeRecoveryService.projectIfStorageHasAnyAgentRuntimeRows).toHaveBeenCalledWith(
+      'agent-mirror-before-prune'
+    )
   })
 
   it('throws from strict flush when the runtime mirror cannot be written', async () => {
@@ -28,5 +36,8 @@ describe('StorageV2AgentDbMirrorService', () => {
     await expect(storageV2AgentDbMirrorService.flushStrict()).rejects.toThrow('storage locked')
 
     expect(importSnapshot).toHaveBeenCalledWith({ dryRun: false, createSnapshot: false })
+    expect(storageV2AgentRuntimeRecoveryService.projectIfStorageHasAnyAgentRuntimeRows).toHaveBeenCalledWith(
+      'agent-mirror-before-prune'
+    )
   })
 })

@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 
+import { storageV2AgentRuntimeRecoveryService } from './AgentRuntimeRecoveryService'
 import { storageV2LegacyAgentDbImportService } from './LegacyAgentDbImportService'
 
 const logger = loggerService.withContext('StorageV2AgentDbMirrorService')
@@ -63,6 +64,7 @@ class StorageV2AgentDbMirrorService {
 
   private async mirrorNow() {
     try {
+      await storageV2AgentRuntimeRecoveryService.projectIfStorageHasAnyAgentRuntimeRows('agent-mirror-before-prune')
       await storageV2LegacyAgentDbImportService.importSnapshot({ dryRun: false, createSnapshot: false })
       this.lastError = null
       logger.debug('Mirrored agents.db to Storage v2')

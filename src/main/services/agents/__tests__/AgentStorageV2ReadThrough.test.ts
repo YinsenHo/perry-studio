@@ -37,8 +37,7 @@ const mocks = vi.hoisted(() => ({
     projectIfSessionMissingById: vi.fn(),
     projectIfSessionMessagesEmpty: vi.fn(),
     projectIfTaskMissing: vi.fn(),
-    projectIfChannelMissing: vi.fn(),
-    projectIfStorageHasAnyAgentRuntimeRows: vi.fn()
+    projectIfChannelMissing: vi.fn()
   },
   mirror: {
     schedule: vi.fn(),
@@ -134,7 +133,6 @@ describe('AgentStorageV2ReadThrough mutation wrappers', () => {
     mocks.recovery.projectIfSessionMessagesEmpty.mockResolvedValue(false)
     mocks.recovery.projectIfTaskMissing.mockResolvedValue(false)
     mocks.recovery.projectIfChannelMissing.mockResolvedValue(false)
-    mocks.recovery.projectIfStorageHasAnyAgentRuntimeRows.mockResolvedValue(false)
   })
 
   it('flushes the Storage v2 agent mirror after destructive writes', async () => {
@@ -155,7 +153,6 @@ describe('AgentStorageV2ReadThrough mutation wrappers', () => {
     expect(mocks.mirror.schedule).not.toHaveBeenCalled()
     expect(mocks.mirror.flush).not.toHaveBeenCalled()
     expect(mocks.mirror.flushStrict).toHaveBeenCalledTimes(6)
-    expect(mocks.recovery.projectIfStorageHasAnyAgentRuntimeRows).toHaveBeenCalledTimes(6)
     expect(mocks.tombstone.tombstoneAgent).toHaveBeenCalledWith('agent-1')
     expect(mocks.tombstone.tombstoneSession).toHaveBeenCalledWith('session-1')
     expect(mocks.tombstone.tombstoneSessionMessage).toHaveBeenCalledWith(1)
@@ -201,7 +198,6 @@ describe('AgentStorageV2ReadThrough mutation wrappers', () => {
     expect(mocks.mirror.schedule).toHaveBeenCalledTimes(14)
     expect(mocks.mirror.schedule).toHaveBeenCalledWith(0)
     expect(mocks.mirror.flush).toHaveBeenCalledTimes(14)
-    expect(mocks.recovery.projectIfStorageHasAnyAgentRuntimeRows).toHaveBeenCalledTimes(14)
   })
 
   it('does not flush when a write target is absent from both runtimes', async () => {
@@ -212,7 +208,6 @@ describe('AgentStorageV2ReadThrough mutation wrappers', () => {
 
     expect(mocks.mirror.schedule).not.toHaveBeenCalled()
     expect(mocks.mirror.flush).not.toHaveBeenCalled()
-    expect(mocks.recovery.projectIfStorageHasAnyAgentRuntimeRows).not.toHaveBeenCalled()
   })
 
   it('recovers from Storage v2 before deleting a missing session and then flushes the tombstone', async () => {
@@ -230,7 +225,6 @@ describe('AgentStorageV2ReadThrough mutation wrappers', () => {
     expect(mocks.mirror.schedule).not.toHaveBeenCalled()
     expect(mocks.mirror.flush).not.toHaveBeenCalled()
     expect(mocks.mirror.flushStrict).toHaveBeenCalledTimes(1)
-    expect(mocks.recovery.projectIfStorageHasAnyAgentRuntimeRows).toHaveBeenCalledTimes(1)
     expect(mocks.tombstone.tombstoneSession).toHaveBeenCalledWith('session-1')
   })
 
@@ -243,7 +237,6 @@ describe('AgentStorageV2ReadThrough mutation wrappers', () => {
     expect(mocks.mirror.schedule).not.toHaveBeenCalled()
     expect(mocks.mirror.flush).not.toHaveBeenCalled()
     expect(mocks.mirror.flushStrict).not.toHaveBeenCalled()
-    expect(mocks.recovery.projectIfStorageHasAnyAgentRuntimeRows).not.toHaveBeenCalled()
     expect(mocks.tombstone.tombstoneChannel).not.toHaveBeenCalled()
   })
 
@@ -257,7 +250,6 @@ describe('AgentStorageV2ReadThrough mutation wrappers', () => {
     expect(mocks.sessionService.deleteSession).toHaveBeenCalledTimes(1)
     expect(mocks.tombstone.tombstoneSession).toHaveBeenCalledWith('session-1')
     expect(mocks.mirror.flushStrict).toHaveBeenCalledTimes(1)
-    expect(mocks.recovery.projectIfStorageHasAnyAgentRuntimeRows).toHaveBeenCalledTimes(1)
   })
 
   it('flushes the Storage v2 agent mirror after persisting a message exchange', async () => {
@@ -276,7 +268,6 @@ describe('AgentStorageV2ReadThrough mutation wrappers', () => {
     expect(agentMessageRepository.persistExchange).toHaveBeenCalledTimes(1)
     expect(mocks.mirror.schedule).toHaveBeenCalledWith(0)
     expect(mocks.mirror.flush).toHaveBeenCalledTimes(1)
-    expect(mocks.recovery.projectIfStorageHasAnyAgentRuntimeRows).toHaveBeenCalledTimes(1)
   })
 
   it('flushes the Storage v2 agent mirror after recovering and retrying message persistence', async () => {
@@ -302,6 +293,5 @@ describe('AgentStorageV2ReadThrough mutation wrappers', () => {
     expect(agentMessageRepository.persistExchange).toHaveBeenCalledTimes(2)
     expect(mocks.mirror.schedule).toHaveBeenCalledWith(0)
     expect(mocks.mirror.flush).toHaveBeenCalledTimes(1)
-    expect(mocks.recovery.projectIfStorageHasAnyAgentRuntimeRows).toHaveBeenCalledTimes(1)
   })
 })

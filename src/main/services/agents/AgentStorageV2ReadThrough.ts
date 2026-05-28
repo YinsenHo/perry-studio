@@ -37,8 +37,6 @@ async function recoverAgentRuntimeForWrite(agentId: string | undefined, reason: 
 }
 
 async function flushAgentRuntimeMutationToStorageV2(options: { strict?: boolean } = {}) {
-  await storageV2AgentRuntimeRecoveryService.projectIfStorageHasAnyAgentRuntimeRows('agent-write-before-mirror')
-
   if (options.strict) {
     await storageV2AgentDbMirrorService.flushStrict()
     return

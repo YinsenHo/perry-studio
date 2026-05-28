@@ -74,4 +74,20 @@ describe('AppDataDatabase', () => {
       })
     )
   })
+
+  it('repairs the Storage v2 app sync device id from an existing legacy value', async () => {
+    mocks.client.execute.mockImplementation(async (input: string | { sql: string; args?: unknown[] }) => {
+      const sql = typeof input === 'string' ? input : input.sql
+      if (sql.includes('SELECT value FROM sync_state')) {
+        return { rows: [{ value: JSON.stringify('legacy-device') }], columns: [], columnTypes: [] }
+      }
+      return { rows: [], columns: [], columnTypes: [] }
+    })
+
+    const db = await AppDataDatabase.getInstance()
+
+    expect(db.getDeviceId()).toBe('legacy-device')
+    expect(mocks.storageV2.getSyncState).not.toHaveBeenCalled()
+    expect(mocks.storageV2.upsertSyncState).toHaveBeenCalledWith('device-id', 'legacy-device')
+  })
 })

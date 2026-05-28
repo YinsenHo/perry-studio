@@ -243,6 +243,9 @@ export class AppDataDatabase {
   private async ensureDeviceId() {
     const existing = await this.getSyncState<string>('device-id')
     if (existing) {
+      await storageV2AppDataKvMirrorService.upsertSyncState('device-id', existing).catch((error) => {
+        logger.warn('Failed to mirror existing app data device id to Storage v2', error as Error)
+      })
       return existing
     }
 

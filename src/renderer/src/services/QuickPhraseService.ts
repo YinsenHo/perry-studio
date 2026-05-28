@@ -86,8 +86,9 @@ export class QuickPhraseService {
   }
 
   static async delete(id: string): Promise<void> {
-    await db.quick_phrases.delete(id)
     storageV2DexieTableMirrorService.scheduleDelete('quick_phrases', id)
+    await storageV2DexieTableMirrorService.flushStrict()
+    await db.quick_phrases.delete(id)
     const phrases = sortQuickPhrases(await db.quick_phrases.toArray())
     await Promise.all(
       phrases.map((phrase, index) =>

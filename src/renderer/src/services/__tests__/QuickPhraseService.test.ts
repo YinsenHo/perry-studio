@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   deletePhrase: vi.fn(),
   flush: vi.fn(),
+  flushStrict: vi.fn(),
   scheduleDelete: vi.fn(),
   scheduleRow: vi.fn(),
   toArray: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock('@renderer/databases', () => ({
 vi.mock('../StorageV2DexieTableMirrorService', () => ({
   storageV2DexieTableMirrorService: {
     flush: mocks.flush,
+    flushStrict: mocks.flushStrict,
     scheduleDelete: mocks.scheduleDelete,
     scheduleRow: mocks.scheduleRow
   }
@@ -47,6 +49,7 @@ describe('QuickPhraseService', () => {
     ])
     mocks.deletePhrase.mockResolvedValue(undefined)
     mocks.updatePhrase.mockResolvedValue(1)
+    mocks.flushStrict.mockResolvedValue(undefined)
     mocks.flush.mockResolvedValue(undefined)
 
     const { default: QuickPhraseService } = await import('../QuickPhraseService')
@@ -54,6 +57,7 @@ describe('QuickPhraseService', () => {
     await QuickPhraseService.delete('phrase-removed')
 
     expect(mocks.scheduleDelete).toHaveBeenCalledWith('quick_phrases', 'phrase-removed')
+    expect(mocks.flushStrict).toHaveBeenCalled()
     expect(mocks.updatePhrase).toHaveBeenNthCalledWith(1, 'phrase-a', { order: 1 })
     expect(mocks.updatePhrase).toHaveBeenNthCalledWith(2, 'phrase-b', { order: 0 })
     expect(mocks.scheduleRow).toHaveBeenCalledWith('quick_phrases', 'phrase-a', 0)

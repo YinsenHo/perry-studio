@@ -145,9 +145,9 @@ export const addCustomLanguage = async (
  */
 export const deleteCustomLanguage = async (id: string) => {
   try {
-    await db.translate_languages.delete(id)
     storageV2DexieTableMirrorService.scheduleDelete('translate_languages', id)
-    await storageV2DexieTableMirrorService.flush()
+    await storageV2DexieTableMirrorService.flushStrict()
+    await db.translate_languages.delete(id)
   } catch (e) {
     logger.error('Delete custom language failed.', e as Error)
     throw e
@@ -271,9 +271,9 @@ export const updateTranslateHistory = async (id: string, update: Omit<Partial<Tr
  */
 export const deleteHistory = async (id: string) => {
   try {
-    await db.translate_history.delete(id)
     storageV2DexieTableMirrorService.scheduleDelete('translate_history', id)
-    await storageV2DexieTableMirrorService.flush()
+    await storageV2DexieTableMirrorService.flushStrict()
+    await db.translate_history.delete(id)
   } catch (e) {
     logger.error('Failed to delete translate history', e as Error)
     throw e
@@ -285,11 +285,12 @@ export const deleteHistory = async (id: string) => {
  * @returns Promise<void>
  */
 export const clearHistory = async () => {
+  await recoverTranslateHistory()
   const histories = await db.translate_history.toArray()
-  await db.translate_history.clear()
   storageV2DexieTableMirrorService.scheduleDeletes(
     'translate_history',
     histories.map((history) => history.id)
   )
-  await storageV2DexieTableMirrorService.flush()
+  await storageV2DexieTableMirrorService.flushStrict()
+  await db.translate_history.clear()
 }

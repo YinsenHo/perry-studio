@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { createClient } from '@libsql/client'
-import { app } from 'electron'
+import { app, safeStorage } from 'electron'
 
 import { configManager } from '../ConfigManager'
 import KnowledgeService from '../KnowledgeService'
@@ -60,6 +60,7 @@ export type StorageV2BackupValidation = {
   missingSecretRefCount: number
   invalidSecretRefCount: number
   orphanSecretVaultEntryCount: number
+  undecryptableSecretVaultEntryCount: number
   issues: StorageV2BackupValidationMessage[]
   warnings: StorageV2BackupValidationMessage[]
   metadata: Record<string, any> | null
@@ -189,13 +190,17 @@ function validateSecretVaultFile(vaultPath: string): {
   exists: boolean
   secretCount: number
   secretIds: Set<string>
+  decryptabilityChecked: boolean
+  undecryptableSecretIds: Set<string>
   issue?: StorageV2BackupValidationMessage
 } {
   if (!fs.existsSync(vaultPath)) {
     return {
       exists: false,
       secretCount: 0,
-      secretIds: new Set()
+      secretIds: new Set(),
+      decryptabilityChecked: safeStorage.isEncryptionAvailable(),
+      undecryptableSecretIds: new Set()
     }
   }
 
@@ -205,12 +210,16 @@ function validateSecretVaultFile(vaultPath: string): {
       exists: true,
       secretCount: 0,
       secretIds: new Set(),
+      decryptabilityChecked: safeStorage.isEncryptionAvailable(),
+      undecryptableSecretIds: new Set(),
       issue: validationMessage('secret_vault_invalid', 'Backup secret vault is missing required fields.')
     }
   }
 
   let secretCount = 0
   const secretIds = new Set<string>()
+  const decryptabilityChecked = safeStorage.isEncryptionAvailable()
+  const undecryptableSecretIds = new Set<string>()
   for (const [secretId, record] of Object.entries(vault.secrets)) {
     if (
       !secretId ||
@@ -223,6 +232,8 @@ function validateSecretVaultFile(vaultPath: string): {
         exists: true,
         secretCount,
         secretIds,
+        decryptabilityChecked,
+        undecryptableSecretIds,
         issue: validationMessage(
           'secret_vault_invalid',
           `Backup secret vault contains an invalid record: ${secretId}.`,
@@ -233,13 +244,22 @@ function validateSecretVaultFile(vaultPath: string): {
       }
     }
     secretIds.add(secretId)
+    if (decryptabilityChecked) {
+      try {
+        safeStorage.decryptString(Buffer.from((record as Record<string, string>).encrypted, 'base64'))
+      } catch {
+        undecryptableSecretIds.add(secretId)
+      }
+    }
     secretCount++
   }
 
   return {
     exists: true,
     secretCount,
-    secretIds
+    secretIds,
+    decryptabilityChecked,
+    undecryptableSecretIds
   }
 }
 
@@ -459,6 +479,7 @@ export class StorageV2BackupService {
     let missingSecretRefCount = 0
     let invalidSecretRefCount = 0
     let orphanSecretVaultEntryCount = 0
+    let undecryptableSecretVaultEntryCount = 0
     let secretReferenceScan: Awaited<ReturnType<typeof scanStorageV2SecretReferences>> | null = null
 
     if (!fs.existsSync(dbPath)) {
@@ -542,6 +563,7 @@ export class StorageV2BackupService {
 
     const vaultValidation = validateSecretVaultFile(path.join(backupPath, 'secrets', 'vault.json'))
     secretVaultSecretCount = vaultValidation.secretCount
+    undecryptableSecretVaultEntryCount = vaultValidation.undecryptableSecretIds.size
     if (vaultValidation.issue) {
       issues.push(vaultValidation.issue)
     } else if (!vaultValidation.exists && copiedDirectories.includes('secrets')) {
@@ -549,6 +571,21 @@ export class StorageV2BackupService {
         validationMessage(
           'secret_vault_missing',
           'Backup metadata says secrets were copied, but secrets/vault.json is missing.'
+        )
+      )
+    } else if (vaultValidation.secretCount > 0 && !vaultValidation.decryptabilityChecked) {
+      warnings.push(
+        validationMessage(
+          'secret_vault_decrypt_unavailable',
+          'Current system encryption is unavailable, so backup secret values cannot be verified on this device.'
+        )
+      )
+    } else if (undecryptableSecretVaultEntryCount > 0) {
+      warnings.push(
+        validationMessage(
+          'undecryptable_secret_vault_entries',
+          `Backup contains ${undecryptableSecretVaultEntryCount} secret value(s) that cannot be decrypted on this device.`,
+          { count: undecryptableSecretVaultEntryCount }
         )
       )
     }
@@ -620,6 +657,7 @@ export class StorageV2BackupService {
       missingSecretRefCount,
       invalidSecretRefCount,
       orphanSecretVaultEntryCount,
+      undecryptableSecretVaultEntryCount,
       issues,
       warnings,
       metadata

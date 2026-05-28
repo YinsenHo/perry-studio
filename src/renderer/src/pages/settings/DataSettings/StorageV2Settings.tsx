@@ -276,7 +276,10 @@ const BACKUP_ISSUE_LABEL_KEYS: Record<string, string> = {
 const BACKUP_WARNING_LABEL_KEYS: Record<string, string> = {
   manifest_missing: 'settings.data.storage_v2.backup_restore.warnings.manifest_missing',
   orphan_secret_vault_entries: 'settings.data.storage_v2.backup_restore.warnings.orphan_secret_vault_entries',
-  secret_vault_missing: 'settings.data.storage_v2.backup_restore.warnings.secret_vault_missing'
+  secret_vault_decrypt_unavailable: 'settings.data.storage_v2.backup_restore.warnings.secret_vault_decrypt_unavailable',
+  secret_vault_missing: 'settings.data.storage_v2.backup_restore.warnings.secret_vault_missing',
+  undecryptable_secret_vault_entries:
+    'settings.data.storage_v2.backup_restore.warnings.undecryptable_secret_vault_entries'
 }
 
 function asRecord(value: unknown): Record<string, any> {
@@ -695,7 +698,8 @@ const StorageV2Settings: FC = () => {
                 secretVaultSecretCount: backupValidation.secretVaultSecretCount,
                 missingSecretRefCount: backupValidation.missingSecretRefCount,
                 invalidSecretRefCount: backupValidation.invalidSecretRefCount,
-                orphanSecretVaultEntryCount: backupValidation.orphanSecretVaultEntryCount
+                orphanSecretVaultEntryCount: backupValidation.orphanSecretVaultEntryCount,
+                undecryptableSecretVaultEntryCount: backupValidation.undecryptableSecretVaultEntryCount
               })}
             </Typography.Text>
             {backupValidation.issues.map((issue) => {

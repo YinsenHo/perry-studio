@@ -792,7 +792,7 @@ files.upsert(file)
 - 旧版 `.bak` / JSON 备份恢复成功后，会显式关闭一次 `storage_v2.runtime.auto_hydrate`，避免用户之前开启过 Storage v2 启动恢复时，下一次启动用旧 Storage v2 快照覆盖刚恢复的 legacy localStorage / IndexedDB。
 - 只读迁移审计报告；会以当前 active data root 作为 `Data` 目录审计目标，并提示多个 Storage v2 manifest、缺失的已配置 data root，以及活动根之外仍存在旧版数据目录的风险。
 - Storage v2 stats / integrity 统计与完整性检查接口，用于迁移后校验核心表数量、SQLite integrity、foreign key、孤儿记录、缺失 blob 文件、blob checksum mismatch，以及 DB secret ref 是否能在 vault 中找到对应密钥。
-- Storage v2 backup 校验在扫描 secret ref 时会兼容早期备份缺少后续新增表/列的情况：缺失 schema source 会记录 warning 并继续扫描其余表；校验会报告缺失/无效 secret ref，也会把备份中已经不被 DB 引用的 vault secret 作为 warning，避免旧备份因非关键新表不存在而无法通过校验，同时降低过期 token 被长期带进备份的风险。
+- Storage v2 backup 校验在扫描 secret ref 时会兼容早期备份缺少后续新增表/列的情况：缺失 schema source 会记录 warning 并继续扫描其余表；校验会报告缺失/无效 secret ref，也会把备份中已经不被 DB 引用的 vault secret、当前设备无法解密的 safeStorage secret 作为 warning，避免旧备份因非关键新表不存在而无法通过校验，同时降低过期 token 被长期带进备份、跨设备恢复后用户误以为密钥仍可用的风险。
 - Storage v2 core snapshot 只读接口，可把 settings、providers、assistants、所有持久化 Redux 配置 slice、assistant topics、legacy Dexie settings 和 Dexie 辅助表合成为未来启动 hydrate 使用的安全快照；provider / LLM / app settings / MCP env / Nutstore / OCR / code tools env / Copilot headers / knowledge preprocess / document preprocess / websearch secrets 默认不解密，并且会剔除历史异常数据里残留的同类明文字段，避免 `includeSecrets:false` 导出泄漏旧明文密钥。
 - sync ledger 基础写入：settings、providers、assistants、conversations、messages/message blocks、files、knowledge bases/items、agent/session/skill/task/channel、agent skill、task run log、app `kv_records` 写入时同步记录 `sync_changes`；除无行版本的关系表外，账本使用实体当前版本，显式删除会写入 `sync_tombstones`，避免删除的数据在恢复或未来同步时复活。
 - settings / providers / assistants repositories。

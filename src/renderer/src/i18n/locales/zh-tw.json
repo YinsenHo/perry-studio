@@ -4632,13 +4632,15 @@
           "restart_title": "Storage v2 備份已還原",
           "select_title": "選擇 Storage v2 備份目錄",
           "selected": "備份：{{path}}",
-          "summary": "quick_check={{quickCheck}}，integrity_check={{integrityCheck}}，missing_blob={{missingBlobFileCount}}，corrupt_blob={{corruptBlobFileCount}}，secrets={{secretVaultSecretCount}}，missing_secret={{missingSecretRefCount}}，invalid_secret_ref={{invalidSecretRefCount}}，orphan_secret={{orphanSecretVaultEntryCount}}",
+          "summary": "quick_check={{quickCheck}}，integrity_check={{integrityCheck}}，missing_blob={{missingBlobFileCount}}，corrupt_blob={{corruptBlobFileCount}}，secrets={{secretVaultSecretCount}}，missing_secret={{missingSecretRefCount}}，invalid_secret_ref={{invalidSecretRefCount}}，orphan_secret={{orphanSecretVaultEntryCount}}，undecryptable_secret={{undecryptableSecretVaultEntryCount}}",
           "valid": "備份可用",
           "warning": "提示：{{message}}",
           "warnings": {
             "manifest_missing": "備份 manifest.json 缺失或無效；還原後可能會建立新的 manifest",
             "orphan_secret_vault_entries": "備份中有 {{count}} 個資料庫不再引用的密鑰，建立新備份時會自動清理",
-            "secret_vault_missing": "備份標記已複製 secrets，但 secrets/vault.json 缺失"
+            "secret_vault_decrypt_unavailable": "目前系統加密不可用，無法驗證這個備份裡的密鑰能否在本機解密",
+            "secret_vault_missing": "備份標記已複製 secrets，但 secrets/vault.json 缺失",
+            "undecryptable_secret_vault_entries": "備份中有 {{count}} 個密鑰無法在本機解密，跨裝置還原後可能需要重新填寫"
           }
         },
         "banner": "Storage v2 是並行的本機資料層，用於遷移、備份和未來同步復原。",

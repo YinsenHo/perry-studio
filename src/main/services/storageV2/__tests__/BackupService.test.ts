@@ -2,6 +2,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 
+import { createClient } from '@libsql/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('node:fs', async () => {
@@ -51,6 +52,10 @@ const mocks = vi.hoisted(() => ({
   memoryService: {
     close: vi.fn()
   },
+  safeStorage: {
+    decryptString: vi.fn(),
+    isEncryptionAvailable: vi.fn()
+  },
   secretVault: {
     waitForIdle: vi.fn()
   },
@@ -67,7 +72,8 @@ vi.mock('electron', () => ({
     getPath: vi.fn((key: string) => (key === 'userData' ? '/mock/userData' : '/mock/unknown')),
     getVersion: vi.fn(() => '1.0.0'),
     name: 'Cherry Studio Pi'
-  }
+  },
+  safeStorage: mocks.safeStorage
 }))
 
 vi.mock('../../ConfigManager', () => ({
@@ -136,6 +142,7 @@ function createValidation(backupPath: string): StorageV2BackupValidation {
     missingSecretRefCount: 0,
     invalidSecretRefCount: 0,
     orphanSecretVaultEntryCount: 0,
+    undecryptableSecretVaultEntryCount: 0,
     issues: [],
     warnings: [],
     metadata: {
@@ -144,6 +151,116 @@ function createValidation(backupPath: string): StorageV2BackupValidation {
     }
   }
 }
+
+async function createBackupValidationDb(dbPath: string, secretRef?: string) {
+  const client = createClient({
+    url: `file:${dbPath}`,
+    intMode: 'number'
+  })
+
+  try {
+    await client.executeMultiple(`
+      CREATE TABLE blobs (storage_path TEXT, checksum TEXT);
+      CREATE TABLE provider_credentials (secret_ref TEXT);
+      CREATE TABLE settings (value_json TEXT);
+      CREATE TABLE providers (config_json TEXT);
+      CREATE TABLE assistants (settings_json TEXT);
+      CREATE TABLE agents (configuration_json TEXT);
+      CREATE TABLE channels (config_json TEXT);
+      CREATE TABLE knowledge_bases (settings_json TEXT);
+      CREATE TABLE knowledge_items (metadata_json TEXT);
+      CREATE TABLE kv_records (value_json TEXT);
+      CREATE TABLE sync_state (value_json TEXT);
+      CREATE TABLE sync_conflicts (local_snapshot_json TEXT, remote_snapshot_json TEXT);
+    `)
+
+    if (secretRef) {
+      await client.execute({
+        sql: 'INSERT INTO provider_credentials (secret_ref) VALUES (?)',
+        args: [secretRef]
+      })
+    }
+  } finally {
+    client.close()
+  }
+}
+
+describe('StorageV2BackupService.validateBackup', () => {
+  let tmpDir: string
+  let backupPath: string
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'storage-v2-validate-'))
+    backupPath = path.join(tmpDir, 'backup')
+    fs.mkdirSync(path.join(backupPath, 'secrets'), { recursive: true })
+    fs.writeFileSync(
+      path.join(backupPath, 'metadata.json'),
+      JSON.stringify({
+        format: 'cherry-studio-pi-storage-backup',
+        version: 1,
+        reason: 'test',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        copiedDirectories: ['secrets']
+      })
+    )
+    fs.writeFileSync(
+      path.join(backupPath, 'manifest.json'),
+      JSON.stringify({
+        format: 'cherry-studio-pi-storage',
+        version: 2,
+        profileId: 'default',
+        workspaceId: 'workspace-1',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        lastOpenedBy: {
+          appId: 'cherry-studio-pi',
+          productName: 'Cherry Studio Pi',
+          version: '1.0.0'
+        }
+      })
+    )
+    mocks.safeStorage.isEncryptionAvailable.mockReturnValue(true)
+    mocks.safeStorage.decryptString.mockImplementation(() => 'secret')
+  })
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+    vi.restoreAllMocks()
+  })
+
+  it('warns when backup secrets cannot be decrypted on this device', async () => {
+    const secretRef = 'storage-v2://secret/provider/provider-1/apiKey'
+    await createBackupValidationDb(path.join(backupPath, 'main.db'), secretRef)
+    fs.writeFileSync(
+      path.join(backupPath, 'secrets', 'vault.json'),
+      JSON.stringify({
+        version: 1,
+        secrets: {
+          'provider:provider-1:apiKey': {
+            encrypted: Buffer.from('encrypted-on-another-device').toString('base64'),
+            encoding: 'electron-safe-storage',
+            updatedAt: '2026-01-01T00:00:00.000Z'
+          }
+        }
+      })
+    )
+    mocks.safeStorage.decryptString.mockImplementation(() => {
+      throw new Error('not this device')
+    })
+
+    const validation = await new StorageV2BackupService().validateBackup(backupPath)
+
+    expect(validation.ok).toBe(true)
+    expect(validation.undecryptableSecretVaultEntryCount).toBe(1)
+    expect(validation.warnings).toContainEqual(
+      expect.objectContaining({
+        id: 'undecryptable_secret_vault_entries',
+        values: { count: 1 }
+      })
+    )
+  })
+})
 
 describe('StorageV2BackupService.createBackup', () => {
   let tmpDir: string

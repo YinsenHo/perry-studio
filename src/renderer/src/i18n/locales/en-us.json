@@ -4632,13 +4632,15 @@
           "restart_title": "Storage v2 backup restored",
           "select_title": "Select Storage v2 backup directory",
           "selected": "Backup: {{path}}",
-          "summary": "quick_check={{quickCheck}}, integrity_check={{integrityCheck}}, missing_blob={{missingBlobFileCount}}, corrupt_blob={{corruptBlobFileCount}}, secrets={{secretVaultSecretCount}}, missing_secret={{missingSecretRefCount}}, invalid_secret_ref={{invalidSecretRefCount}}, orphan_secret={{orphanSecretVaultEntryCount}}",
+          "summary": "quick_check={{quickCheck}}, integrity_check={{integrityCheck}}, missing_blob={{missingBlobFileCount}}, corrupt_blob={{corruptBlobFileCount}}, secrets={{secretVaultSecretCount}}, missing_secret={{missingSecretRefCount}}, invalid_secret_ref={{invalidSecretRefCount}}, orphan_secret={{orphanSecretVaultEntryCount}}, undecryptable_secret={{undecryptableSecretVaultEntryCount}}",
           "valid": "Backup is usable",
           "warning": "Warning: {{message}}",
           "warnings": {
             "manifest_missing": "Backup manifest.json is missing or invalid; a new manifest may be created after restore",
             "orphan_secret_vault_entries": "Backup contains {{count}} secret value(s) that are no longer referenced by the database. New backups prune them automatically",
-            "secret_vault_missing": "Backup metadata says secrets were copied, but secrets/vault.json is missing"
+            "secret_vault_decrypt_unavailable": "System encryption is unavailable, so this backup's secret values cannot be verified on this device",
+            "secret_vault_missing": "Backup metadata says secrets were copied, but secrets/vault.json is missing",
+            "undecryptable_secret_vault_entries": "Backup contains {{count}} secret value(s) that cannot be decrypted on this device; you may need to re-enter them after cross-device restore"
           }
         },
         "banner": "Storage v2 is a parallel local data layer for migration, backup, and future sync recovery.",

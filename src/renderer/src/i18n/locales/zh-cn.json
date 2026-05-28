@@ -4632,13 +4632,15 @@
           "restart_title": "Storage v2 备份已恢复",
           "select_title": "选择 Storage v2 备份目录",
           "selected": "备份：{{path}}",
-          "summary": "quick_check={{quickCheck}}，integrity_check={{integrityCheck}}，missing_blob={{missingBlobFileCount}}，corrupt_blob={{corruptBlobFileCount}}，secrets={{secretVaultSecretCount}}，missing_secret={{missingSecretRefCount}}，invalid_secret_ref={{invalidSecretRefCount}}，orphan_secret={{orphanSecretVaultEntryCount}}",
+          "summary": "quick_check={{quickCheck}}，integrity_check={{integrityCheck}}，missing_blob={{missingBlobFileCount}}，corrupt_blob={{corruptBlobFileCount}}，secrets={{secretVaultSecretCount}}，missing_secret={{missingSecretRefCount}}，invalid_secret_ref={{invalidSecretRefCount}}，orphan_secret={{orphanSecretVaultEntryCount}}，undecryptable_secret={{undecryptableSecretVaultEntryCount}}",
           "valid": "备份可用",
           "warning": "提示：{{message}}",
           "warnings": {
             "manifest_missing": "备份 manifest.json 缺失或无效；恢复后可能会创建新的 manifest",
             "orphan_secret_vault_entries": "备份中有 {{count}} 个数据库不再引用的密钥，创建新备份时会自动清理",
-            "secret_vault_missing": "备份标记已复制 secrets，但 secrets/vault.json 缺失"
+            "secret_vault_decrypt_unavailable": "当前系统加密不可用，无法验证这个备份里的密钥能否在本机解密",
+            "secret_vault_missing": "备份标记已复制 secrets，但 secrets/vault.json 缺失",
+            "undecryptable_secret_vault_entries": "备份中有 {{count}} 个密钥无法在本机解密，跨设备恢复后可能需要重新填写"
           }
         },
         "banner": "Storage v2 是并行的本地数据层，用于迁移、备份和未来同步恢复。",

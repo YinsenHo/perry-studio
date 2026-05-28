@@ -7,7 +7,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { reset } from '@renderer/services/BackupService'
-import store, { useAppDispatch } from '@renderer/store'
+import store, { handleSaveData, useAppDispatch } from '@renderer/store'
 import { setSkipBackupFile as _setSkipBackupFile } from '@renderer/store/settings'
 import type { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
@@ -291,6 +291,7 @@ const BasicDataSettings: React.FC = () => {
     updateProgress: (progress: number, status?: 'active' | 'success') => void,
     loadingModal: { destroy: () => void }
   ): Promise<void> => {
+    await handleSaveData()
     await window.api.flushAppData()
 
     await new Promise((resolve) => setTimeoutTimer('startMigration_1', resolve, 2000))

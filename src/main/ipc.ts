@@ -449,7 +449,9 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
 
   ipcMain.handle(IpcChannel.App_FlushAppData, async () => {
-    await storageV2AgentDbMirrorService.flush()
+    await configManager.flushPendingStorageV2ConfigStrict()
+    await configManager.mirrorAllToStorageV2()
+    await storageV2AgentDbMirrorService.flushStrict()
 
     for (const w of BrowserWindow.getAllWindows()) {
       w.webContents.session.flushStorageData()

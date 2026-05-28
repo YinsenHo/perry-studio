@@ -6,6 +6,7 @@ import type { FileMetadata } from '@renderer/types'
 import { getFileDirectory } from '@renderer/utils'
 import dayjs from 'dayjs'
 
+import { storageV2FileMirrorService } from './StorageV2FileMirrorService'
 import { storageV2FileRecoveryService } from './StorageV2FileRecoveryService'
 
 const logger = loggerService.withContext('FileManager')
@@ -28,6 +29,8 @@ class FileManager {
       }
     } catch (error) {
       logger.warn('Failed to mirror file to Storage v2:', error as Error)
+      storageV2FileMirrorService.scheduleFile(file.id, 0)
+      await storageV2FileMirrorService.flush()
     }
   }
 

@@ -1,16 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  filesAdd: vi.fn(),
   filesDelete: vi.fn(),
   filesGet: vi.fn(),
   filesUpdate: vi.fn(),
   localFileDelete: vi.fn(),
-  storageV2DeleteFile: vi.fn()
+  mirrorFlush: vi.fn(),
+  mirrorScheduleFile: vi.fn(),
+  storageV2DeleteFile: vi.fn(),
+  storageV2UpsertFile: vi.fn()
 }))
 
 vi.mock('@renderer/databases', () => ({
   default: {
     files: {
+      add: mocks.filesAdd,
       delete: mocks.filesDelete,
       get: mocks.filesGet,
       update: mocks.filesUpdate
@@ -34,6 +39,13 @@ vi.mock('@renderer/services/StorageV2FileRecoveryService', () => ({
   }
 }))
 
+vi.mock('@renderer/services/StorageV2FileMirrorService', () => ({
+  storageV2FileMirrorService: {
+    flush: mocks.mirrorFlush,
+    scheduleFile: mocks.mirrorScheduleFile
+  }
+}))
+
 describe('FileManager', () => {
   let originalApi: unknown
 
@@ -49,7 +61,8 @@ describe('FileManager', () => {
           delete: mocks.localFileDelete
         },
         storageV2: {
-          deleteFile: mocks.storageV2DeleteFile
+          deleteFile: mocks.storageV2DeleteFile,
+          upsertFile: mocks.storageV2UpsertFile
         }
       }
     })
@@ -101,5 +114,27 @@ describe('FileManager', () => {
     expect(mocks.storageV2DeleteFile).toHaveBeenCalledWith('file-1')
     expect(mocks.filesDelete).toHaveBeenCalledWith('file-1')
     expect(mocks.localFileDelete).toHaveBeenCalledWith('file-1.txt')
+  })
+
+  it('queues file metadata for retry when the direct Storage v2 mirror fails', async () => {
+    const file = {
+      id: 'file-2',
+      ext: '.txt',
+      count: 1,
+      origin_name: 'draft.txt'
+    }
+    mocks.filesGet.mockResolvedValue(undefined)
+    mocks.filesAdd.mockResolvedValue('file-2')
+    mocks.storageV2UpsertFile.mockRejectedValue(new Error('temporary storage failure'))
+    mocks.mirrorFlush.mockResolvedValue(undefined)
+
+    const { default: FileManager } = await import('../FileManager')
+
+    await expect(FileManager.addFile(file as any)).resolves.toBe(file)
+
+    expect(mocks.filesAdd).toHaveBeenCalledWith(file)
+    expect(mocks.storageV2UpsertFile).toHaveBeenCalledWith(file)
+    expect(mocks.mirrorScheduleFile).toHaveBeenCalledWith('file-2', 0)
+    expect(mocks.mirrorFlush).toHaveBeenCalled()
   })
 })

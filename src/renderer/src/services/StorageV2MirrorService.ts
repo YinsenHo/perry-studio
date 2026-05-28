@@ -220,11 +220,19 @@ class StorageV2MirrorService {
   async flushStrict() {
     await this.flush()
 
-    if ((this.timer || this.pendingPruneMissing !== null) && this.lastError) {
+    if (!this.hasStrictPendingWork()) return
+
+    if (!window.api?.storageV2) {
+      throw new Error('Storage v2 API unavailable while Redux settings mirror work is pending')
+    }
+
+    if (this.lastError) {
       throw this.lastError instanceof Error
         ? this.lastError
         : new Error('Failed to mirror Redux settings to Storage v2')
     }
+
+    throw new Error('Redux settings mirror work is still pending after strict flush')
   }
 
   private async mirrorNow() {
@@ -260,6 +268,10 @@ class StorageV2MirrorService {
       this.timer = null
       void this.flush()
     }, DEFAULT_DEBOUNCE_MS)
+  }
+
+  private hasStrictPendingWork() {
+    return this.timer !== null || this.pendingPruneMissing !== null
   }
 
   suspendUntilReload() {

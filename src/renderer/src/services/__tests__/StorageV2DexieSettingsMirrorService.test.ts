@@ -111,4 +111,19 @@ describe('StorageV2DexieSettingsMirrorService', () => {
     await expect(storageV2DexieSettingsMirrorService.flushStrict()).rejects.toThrow('storage busy')
     expect(setSetting).toHaveBeenCalledTimes(1)
   })
+
+  it('rejects strict flushes when Storage v2 API is unavailable with pending settings work', async () => {
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {}
+    })
+
+    const { storageV2DexieSettingsMirrorService } = await import('../StorageV2DexieSettingsMirrorService')
+
+    storageV2DexieSettingsMirrorService.scheduleDelete('image://avatar', 1000)
+
+    await expect(storageV2DexieSettingsMirrorService.flushStrict()).rejects.toThrow(
+      'Storage v2 API unavailable while Dexie settings mirror work is pending'
+    )
+  })
 })

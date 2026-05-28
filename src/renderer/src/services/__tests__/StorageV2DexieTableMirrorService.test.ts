@@ -126,4 +126,19 @@ describe('StorageV2DexieTableMirrorService', () => {
       vi.useRealTimers()
     }
   })
+
+  it('rejects strict flushes when Storage v2 API is unavailable with pending auxiliary table work', async () => {
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {}
+    })
+
+    const { storageV2DexieTableMirrorService } = await import('../StorageV2DexieTableMirrorService')
+
+    storageV2DexieTableMirrorService.scheduleDelete('quick_phrases', 'phrase-1', 1000)
+
+    await expect(storageV2DexieTableMirrorService.flushStrict()).rejects.toThrow(
+      'Storage v2 API unavailable while Dexie auxiliary table mirror work is pending'
+    )
+  })
 })

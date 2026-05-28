@@ -266,6 +266,27 @@ describe('StorageV2ConversationMirrorService', () => {
     expect(syncConversation).toHaveBeenCalledTimes(1)
   })
 
+  it('rejects strict flushes when Storage v2 API is unavailable with pending conversation work', async () => {
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {}
+    })
+
+    const state = {
+      assistants: {
+        assistants: []
+      }
+    }
+
+    const { storageV2ConversationMirrorService } = await import('../StorageV2ConversationMirrorService')
+
+    storageV2ConversationMirrorService.scheduleTopic('topic-1', () => state, 1000, { destructive: true })
+
+    await expect(storageV2ConversationMirrorService.flushStrict()).rejects.toThrow(
+      'Storage v2 API unavailable while conversation mirror work is pending'
+    )
+  })
+
   it('retries destructive mirrors when the Dexie topic snapshot cannot be read', async () => {
     vi.useFakeTimers()
     const syncConversation = vi.fn().mockResolvedValue({ messageCount: 0, blockCount: 0 })

@@ -281,9 +281,17 @@ class StorageV2ConversationMirrorService {
   async flushStrict() {
     await this.flush()
 
-    if (this.hasPendingWork() && this.lastError) {
+    if (!this.hasPendingWork()) return
+
+    if (!window.api?.storageV2) {
+      throw new Error('Storage v2 API unavailable while conversation mirror work is pending')
+    }
+
+    if (this.lastError) {
       throw this.lastError instanceof Error ? this.lastError : new Error('Failed to mirror conversations to Storage v2')
     }
+
+    throw new Error('Conversation mirror work is still pending after strict flush')
   }
 
   private scheduleFlush(debounceMs: number) {

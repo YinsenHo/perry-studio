@@ -30,6 +30,7 @@ let localStorageMirrorNeedsFollowUp = false
 let lastLocalStorageMirrorSnapshotJson = ''
 let lastLocalStorageMirrorError: unknown = null
 let localStorageMirrorSuspended = false
+let localStorageMirrorPending = false
 
 export type StorageV2LocalStorageSnapshot = {
   clearedMcpProviderTokenKeys: string[]
@@ -91,6 +92,7 @@ export function applyStorageV2LocalStorageSnapshot(snapshot: Partial<StorageV2Lo
 
 export function scheduleStorageV2LocalStorageMirror(debounceMs = DEFAULT_LOCAL_STORAGE_MIRROR_DEBOUNCE_MS) {
   if (localStorageMirrorSuspended) return
+  localStorageMirrorPending = true
   if (typeof window === 'undefined' || !window.api?.storageV2) return
 
   clearLocalStorageMirrorRetryTimer()
@@ -136,6 +138,7 @@ export async function flushStorageV2LocalStorageMirror() {
   const snapshotJson = JSON.stringify(snapshot)
   if (snapshotJson === lastLocalStorageMirrorSnapshotJson) {
     lastLocalStorageMirrorError = null
+    localStorageMirrorPending = false
     return
   }
 
@@ -149,10 +152,12 @@ export async function flushStorageV2LocalStorageMirror() {
     .then(() => {
       lastLocalStorageMirrorSnapshotJson = snapshotJson
       lastLocalStorageMirrorError = null
+      localStorageMirrorPending = false
       logger.debug('Mirrored durable localStorage values to Storage v2')
     })
     .catch((error) => {
       lastLocalStorageMirrorError = error
+      localStorageMirrorPending = true
       scheduleLocalStorageMirrorRetry()
       logger.warn('Failed to mirror durable localStorage values to Storage v2', error as Error)
     })
@@ -166,6 +171,10 @@ export async function flushStorageV2LocalStorageMirror() {
 export async function flushStorageV2LocalStorageMirrorStrict() {
   await flushStorageV2LocalStorageMirror()
 
+  if (localStorageMirrorPending && (typeof window === 'undefined' || !window.api?.storageV2)) {
+    throw new Error('Storage v2 API unavailable while durable localStorage mirror work is pending')
+  }
+
   if (localStorageMirrorRetryTimer && lastLocalStorageMirrorError) {
     throw lastLocalStorageMirrorError instanceof Error
       ? lastLocalStorageMirrorError
@@ -177,6 +186,7 @@ export function suspendStorageV2LocalStorageMirrorUntilReload() {
   localStorageMirrorSuspended = true
   localStorageMirrorNeedsFollowUp = false
   lastLocalStorageMirrorError = null
+  localStorageMirrorPending = false
 
   if (localStorageMirrorTimer) {
     clearTimeout(localStorageMirrorTimer)

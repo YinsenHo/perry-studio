@@ -134,11 +134,19 @@ class StorageV2DexieTableMirrorService {
   async flushStrict() {
     await this.flush()
 
-    if (this.hasPendingWork() && this.lastError) {
+    if (!this.hasPendingWork()) return
+
+    if (!window.api?.storageV2) {
+      throw new Error('Storage v2 API unavailable while Dexie auxiliary table mirror work is pending')
+    }
+
+    if (this.lastError) {
       throw this.lastError instanceof Error
         ? this.lastError
         : new Error('Failed to mirror Dexie auxiliary tables to Storage v2')
     }
+
+    throw new Error('Dexie auxiliary table mirror work is still pending after strict flush')
   }
 
   suspendUntilReload() {

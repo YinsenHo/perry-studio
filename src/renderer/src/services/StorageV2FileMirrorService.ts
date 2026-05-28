@@ -64,9 +64,17 @@ class StorageV2FileMirrorService {
   async flushStrict() {
     await this.flush()
 
-    if (this.pendingFileIds.size > 0 && this.lastError) {
+    if (this.pendingFileIds.size === 0) return
+
+    if (!window.api?.storageV2) {
+      throw new Error('Storage v2 API unavailable while file mirror work is pending')
+    }
+
+    if (this.lastError) {
       throw this.lastError instanceof Error ? this.lastError : new Error('Failed to mirror files to Storage v2')
     }
+
+    throw new Error('File mirror work is still pending after strict flush')
   }
 
   private scheduleFlush(debounceMs: number) {

@@ -95,11 +95,19 @@ class StorageV2DexieSettingsMirrorService {
   async flushStrict() {
     await this.flush()
 
-    if (this.hasPendingWork() && this.lastError) {
+    if (!this.hasPendingWork()) return
+
+    if (!window.api?.storageV2) {
+      throw new Error('Storage v2 API unavailable while Dexie settings mirror work is pending')
+    }
+
+    if (this.lastError) {
       throw this.lastError instanceof Error
         ? this.lastError
         : new Error('Failed to mirror Dexie settings to Storage v2')
     }
+
+    throw new Error('Dexie settings mirror work is still pending after strict flush')
   }
 
   suspendUntilReload() {

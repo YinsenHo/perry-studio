@@ -56,11 +56,19 @@ class StorageV2AgentMirrorService {
   async flushStrict() {
     await this.flush()
 
-    if (this.pending && this.lastError) {
+    if (!this.pending) return
+
+    if (!window.api?.storageV2) {
+      throw new Error('Storage v2 API unavailable while agent database mirror work is pending')
+    }
+
+    if (this.lastError) {
       throw this.lastError instanceof Error
         ? this.lastError
         : new Error('Failed to mirror agent database to Storage v2')
     }
+
+    throw new Error('Agent database mirror work is still pending after strict flush')
   }
 
   private async mirrorNow() {

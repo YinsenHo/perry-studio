@@ -152,6 +152,20 @@ describe('StorageV2MirrorService', () => {
     expect(importLegacyReduxSnapshot).toHaveBeenCalledTimes(1)
   })
 
+  it('rejects strict flushes when Storage v2 API is unavailable with pending Redux work', async () => {
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {}
+    })
+    const { storageV2MirrorService } = await import('../StorageV2MirrorService')
+
+    storageV2MirrorService.scheduleStartupMirror(createState)
+
+    await expect(storageV2MirrorService.flushStrict()).rejects.toThrow(
+      'Storage v2 API unavailable while Redux settings mirror work is pending'
+    )
+  })
+
   it('flushes high-value settings actions without waiting for debounce', async () => {
     const { storageV2MirrorService } = await import('../StorageV2MirrorService')
     const middleware = storageV2MirrorService.createMiddleware()({

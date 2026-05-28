@@ -38,4 +38,19 @@ describe('StorageV2AgentMirrorService', () => {
     await expect(storageV2AgentMirrorService.flushStrict()).rejects.toThrow('agents.db locked')
     expect(importLegacyAgentDb).toHaveBeenCalledWith({ dryRun: false, createSnapshot: false })
   })
+
+  it('rejects strict flushes when Storage v2 API is unavailable with pending agent work', async () => {
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {}
+    })
+
+    const { storageV2AgentMirrorService } = await import('../StorageV2AgentMirrorService')
+
+    storageV2AgentMirrorService.schedule(1000)
+
+    await expect(storageV2AgentMirrorService.flushStrict()).rejects.toThrow(
+      'Storage v2 API unavailable while agent database mirror work is pending'
+    )
+  })
 })

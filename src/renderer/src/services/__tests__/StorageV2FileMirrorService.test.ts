@@ -178,6 +178,21 @@ describe('StorageV2FileMirrorService', () => {
     expect(upsertFile).toHaveBeenCalledTimes(1)
   })
 
+  it('rejects strict flushes when Storage v2 API is unavailable with pending file work', async () => {
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {}
+    })
+
+    const { storageV2FileMirrorService } = await import('../StorageV2FileMirrorService')
+
+    storageV2FileMirrorService.scheduleFile('file-1', 1000)
+
+    await expect(storageV2FileMirrorService.flushStrict()).rejects.toThrow(
+      'Storage v2 API unavailable while file mirror work is pending'
+    )
+  })
+
   it('falls back to the legacy Dexie snapshot import when direct file upsert is unavailable', async () => {
     const file = {
       id: 'file-fallback',

@@ -4,8 +4,11 @@ const mocks = vi.hoisted(() => ({
   getStorageV2AutoHydrateEnabled: vi.fn(),
   listStorageV2Conversations: vi.fn(),
   listStorageV2Messages: vi.fn(),
+  topicsCount: vi.fn(),
   topicsGet: vi.fn(),
   topicsPut: vi.fn(),
+  topicsToArray: vi.fn(),
+  messageBlocksCount: vi.fn(),
   messageBlocksBulkPut: vi.fn(),
   messageBlocksBulkDelete: vi.fn(),
   filesBulkPut: vi.fn(),
@@ -29,10 +32,13 @@ vi.mock('../StorageV2Service', () => ({
 vi.mock('@renderer/databases', () => ({
   default: {
     topics: {
+      count: mocks.topicsCount,
       get: mocks.topicsGet,
-      put: mocks.topicsPut
+      put: mocks.topicsPut,
+      toArray: mocks.topicsToArray
     },
     message_blocks: {
+      count: mocks.messageBlocksCount,
       bulkPut: mocks.messageBlocksBulkPut,
       bulkDelete: mocks.messageBlocksBulkDelete
     },
@@ -45,6 +51,7 @@ vi.mock('@renderer/databases', () => ({
 
 import {
   fetchStorageV2TopicMessages,
+  hydrateStorageV2ConversationsIfDexieEmpty,
   shouldPreferStorageV2ConversationReads
 } from '../StorageV2ConversationHydrationService'
 
@@ -71,6 +78,11 @@ describe('StorageV2ConversationHydrationService', () => {
         }
       ]
     })
+    mocks.topicsCount.mockResolvedValue(0)
+    mocks.topicsToArray.mockResolvedValue([])
+    mocks.messageBlocksCount.mockResolvedValue(0)
+    mocks.listStorageV2Conversations.mockResolvedValue([])
+    mocks.listStorageV2Messages.mockResolvedValue([])
   })
 
   afterEach(() => {
@@ -82,7 +94,16 @@ describe('StorageV2ConversationHydrationService', () => {
   })
 
   it('hydrates Storage v2 messages into runtime messages and seeds Dexie cache', async () => {
-    mocks.listStorageV2Conversations.mockResolvedValue([{ id: 'topic-1', ownerId: 'assistant-1' }])
+    mocks.listStorageV2Conversations.mockResolvedValue([
+      {
+        id: 'topic-1',
+        ownerId: 'assistant-1',
+        title: 'Storage v2 Topic',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:03.000Z',
+        pinned: true
+      }
+    ])
     mocks.listStorageV2Messages.mockResolvedValueOnce([
       {
         id: 'message-1',
@@ -169,12 +190,25 @@ describe('StorageV2ConversationHydrationService', () => {
     ])
     expect(mocks.topicsPut).toHaveBeenCalledWith({
       id: 'topic-1',
+      assistantId: 'assistant-1',
+      name: 'Storage v2 Topic',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:03.000Z',
+      pinned: true,
       messages: result?.messages
     })
   })
 
   it('treats an existing empty Storage v2 topic as authoritative and seeds an empty Dexie cache', async () => {
-    mocks.listStorageV2Conversations.mockResolvedValue([{ id: 'empty-topic', ownerId: 'assistant-1' }])
+    mocks.listStorageV2Conversations.mockResolvedValue([
+      {
+        id: 'empty-topic',
+        ownerId: 'assistant-1',
+        title: 'Empty Topic',
+        createdAt: '2026-01-02T00:00:00.000Z',
+        updatedAt: '2026-01-02T00:00:00.000Z'
+      }
+    ])
     mocks.listStorageV2Messages.mockResolvedValueOnce([])
 
     await expect(fetchStorageV2TopicMessages('empty-topic')).resolves.toEqual({
@@ -187,8 +221,207 @@ describe('StorageV2ConversationHydrationService', () => {
     expect(mocks.messageBlocksBulkPut).not.toHaveBeenCalled()
     expect(mocks.topicsPut).toHaveBeenCalledWith({
       id: 'empty-topic',
+      assistantId: 'assistant-1',
+      name: 'Empty Topic',
+      createdAt: '2026-01-02T00:00:00.000Z',
+      updatedAt: '2026-01-02T00:00:00.000Z',
       messages: []
     })
+  })
+
+  it('hydrates all Storage v2 assistant conversations when Dexie conversation cache is empty', async () => {
+    mocks.topicsCount.mockResolvedValue(0)
+    mocks.messageBlocksCount.mockResolvedValue(0)
+    mocks.listStorageV2Conversations.mockResolvedValue([
+      {
+        id: 'topic-1',
+        ownerId: 'assistant-1',
+        title: 'Restored Topic',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:01.000Z'
+      },
+      {
+        id: 'empty-topic',
+        ownerId: 'assistant-1',
+        title: 'Empty Topic',
+        createdAt: '2026-01-02T00:00:00.000Z',
+        updatedAt: '2026-01-02T00:00:00.000Z'
+      }
+    ])
+    mocks.listStorageV2Messages
+      .mockResolvedValueOnce([
+        {
+          id: 'message-1',
+          role: 'assistant',
+          status: null,
+          metadata: null,
+          createdAt: '2026-01-01T00:00:01.000Z',
+          updatedAt: null,
+          blocks: [
+            {
+              id: 'block-text',
+              messageId: 'message-1',
+              type: 'main_text',
+              ordinal: 1,
+              text: 'restored search content',
+              payload: null,
+              createdAt: '2026-01-01T00:00:01.000Z',
+              updatedAt: null
+            }
+          ]
+        }
+      ])
+      .mockResolvedValueOnce([])
+
+    await expect(hydrateStorageV2ConversationsIfDexieEmpty('history-message-search')).resolves.toBe(true)
+
+    expect(mocks.topicsPut).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'topic-1',
+        assistantId: 'assistant-1',
+        name: 'Restored Topic',
+        messages: [
+          expect.objectContaining({
+            id: 'message-1',
+            topicId: 'topic-1'
+          })
+        ]
+      })
+    )
+    expect(mocks.topicsPut).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'empty-topic',
+        assistantId: 'assistant-1',
+        name: 'Empty Topic',
+        messages: []
+      })
+    )
+  })
+
+  it('does not hydrate Storage v2 conversations when Dexie already has every topic', async () => {
+    mocks.topicsCount.mockResolvedValue(1)
+    mocks.messageBlocksCount.mockResolvedValue(1)
+    mocks.topicsToArray.mockResolvedValue([{ id: 'existing-topic', messages: [{ id: 'message-1', blocks: [] }] }])
+    mocks.listStorageV2Conversations.mockResolvedValue([
+      {
+        id: 'existing-topic',
+        ownerId: 'assistant-1',
+        title: 'Existing Topic',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }
+    ])
+
+    await expect(hydrateStorageV2ConversationsIfDexieEmpty('history-message-search')).resolves.toBe(false)
+
+    expect(mocks.listStorageV2Conversations).toHaveBeenCalled()
+    expect(mocks.transaction).not.toHaveBeenCalled()
+  })
+
+  it('hydrates missing Storage v2 conversations when Dexie only has a partial cache', async () => {
+    mocks.topicsCount.mockResolvedValue(1)
+    mocks.messageBlocksCount.mockResolvedValue(1)
+    mocks.topicsToArray.mockResolvedValue([{ id: 'existing-topic', messages: [{ id: 'message-1', blocks: [] }] }])
+    mocks.listStorageV2Conversations.mockResolvedValue([
+      {
+        id: 'existing-topic',
+        ownerId: 'assistant-1',
+        title: 'Existing Topic',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      },
+      {
+        id: 'missing-topic',
+        ownerId: 'assistant-1',
+        title: 'Missing Topic',
+        createdAt: '2026-01-02T00:00:00.000Z',
+        updatedAt: '2026-01-02T00:00:01.000Z'
+      }
+    ])
+    mocks.listStorageV2Messages.mockResolvedValueOnce([
+      {
+        id: 'message-2',
+        role: 'assistant',
+        status: null,
+        metadata: null,
+        createdAt: '2026-01-02T00:00:01.000Z',
+        updatedAt: null,
+        blocks: [
+          {
+            id: 'block-2',
+            messageId: 'message-2',
+            type: 'main_text',
+            ordinal: 1,
+            text: 'missing topic content',
+            payload: null,
+            createdAt: '2026-01-02T00:00:01.000Z',
+            updatedAt: null
+          }
+        ]
+      }
+    ])
+
+    await expect(hydrateStorageV2ConversationsIfDexieEmpty('topic-manager-partial-list')).resolves.toBe(true)
+
+    expect(mocks.listStorageV2Messages).toHaveBeenCalledWith('missing-topic', { limit: 1000, offset: 0 })
+    expect(mocks.topicsPut).toHaveBeenCalledTimes(1)
+    expect(mocks.topicsPut).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'missing-topic',
+        assistantId: 'assistant-1',
+        name: 'Missing Topic',
+        messages: [expect.objectContaining({ id: 'message-2', topicId: 'missing-topic' })]
+      })
+    )
+  })
+
+  it('rechecks existing empty Dexie topic caches against Storage v2', async () => {
+    mocks.topicsCount.mockResolvedValue(1)
+    mocks.messageBlocksCount.mockResolvedValue(0)
+    mocks.topicsToArray.mockResolvedValue([{ id: 'empty-topic', messages: [] }])
+    mocks.listStorageV2Conversations.mockResolvedValue([
+      {
+        id: 'empty-topic',
+        ownerId: 'assistant-1',
+        title: 'Restored Empty Topic',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }
+    ])
+    mocks.listStorageV2Messages.mockResolvedValueOnce([
+      {
+        id: 'message-1',
+        role: 'assistant',
+        status: null,
+        metadata: null,
+        createdAt: '2026-01-01T00:00:01.000Z',
+        updatedAt: null,
+        blocks: [
+          {
+            id: 'block-text',
+            messageId: 'message-1',
+            type: 'main_text',
+            ordinal: 1,
+            text: 'restored empty topic content',
+            payload: null,
+            createdAt: '2026-01-01T00:00:01.000Z',
+            updatedAt: null
+          }
+        ]
+      }
+    ])
+
+    await expect(hydrateStorageV2ConversationsIfDexieEmpty('history-message-search')).resolves.toBe(true)
+
+    expect(mocks.listStorageV2Conversations).toHaveBeenCalled()
+    expect(mocks.transaction).toHaveBeenCalled()
+    expect(mocks.topicsPut).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'empty-topic',
+        name: 'Restored Empty Topic',
+        messages: [expect.objectContaining({ id: 'message-1', topicId: 'empty-topic' })]
+      })
+    )
   })
 
   it('falls back to legacy reads when Storage v2 has neither messages nor a topic row', async () => {

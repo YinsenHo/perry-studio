@@ -6,6 +6,11 @@
 import { loggerService } from '@logger'
 import KnowledgeService from '@main/services/KnowledgeService'
 import { reduxService } from '@main/services/ReduxService'
+import { storageV2SecretVaultService } from '@main/services/storageV2/SecretVaultService'
+import {
+  storageV2KnowledgeRepository,
+  storageV2ProviderRepository
+} from '@main/services/storageV2/StorageV2Repositories'
 import type { KnowledgeBase, KnowledgeBaseParams, Provider } from '@types'
 import type { Response } from 'express'
 import type * as z from 'zod'
@@ -17,6 +22,7 @@ const logger = loggerService.withContext('KnowledgeHandlers')
 
 // Infer types from Zod schemas to avoid duplication
 type ValidatedSearchBody = z.infer<typeof KnowledgeSearchSchema>
+type ProviderRuntimeConfig = { apiKey: string; baseURL: string }
 
 /**
  * Helper to detect Redux unavailability errors
@@ -24,6 +30,52 @@ type ValidatedSearchBody = z.infer<typeof KnowledgeSearchSchema>
 function isReduxUnavailableError(error: unknown): boolean {
   const message = (error as Error)?.message || ''
   return message.includes('Main window is not available') || message.includes('Timeout waiting for Redux store')
+}
+
+async function listKnowledgeBasesFromStorageV2(reason: string): Promise<KnowledgeBase[]> {
+  try {
+    const bases = (await storageV2KnowledgeRepository.listBases()) as KnowledgeBase[]
+    if (bases.length > 0) {
+      logger.info('Loaded knowledge bases from Storage v2', { reason, count: bases.length })
+    }
+    return bases
+  } catch (error) {
+    logger.warn('Failed to load knowledge bases from Storage v2', error as Error)
+    return []
+  }
+}
+
+async function selectKnowledgeBasesWithStorageV2Fallback(): Promise<KnowledgeBase[]> {
+  try {
+    const bases = (await reduxService.select<KnowledgeBase[]>('state.knowledge.bases')) ?? []
+    if (bases.length > 0) {
+      return bases
+    }
+
+    const storageV2Bases = await listKnowledgeBasesFromStorageV2('redux-empty')
+    return storageV2Bases.length > 0 ? storageV2Bases : bases
+  } catch (error) {
+    if (isReduxUnavailableError(error)) {
+      const storageV2Bases = await listKnowledgeBasesFromStorageV2('redux-unavailable')
+      if (storageV2Bases.length > 0) {
+        return storageV2Bases
+      }
+    }
+
+    throw error
+  }
+}
+
+function firstApiKey(value: unknown): string {
+  return typeof value === 'string' ? (value.split(',')[0]?.trim() ?? '') : ''
+}
+
+function normalizeBaseURL(value: unknown): string {
+  if (typeof value !== 'string') {
+    return ''
+  }
+
+  return value.trim().replace(/#$/, '').replace(/\/+$/, '')
 }
 
 /**
@@ -36,12 +88,11 @@ export const listKnowledgeBases = async (req: ValidationRequest, res: Response):
 
     logger.debug('Listing knowledge bases', { limit, offset })
 
-    // Get knowledge bases from Redux store
-    // TODO(v2): Migrate to V2 knowledge base storage (SQLite/Drizzle).
-    //           Redux access requires Cherry Studio window to be open.
+    // Prefer Redux runtime cache, but fall back to Storage v2 when the renderer
+    // is unavailable or the runtime cache has not been hydrated yet.
     let bases: KnowledgeBase[]
     try {
-      bases = await reduxService.select<KnowledgeBase[]>('state.knowledge.bases')
+      bases = await selectKnowledgeBasesWithStorageV2Fallback()
     } catch (error) {
       if (isReduxUnavailableError(error)) {
         logger.warn('Redux store not available, returning 503')
@@ -84,8 +135,7 @@ export const getKnowledgeBase = async (req: ValidationRequest, res: Response): P
 
     logger.debug(`Getting knowledge base: ${id}`)
 
-    // TODO(v2): Migrate to V2 knowledge base storage (SQLite/Drizzle).
-    const bases = await reduxService.select<KnowledgeBase[]>('state.knowledge.bases')
+    const bases = await selectKnowledgeBasesWithStorageV2Fallback()
     const base = bases?.find((b) => b.id === id)
 
     if (!base) {
@@ -121,35 +171,84 @@ export const getKnowledgeBase = async (req: ValidationRequest, res: Response): P
 }
 
 /**
- * Get provider configuration from Redux store by provider ID
- *
- * TODO(v2): Migrate to V2 provider config storage (SQLite/Drizzle) so the API server
- *           can resolve embedding/rerank provider credentials without a running renderer.
- *
- * NOTE: Redux errors are allowed to propagate - they will be caught by the handler's
- *       try/catch and converted to 503 responses via isReduxUnavailableError().
+ * Get provider configuration from Redux or Storage v2 by provider ID.
  */
-async function getProviderConfig(providerId: string): Promise<{ apiKey: string; baseURL: string } | null> {
+async function getProviderConfigFromRedux(providerId: string): Promise<ProviderRuntimeConfig | null> {
   const providers = await reduxService.select<Provider[]>('state.llm.providers')
   const provider = providers?.find((p) => p.id === providerId)
   if (!provider) {
-    logger.warn(`Provider not found: ${providerId}`)
     return null
   }
 
-  // Derive baseURL from apiHost, removing trailing slashes and # suffix
-  let baseURL = provider.apiHost || ''
-  baseURL = baseURL.replace(/\/+$/, '')
-  baseURL = baseURL.replace(/#$/, '')
-
   // If multiple API keys are configured (comma-separated), use the first one.
   // Matches the main-process convention in OpenClawService.
-  const apiKey = provider.apiKey ? provider.apiKey.split(',')[0].trim() : ''
-
   return {
-    apiKey,
-    baseURL
+    apiKey: firstApiKey(provider.apiKey),
+    baseURL: normalizeBaseURL(provider.apiHost)
   }
+}
+
+async function getProviderConfigFromStorageV2(
+  providerId: string,
+  reason: string
+): Promise<ProviderRuntimeConfig | null> {
+  try {
+    const [providers, credentialRefsByProvider] = await Promise.all([
+      storageV2ProviderRepository.list(),
+      storageV2ProviderRepository.listCredentialRefs()
+    ])
+    const provider = providers.find((p) => p.id === providerId)
+    if (!provider) {
+      return null
+    }
+
+    const apiKeyRef = credentialRefsByProvider.get(providerId)?.apiKey
+    let apiKey = ''
+    if (apiKeyRef) {
+      apiKey = firstApiKey(await storageV2SecretVaultService.getSecret(apiKeyRef))
+    }
+
+    const config = provider.config ?? {}
+    const baseURL = normalizeBaseURL(provider.apiHost ?? config.apiHost)
+
+    logger.info('Loaded provider config from Storage v2', {
+      providerId,
+      reason,
+      hasApiKey: Boolean(apiKey),
+      hasBaseURL: Boolean(baseURL)
+    })
+
+    return { apiKey, baseURL }
+  } catch (error) {
+    logger.warn('Failed to load provider config from Storage v2', error as Error)
+    return null
+  }
+}
+
+async function getProviderConfig(providerId: string): Promise<ProviderRuntimeConfig | null> {
+  try {
+    const config = await getProviderConfigFromRedux(providerId)
+    if (config) {
+      return config
+    }
+
+    const storageV2Config = await getProviderConfigFromStorageV2(providerId, 'redux-provider-missing')
+    if (storageV2Config) {
+      return storageV2Config
+    }
+  } catch (error) {
+    if (!isReduxUnavailableError(error)) {
+      throw error
+    }
+
+    const storageV2Config = await getProviderConfigFromStorageV2(providerId, 'redux-unavailable')
+    if (storageV2Config) {
+      return storageV2Config
+    }
+  }
+
+  logger.warn(`Provider not found: ${providerId}`)
+  return null
 }
 
 /**
@@ -215,9 +314,9 @@ export const searchKnowledge = async (req: ValidationRequest, res: Response): Pr
 
     logger.debug(`Searching knowledge bases: "${query}"`, { knowledge_base_ids, document_count })
 
-    // Get knowledge bases from Redux
-    // TODO(v2): Migrate to V2 knowledge base storage (SQLite/Drizzle).
-    const bases = await reduxService.select<KnowledgeBase[]>('state.knowledge.bases')
+    // Prefer Redux runtime cache, but fall back to Storage v2 when the renderer
+    // is unavailable or the runtime cache has not been hydrated yet.
+    const bases = await selectKnowledgeBasesWithStorageV2Fallback()
 
     if (!bases || bases.length === 0) {
       return res.json({

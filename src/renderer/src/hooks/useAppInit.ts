@@ -6,6 +6,7 @@ import db from '@renderer/databases'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import MemoryService from '@renderer/services/MemoryService'
+import { storageV2DexieSettingsMirrorService } from '@renderer/services/StorageV2DexieSettingsMirrorService'
 import { storageV2DexieSettingsRecoveryService } from '@renderer/services/StorageV2DexieSettingsRecoveryService'
 import { handleSaveData, useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
@@ -87,7 +88,10 @@ export function useAppInit() {
     if (!avatar?.value) return
 
     if (isBuiltinAvatarValue(avatar.value)) {
-      void db.settings.delete('image://avatar')
+      void db.settings.delete('image://avatar').then(async () => {
+        storageV2DexieSettingsMirrorService.scheduleDelete('image://avatar')
+        await storageV2DexieSettingsMirrorService.flush()
+      })
       dispatch(setAvatar(UserAvatar))
       return
     }

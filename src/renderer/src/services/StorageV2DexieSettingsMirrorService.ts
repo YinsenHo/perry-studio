@@ -3,7 +3,7 @@ import db from '@renderer/databases'
 
 const logger = loggerService.withContext('StorageV2DexieSettingsMirrorService')
 
-const DEFAULT_DEBOUNCE_MS = 500
+const DEFAULT_DEBOUNCE_MS = 0
 const STORAGE_V2_DEXIE_SETTINGS_PREFIX = 'dexie.settings.'
 
 type DexieTransactionLike = {
@@ -114,6 +114,12 @@ class StorageV2DexieSettingsMirrorService {
   private scheduleFlush(debounceMs: number) {
     if (this.timer) {
       clearTimeout(this.timer)
+      this.timer = null
+    }
+
+    if (debounceMs <= 0) {
+      void this.flush()
+      return
     }
 
     this.timer = setTimeout(() => {

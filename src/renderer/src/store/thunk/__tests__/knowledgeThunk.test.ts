@@ -12,6 +12,10 @@ const mocks = vi.hoisted(() => {
         add: vi.fn()
       }
     },
+    dexieTableMirror: {
+      scheduleRow: vi.fn(),
+      flush: vi.fn()
+    },
     uuid: {
       v4: vi.fn()
     },
@@ -26,6 +30,10 @@ const mocks = vi.hoisted(() => {
 // Mock dependencies
 vi.mock('@renderer/databases', () => ({
   db: mocks.db
+}))
+
+vi.mock('@renderer/services/StorageV2DexieTableMirrorService', () => ({
+  storageV2DexieTableMirrorService: mocks.dexieTableMirror
 }))
 
 vi.mock('uuid', () => ({
@@ -100,6 +108,7 @@ describe('knowledgeThunk', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.uuid.v4.mockReturnValue(mockUuid)
+    mocks.dexieTableMirror.flush.mockResolvedValue(undefined)
     mockDispatch.mockClear()
   })
 
@@ -161,6 +170,8 @@ describe('knowledgeThunk', () => {
 
       const expectedNote = createMockKnowledgeItem('note', noteContent, timestamp)
       expect(mocks.db.knowledge_notes.add).toHaveBeenCalledWith(expectedNote)
+      expect(mocks.dexieTableMirror.scheduleRow).toHaveBeenCalledWith('knowledge_notes', mockUuid, 0)
+      expect(mocks.dexieTableMirror.flush).toHaveBeenCalled()
 
       const expectedNoteRef = createMockKnowledgeItem('note', '', timestamp)
       expect(mockDispatch).toHaveBeenCalledWith(updateNotes({ baseId, item: expectedNoteRef }))

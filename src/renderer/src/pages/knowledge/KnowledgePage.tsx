@@ -59,7 +59,7 @@ const KnowledgePage: FC = () => {
               defaultValue: base.name || ''
             })
             if (name && base.name !== name) {
-              renameKnowledgeBase(base.id, name)
+              await renameKnowledgeBase(base.id, name)
             }
           }
         },
@@ -81,7 +81,7 @@ const KnowledgePage: FC = () => {
               centered: true,
               onOk: () => {
                 setSelectedBase(undefined)
-                deleteKnowledgeBase(base.id)
+                return deleteKnowledgeBase(base.id)
               }
             })
           }

@@ -15,6 +15,7 @@
  * --------------------------------------------------------------------------
  */
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
+import { scheduleStorageV2LocalStorageMirror } from '@renderer/services/StorageV2LocalStorageSnapshot'
 import { factExtractionPrompt, updateMemorySystemPrompt } from '@renderer/utils/memory-prompts'
 import type { MemoryConfig } from '@types'
 
@@ -67,6 +68,7 @@ const memorySlice = createSlice({
     hydrateMemoryState: (_state, action: PayloadAction<Partial<MemoryState>>) => {
       if (typeof action.payload.currentUserId === 'string') {
         localStorage.setItem('memory_currentUserId', action.payload.currentUserId)
+        scheduleStorageV2LocalStorageMirror()
       }
 
       return {
@@ -90,6 +92,7 @@ const memorySlice = createSlice({
     setCurrentUserId: (state, action: PayloadAction<string>) => {
       state.currentUserId = action.payload
       localStorage.setItem('memory_currentUserId', action.payload)
+      scheduleStorageV2LocalStorageMirror()
     },
     /**
      * Sets the global memory enabled state and persists it to localStorage

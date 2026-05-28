@@ -164,6 +164,10 @@ function parseJson<T>(value: unknown, fallback: T): T {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, any> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
 function toJson(value: unknown) {
   return JSON.stringify(value ?? null)
 }
@@ -176,6 +180,26 @@ function toIsoTimestamp(value: unknown, fallback: string): string {
   if (typeof value === 'string' && value) {
     const parsed = new Date(value)
     return Number.isNaN(parsed.getTime()) ? fallback : parsed.toISOString()
+  }
+
+  return fallback
+}
+
+function toEpochMs(value: unknown, fallback = Date.now()): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string' && value) {
+    const numeric = Number(value)
+    if (Number.isFinite(numeric) && value.length >= 10) {
+      return numeric
+    }
+
+    const parsed = Date.parse(value)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
   }
 
   return fallback
@@ -1503,6 +1527,95 @@ export class StorageV2ConversationRepository {
 }
 
 export class StorageV2KnowledgeRepository {
+  async listBases(): Promise<Array<Record<string, any>>> {
+    const client = await storageV2Database.getClient()
+    const [basesResult, itemsResult] = await Promise.all([
+      client.execute(`
+        SELECT id, name, model_id, embedding_model_id, rerank_model_id, settings_json,
+               created_at, updated_at, version
+        FROM knowledge_bases
+        WHERE deleted_at IS NULL
+        ORDER BY updated_at DESC
+      `),
+      client.execute(`
+        SELECT id, knowledge_base_id, source_type, source_uri, file_id, content_hash,
+               status, metadata_json, created_at, updated_at, version
+        FROM knowledge_items
+        WHERE deleted_at IS NULL
+        ORDER BY created_at ASC
+      `)
+    ])
+
+    const itemsByBaseId = new Map<string, Array<Record<string, any>>>()
+
+    for (const row of itemsResult.rows) {
+      const baseId = typeof row.knowledge_base_id === 'string' ? row.knowledge_base_id : null
+      const itemId = typeof row.id === 'string' ? row.id : null
+      if (!baseId || !itemId) continue
+
+      const itemSnapshot = parseJson<Record<string, any>>(row.metadata_json, {})
+      const item = isRecord(itemSnapshot) ? { ...itemSnapshot } : {}
+      item.id = typeof item.id === 'string' && item.id ? item.id : itemId
+      item.baseId = typeof item.baseId === 'string' && item.baseId ? item.baseId : baseId
+      item.type =
+        typeof item.type === 'string' && item.type
+          ? item.type
+          : typeof row.source_type === 'string' && row.source_type
+            ? row.source_type
+            : 'unknown'
+      item.content =
+        item.content ??
+        (typeof row.source_uri === 'string' && row.source_uri
+          ? row.source_uri
+          : typeof row.file_id === 'string'
+            ? row.file_id
+            : '')
+      item.uniqueId =
+        typeof item.uniqueId === 'string' && item.uniqueId
+          ? item.uniqueId
+          : typeof row.content_hash === 'string' && row.content_hash
+            ? row.content_hash
+            : undefined
+      item.processingStatus =
+        typeof item.processingStatus === 'string' && item.processingStatus
+          ? item.processingStatus
+          : typeof row.status === 'string'
+            ? row.status
+            : undefined
+      item.created_at = toEpochMs(item.created_at ?? row.created_at)
+      item.updated_at = toEpochMs(item.updated_at ?? row.updated_at, item.created_at)
+
+      const items = itemsByBaseId.get(baseId) ?? []
+      items.push(item)
+      itemsByBaseId.set(baseId, items)
+    }
+
+    return basesResult.rows.flatMap((row) => {
+      const baseId = typeof row.id === 'string' ? row.id : null
+      if (!baseId) return []
+
+      const baseSnapshot = parseJson<Record<string, any>>(row.settings_json, {})
+      const base = isRecord(baseSnapshot) ? { ...baseSnapshot } : {}
+      base.id = typeof base.id === 'string' && base.id ? base.id : baseId
+      base.name =
+        typeof base.name === 'string' && base.name ? base.name : typeof row.name === 'string' ? row.name : baseId
+      base.created_at = toEpochMs(base.created_at ?? row.created_at)
+      base.updated_at = toEpochMs(base.updated_at ?? row.updated_at, base.created_at)
+      base.version = typeof base.version === 'number' ? base.version : Number(row.version ?? 1)
+      base.items = itemsByBaseId.get(baseId) ?? []
+
+      if (!base.model && typeof row.model_id === 'string' && row.model_id) {
+        base.model = { id: row.model_id }
+      }
+
+      if (!base.rerankModel && typeof row.rerank_model_id === 'string' && row.rerank_model_id) {
+        base.rerankModel = { id: row.rerank_model_id }
+      }
+
+      return [base]
+    })
+  }
+
   async importBases(bases: StorageV2KnowledgeBaseImport[]): Promise<{
     baseCount: number
     itemCount: number

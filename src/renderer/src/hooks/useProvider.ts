@@ -2,6 +2,7 @@ import { createSelector } from '@reduxjs/toolkit'
 import { isNotSupportTextDeltaModel } from '@renderer/config/models'
 import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
 import { getDefaultProvider } from '@renderer/services/AssistantService'
+import { flushStorageV2ReduxMirror } from '@renderer/services/StorageV2ReduxMirrorFlush'
 import { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addModel,
@@ -29,6 +30,10 @@ function normalizeProvider<T extends Provider>(provider: T): T {
     ...provider,
     apiHost: withoutTrailingSlash(provider.apiHost)
   }
+}
+
+const flushProviderMirror = (reason: string) => {
+  void flushStorageV2ReduxMirror(reason)
 }
 
 const selectProviders = (state: RootState) => state.llm.providers
@@ -60,10 +65,22 @@ export function useProviders() {
 
   return {
     providers: providers || [],
-    addProvider: (provider: Provider) => dispatch(addProvider(provider)),
-    removeProvider: (provider: Provider) => dispatch(removeProvider(provider)),
-    updateProvider: (updates: Partial<Provider> & { id: string }) => dispatch(updateProvider(updates)),
-    updateProviders: (providers: Provider[]) => dispatch(updateProviders(providers))
+    addProvider: (provider: Provider) => {
+      dispatch(addProvider(provider))
+      flushProviderMirror('llm-add-provider')
+    },
+    removeProvider: (provider: Provider) => {
+      dispatch(removeProvider(provider))
+      flushProviderMirror('llm-remove-provider')
+    },
+    updateProvider: (updates: Partial<Provider> & { id: string }) => {
+      dispatch(updateProvider(updates))
+      flushProviderMirror('llm-update-provider')
+    },
+    updateProviders: (providers: Provider[]) => {
+      dispatch(updateProviders(providers))
+      flushProviderMirror('llm-update-providers')
+    }
   }
 }
 
@@ -99,6 +116,7 @@ export function useProvider(id: string) {
       }
 
       dispatch(addModel({ providerId: id, model: processedModel }))
+      flushProviderMirror('llm-add-model')
     },
     [dispatch, id, provider]
   )
@@ -106,10 +124,19 @@ export function useProvider(id: string) {
   return {
     provider,
     models: provider?.models ?? [],
-    updateProvider: (updates: Partial<Provider>) => dispatch(updateProvider({ id, ...updates })),
+    updateProvider: (updates: Partial<Provider>) => {
+      dispatch(updateProvider({ id, ...updates }))
+      flushProviderMirror('llm-update-provider')
+    },
     addModel: handleAddModel,
-    removeModel: (model: Model) => dispatch(removeModel({ providerId: id, model })),
-    updateModel: (model: Model) => dispatch(updateModel({ providerId: id, model }))
+    removeModel: (model: Model) => {
+      dispatch(removeModel({ providerId: id, model }))
+      flushProviderMirror('llm-remove-model')
+    },
+    updateModel: (model: Model) => {
+      dispatch(updateModel({ providerId: id, model }))
+      flushProviderMirror('llm-update-model')
+    }
   }
 }
 

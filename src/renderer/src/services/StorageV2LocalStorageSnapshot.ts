@@ -20,7 +20,7 @@ const DURABLE_LOCAL_STORAGE_KEYS = [
 
 const MCP_PROVIDER_TOKEN_KEY_SET = new Set<string>(MCP_PROVIDER_TOKEN_KEYS)
 const DURABLE_LOCAL_STORAGE_KEY_SET = new Set<string>(DURABLE_LOCAL_STORAGE_KEYS)
-const DEFAULT_LOCAL_STORAGE_MIRROR_DEBOUNCE_MS = 500
+const DEFAULT_LOCAL_STORAGE_MIRROR_DEBOUNCE_MS = 0
 
 let localStorageMirrorTimer: ReturnType<typeof setTimeout> | null = null
 let localStorageMirrorInflight: Promise<void> | null = null
@@ -90,6 +90,12 @@ export function scheduleStorageV2LocalStorageMirror(debounceMs = DEFAULT_LOCAL_S
 
   if (localStorageMirrorTimer) {
     clearTimeout(localStorageMirrorTimer)
+    localStorageMirrorTimer = null
+  }
+
+  if (debounceMs <= 0) {
+    void flushStorageV2LocalStorageMirror()
+    return
   }
 
   localStorageMirrorTimer = setTimeout(() => {

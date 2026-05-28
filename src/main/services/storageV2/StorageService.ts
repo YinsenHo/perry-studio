@@ -20,6 +20,7 @@ import {
   type StorageV2ConversationUpsert,
   type StorageV2ConversationUpsertOptions,
   storageV2FileRepository,
+  storageV2KnowledgeRepository,
   type StorageV2MessageBlocksUpsertOptions,
   storageV2ProviderRepository,
   storageV2SettingsRepository
@@ -623,6 +624,18 @@ export class StorageV2Service {
       const restoredMcpState = await restoreMcpStateSecrets(state.redux.mcp, includeSecrets)
       state.redux.mcp = restoredMcpState.value
       missingSecretCount += restoredMcpState.missingSecretCount
+    }
+
+    const hasRecoverableReduxKnowledge =
+      isRecord(state.redux.knowledge) &&
+      Array.isArray(state.redux.knowledge.bases) &&
+      state.redux.knowledge.bases.length > 0
+
+    if (!hasRecoverableReduxKnowledge) {
+      const knowledgeBases = await storageV2KnowledgeRepository.listBases()
+      if (knowledgeBases.length > 0) {
+        state.redux.knowledge = { bases: knowledgeBases }
+      }
     }
 
     if (state.redux.knowledge) {

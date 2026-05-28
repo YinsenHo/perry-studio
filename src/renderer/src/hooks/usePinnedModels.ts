@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import { getModelUniqId } from '@renderer/services/ModelService'
+import { storageV2DexieSettingsMirrorService } from '@renderer/services/StorageV2DexieSettingsMirrorService'
 import { storageV2DexieSettingsRecoveryService } from '@renderer/services/StorageV2DexieSettingsRecoveryService'
 import { sortBy } from 'lodash'
 import { useCallback, useEffect, useState } from 'react'
@@ -8,6 +9,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { useProviders } from './useProvider'
 
 const logger = loggerService.withContext('usePinnedModels')
+const PINNED_MODELS_SETTING_ID = 'pinned:models'
+
+async function flushPinnedModelsSetting() {
+  storageV2DexieSettingsMirrorService.scheduleSetting(PINNED_MODELS_SETTING_ID, 0)
+  await storageV2DexieSettingsMirrorService.flush()
+}
 
 export const usePinnedModels = () => {
   const [pinnedModels, setPinnedModels] = useState<string[]>([])
@@ -29,7 +36,8 @@ export const usePinnedModels = () => {
 
       // Update storage if there were invalid models
       if (validPinnedModels.length !== savedPinnedModels.length) {
-        await db.settings.put({ id: 'pinned:models', value: validPinnedModels })
+        await db.settings.put({ id: PINNED_MODELS_SETTING_ID, value: validPinnedModels })
+        await flushPinnedModelsSetting()
       }
 
       setPinnedModels(sortBy(validPinnedModels))
@@ -44,7 +52,8 @@ export const usePinnedModels = () => {
   }, [providers])
 
   const updatePinnedModels = useCallback(async (models: string[]) => {
-    await db.settings.put({ id: 'pinned:models', value: models })
+    await db.settings.put({ id: PINNED_MODELS_SETTING_ID, value: models })
+    await flushPinnedModelsSetting()
     setPinnedModels(sortBy(models))
   }, [])
 

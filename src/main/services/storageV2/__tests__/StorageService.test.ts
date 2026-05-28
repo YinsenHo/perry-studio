@@ -74,6 +74,9 @@ const mocks = vi.hoisted(() => ({
     get: vi.fn(),
     importFile: vi.fn(),
     list: vi.fn()
+  },
+  knowledgeRepository: {
+    listBases: vi.fn()
   }
 }))
 
@@ -133,6 +136,7 @@ vi.mock('../StorageV2Repositories', () => ({
   storageV2AssistantRepository: mocks.assistantRepository,
   storageV2ConversationRepository: mocks.conversationRepository,
   storageV2FileRepository: mocks.fileRepository,
+  storageV2KnowledgeRepository: mocks.knowledgeRepository,
   storageV2ProviderRepository: mocks.providerRepository,
   storageV2SettingsRepository: mocks.settingsRepository
 }))
@@ -149,6 +153,7 @@ describe('StorageV2Service', () => {
     mocks.conversationRepository.list.mockResolvedValue([])
     mocks.fileRepository.get.mockResolvedValue(null)
     mocks.fileRepository.list.mockResolvedValue([])
+    mocks.knowledgeRepository.listBases.mockResolvedValue([])
   })
 
   it('projects legacy Dexie auxiliary table rows into core snapshots', async () => {
@@ -192,6 +197,60 @@ describe('StorageV2Service', () => {
       'note-1': null
     })
     expect(snapshot.metadata.dexieTableRowCount).toBe(2)
+  })
+
+  it('rebuilds Redux knowledge state from structured knowledge tables when the Redux snapshot is missing', async () => {
+    mocks.knowledgeRepository.listBases.mockResolvedValue([
+      {
+        id: 'base-1',
+        name: 'Docs',
+        items: [{ id: 'item-1', type: 'url', content: 'https://example.com/docs' }]
+      }
+    ])
+
+    const snapshot = await new StorageV2Service().getCoreSnapshot()
+
+    expect(snapshot.redux.knowledge).toEqual({
+      bases: [
+        {
+          id: 'base-1',
+          name: 'Docs',
+          items: [{ id: 'item-1', type: 'url', content: 'https://example.com/docs' }]
+        }
+      ]
+    })
+    expect(mocks.knowledgeRepository.listBases).toHaveBeenCalled()
+  })
+
+  it('rebuilds Redux knowledge state from structured knowledge tables when the Redux snapshot is empty', async () => {
+    mocks.settingsRepository.list.mockResolvedValue([
+      {
+        key: 'redux.knowledge',
+        value: { bases: [] },
+        scope: 'redux',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        version: 1
+      }
+    ])
+    mocks.knowledgeRepository.listBases.mockResolvedValue([
+      {
+        id: 'base-1',
+        name: 'Docs',
+        items: [{ id: 'item-1', type: 'url', content: 'https://example.com/docs' }]
+      }
+    ])
+
+    const snapshot = await new StorageV2Service().getCoreSnapshot()
+
+    expect(snapshot.redux.knowledge).toEqual({
+      bases: [
+        {
+          id: 'base-1',
+          name: 'Docs',
+          items: [{ id: 'item-1', type: 'url', content: 'https://example.com/docs' }]
+        }
+      ]
+    })
   })
 
   it('delegates Storage v2 file read-through and projection helpers', async () => {

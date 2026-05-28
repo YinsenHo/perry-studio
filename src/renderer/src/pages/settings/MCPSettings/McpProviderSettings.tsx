@@ -3,6 +3,7 @@ import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import db from '@renderer/databases'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { storageV2DexieSettingsMirrorService } from '@renderer/services/StorageV2DexieSettingsMirrorService'
 import { storageV2DexieSettingsRecoveryService } from '@renderer/services/StorageV2DexieSettingsRecoveryService'
 import type { MCPServer } from '@renderer/types'
 import { Button, Divider, Flex, Input, Space } from 'antd'
@@ -108,6 +109,8 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
         // Save to database
         const dbKey = `mcp:provider:${provider.key}:servers`
         await db.settings.put({ id: dbKey, value: servers })
+        storageV2DexieSettingsMirrorService.scheduleSetting(dbKey, 0)
+        await storageV2DexieSettingsMirrorService.flush()
 
         window.toast.success(t('settings.mcp.fetch.success', 'Successfully fetched MCP servers'))
       } else {

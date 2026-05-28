@@ -73,7 +73,10 @@ vi.mock('electron', () => ({
       if (key === 'temp') return '/tmp'
       if (key === 'userData') return '/mock/userData'
       return '/mock/unknown'
-    })
+    }),
+    getVersion: vi.fn(() => '1.0.0'),
+    relaunch: vi.fn(),
+    exit: vi.fn()
   }
 }))
 
@@ -88,9 +91,14 @@ vi.mock('fs-extra', () => ({
     stat: vi.fn(),
     realpath: vi.fn(),
     readFile: vi.fn(),
+    readJson: vi.fn(),
     writeFile: vi.fn(),
+    writeJson: vi.fn(),
     createWriteStream: vi.fn(),
-    createReadStream: vi.fn()
+    createReadStream: vi.fn(),
+    promises: {
+      mkdir: vi.fn()
+    }
   },
   pathExists: vi.fn(),
   remove: vi.fn(),
@@ -101,9 +109,14 @@ vi.mock('fs-extra', () => ({
   stat: vi.fn(),
   realpath: vi.fn(),
   readFile: vi.fn(),
+  readJson: vi.fn(),
   writeFile: vi.fn(),
+  writeJson: vi.fn(),
   createWriteStream: vi.fn(),
-  createReadStream: vi.fn()
+  createReadStream: vi.fn(),
+  promises: {
+    mkdir: vi.fn()
+  }
 }))
 
 vi.mock('../WindowService', () => ({
@@ -118,6 +131,12 @@ vi.mock('../WebDav', () => ({
 
 vi.mock('../S3Storage', () => ({
   default: vi.fn()
+}))
+
+vi.mock('../SelectionService', () => ({
+  default: {
+    quit: vi.fn()
+  }
 }))
 
 vi.mock('../../utils', () => ({
@@ -453,6 +472,43 @@ describe('BackupManager.restore temp isolation', () => {
       vi.mocked(fs.ensureDir).mock.invocationCallOrder[0]
     )
     expect(mockStreamZipInstance.extract).toHaveBeenCalledWith(null, tempDir)
+  })
+
+  it('stages direct backup Data restores beside the active Data root', async () => {
+    const tempDir = '/tmp/cherry-studio/backup/temp'
+    vi.mocked(fs.pathExists).mockImplementation(async (candidate) => String(candidate) === `${tempDir}/Data`)
+    vi.mocked(fs.readJson).mockResolvedValue({ appName: 'Cherry Studio Pi', platform: process.platform } as never)
+    vi.mocked(fs.readdir).mockResolvedValue(['main.db'] as never)
+    vi.mocked(fs.copy).mockResolvedValue(undefined as never)
+    const getDirSizeSpy = vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(100)
+    const copyDirSpy = vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
+
+    await (backupManager as any).restoreDirect()
+
+    expect(fs.remove).toHaveBeenCalledWith('/mock/data.restore')
+    expect(copyDirSpy).toHaveBeenCalledWith(`${tempDir}/Data`, '/mock/data.restore', expect.any(Function), {
+      dereferenceSymlinks: false
+    })
+    expect(fs.remove).toHaveBeenCalledWith(tempDir)
+    expect(getDirSizeSpy).toHaveBeenCalledWith(`${tempDir}/Data`, { dereferenceSymlinks: false })
+  })
+
+  it('stages legacy backup Data restores beside the active Data root', async () => {
+    const tempDir = '/tmp/cherry-studio/backup/temp'
+    vi.mocked(fs.readFile).mockResolvedValue('legacy-state' as never)
+    vi.mocked(fs.pathExists).mockImplementation(async (candidate) => String(candidate) === `${tempDir}/Data`)
+    vi.mocked(fs.readdir).mockResolvedValue(['app.db'] as never)
+    const getDirSizeSpy = vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(64)
+    const copyDirSpy = vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
+
+    await expect((backupManager as any).restoreLegacy()).resolves.toBe('legacy-state')
+
+    expect(fs.remove).toHaveBeenCalledWith('/mock/data.restore')
+    expect(copyDirSpy).toHaveBeenCalledWith(`${tempDir}/Data`, '/mock/data.restore', expect.any(Function), {
+      dereferenceSymlinks: false
+    })
+    expect(fs.remove).toHaveBeenCalledWith(tempDir)
+    expect(getDirSizeSpy).toHaveBeenCalledWith(`${tempDir}/Data`, { dereferenceSymlinks: false })
   })
 })
 

@@ -75,16 +75,63 @@ export class MemoryService {
 
   /**
    * Migrate the memory database from the old path to the new path
-   * If the old memory database exists, rename it to the new path
+   * If the target already exists, archive the old database instead of
+   * overwriting the active stable data-root copy.
    */
   public migrateMemoryDb(): void {
     const oldMemoryDbPath = path.join(app.getPath('userData'), 'memories.db')
-    const memoryDbPath = path.join(getDataPath('Memory'), 'memories.db')
+    const memoryDir = getDataPath('Memory')
+    const memoryDbPath = path.join(memoryDir, 'memories.db')
 
-    makeSureDirExists(path.dirname(memoryDbPath))
+    makeSureDirExists(memoryDir)
 
-    if (fs.existsSync(oldMemoryDbPath)) {
-      fs.renameSync(oldMemoryDbPath, memoryDbPath)
+    if (!fs.existsSync(oldMemoryDbPath)) {
+      return
+    }
+
+    if (fs.existsSync(memoryDbPath)) {
+      const archiveDir = path.join(memoryDir, 'legacy', `pre-storage-v2-memory-${Date.now()}`)
+      makeSureDirExists(archiveDir)
+      this.moveLegacyMemoryFiles(oldMemoryDbPath, path.join(archiveDir, 'memories.db'))
+      logger.warn('Archived old memory database because the Storage v2 memory database already exists', {
+        oldMemoryDbPath,
+        archiveDir,
+        memoryDbPath
+      })
+      return
+    }
+
+    this.moveLegacyMemoryFiles(oldMemoryDbPath, memoryDbPath)
+    logger.info('Migrated memory database to Storage v2 data root', {
+      oldMemoryDbPath,
+      memoryDbPath
+    })
+  }
+
+  private moveLegacyMemoryFiles(sourceMainDbPath: string, targetMainDbPath: string): void {
+    this.moveFile(sourceMainDbPath, targetMainDbPath)
+
+    for (const suffix of ['-wal', '-shm']) {
+      const sourcePath = `${sourceMainDbPath}${suffix}`
+      if (fs.existsSync(sourcePath)) {
+        this.moveFile(sourcePath, `${targetMainDbPath}${suffix}`)
+      }
+    }
+  }
+
+  private moveFile(sourcePath: string, targetPath: string): void {
+    makeSureDirExists(path.dirname(targetPath))
+
+    try {
+      fs.renameSync(sourcePath, targetPath)
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'EXDEV') {
+        fs.copyFileSync(sourcePath, targetPath)
+        fs.unlinkSync(sourcePath)
+        return
+      }
+
+      throw error
     }
   }
 
@@ -97,6 +144,7 @@ export class MemoryService {
     }
 
     try {
+      this.migrateMemoryDb()
       const memoryDbPath = path.join(getDataPath('Memory'), 'memories.db')
 
       makeSureDirExists(path.dirname(memoryDbPath))

@@ -16,6 +16,7 @@
  */
 import { loggerService } from '@logger'
 import { db } from '@renderer/databases'
+import { storageV2DexieTableMirrorService } from '@renderer/services/StorageV2DexieTableMirrorService'
 import { addFiles as addFilesAction, addItem, updateNotes } from '@renderer/store/knowledge'
 import type { FileMetadata, KnowledgeItem } from '@renderer/types'
 import { isKnowledgeNoteItem } from '@renderer/types'
@@ -78,6 +79,8 @@ export const addNoteThunk = (baseId: string, content: string) => async (dispatch
 
   // 存储完整笔记到数据库，出错时交给调用者处理
   await db.knowledge_notes.add(note)
+  storageV2DexieTableMirrorService.scheduleRow('knowledge_notes', note.id, 0)
+  await storageV2DexieTableMirrorService.flush()
 
   // 在 store 中只存储引用
   const noteRef = { ...note, content: '' } // store中不需要存储实际内容

@@ -8,6 +8,7 @@ import { useEnableDeveloperMode, useSettings } from '@renderer/hooks/useSettings
 import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
 import { storageV2ConversationMirrorService } from '@renderer/services/StorageV2ConversationMirrorService'
+import { scheduleStorageV2LocalStorageMirror } from '@renderer/services/StorageV2LocalStorageSnapshot'
 import type { RootState } from '@renderer/store'
 import store, { useAppDispatch } from '@renderer/store'
 import { updateAssistant, updateDefaultAssistant } from '@renderer/store/assistants'
@@ -112,6 +113,7 @@ const GeneralSettings: FC = () => {
   const onSelectLanguage = async (value: LanguageVarious) => {
     dispatch(setLanguage(value))
     localStorage.setItem('language', value)
+    scheduleStorageV2LocalStorageMirror()
     void window.api.setLanguage(value)
     await i18n.changeLanguage(value)
 

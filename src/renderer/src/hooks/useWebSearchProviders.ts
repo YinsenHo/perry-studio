@@ -1,3 +1,4 @@
+import { flushStorageV2ReduxMirror } from '@renderer/services/StorageV2ReduxMirrorFlush'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addSubscribeSource as _addSubscribeSource,
@@ -13,6 +14,10 @@ import {
 } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 
+const flushWebSearchMirror = (reason: string) => {
+  void flushStorageV2ReduxMirror(reason)
+}
+
 export const useDefaultWebSearchProvider = () => {
   const defaultProvider = useAppSelector((state) => state.websearch.defaultProvider)
   const { providers } = useWebSearchProviders()
@@ -21,10 +26,12 @@ export const useDefaultWebSearchProvider = () => {
 
   const setDefaultProvider = (provider: WebSearchProvider) => {
     dispatch(_setDefaultProvider(provider.id))
+    flushWebSearchMirror('websearch-default-provider')
   }
 
   const updateDefaultProvider = (provider: WebSearchProvider) => {
     dispatch(updateWebSearchProvider(provider))
+    flushWebSearchMirror('websearch-update-default-provider')
   }
 
   return { provider, setDefaultProvider, updateDefaultProvider }
@@ -37,13 +44,17 @@ export const useWebSearchProviders = () => {
 
   return {
     providers,
-    updateWebSearchProviders: (providers: WebSearchProvider[]) => dispatch(updateWebSearchProviders(providers)),
+    updateWebSearchProviders: (providers: WebSearchProvider[]) => {
+      dispatch(updateWebSearchProviders(providers))
+      flushWebSearchMirror('websearch-update-providers')
+    },
     addWebSearchProvider: (provider: WebSearchProvider) => {
       // Check if provider exists
       const exists = providers.some((p) => p.id === provider.id)
       if (!exists) {
         // Use the existing update action to add the new provider
         dispatch(updateWebSearchProviders([...providers, provider]))
+        flushWebSearchMirror('websearch-add-provider')
       }
     }
   }
@@ -62,6 +73,7 @@ export const useWebSearchProvider = (id: WebSearchProviderId) => {
     provider,
     updateProvider: (updates: Partial<WebSearchProvider>) => {
       dispatch(updateWebSearchProvider({ id, ...updates }))
+      flushWebSearchMirror('websearch-update-provider')
     }
   }
 }
@@ -72,18 +84,22 @@ export const useBlacklist = () => {
 
   const addSubscribeSource = ({ url, name, blacklist }) => {
     dispatch(_addSubscribeSource({ url, name, blacklist }))
+    flushWebSearchMirror('websearch-add-subscribe-source')
   }
 
   const removeSubscribeSource = (key: number) => {
     dispatch(_removeSubscribeSource(key))
+    flushWebSearchMirror('websearch-remove-subscribe-source')
   }
 
   const updateSubscribeBlacklist = (key: number, blacklist: string[]) => {
     dispatch(_updateSubscribeBlacklist({ key, blacklist }))
+    flushWebSearchMirror('websearch-update-subscribe-blacklist')
   }
 
   const setSubscribeSources = (sources: { key: number; url: string; name: string; blacklist?: string[] }[]) => {
     dispatch(_setSubscribeSources(sources))
+    flushWebSearchMirror('websearch-set-subscribe-sources')
   }
 
   return {
@@ -101,7 +117,13 @@ export const useWebSearchSettings = () => {
 
   return {
     ...state,
-    setCompressionConfig: (config: CompressionConfig) => dispatch(setCompressionConfig(config)),
-    updateCompressionConfig: (config: Partial<CompressionConfig>) => dispatch(updateCompressionConfig(config))
+    setCompressionConfig: (config: CompressionConfig) => {
+      dispatch(setCompressionConfig(config))
+      flushWebSearchMirror('websearch-set-compression-config')
+    },
+    updateCompressionConfig: (config: Partial<CompressionConfig>) => {
+      dispatch(updateCompressionConfig(config))
+      flushWebSearchMirror('websearch-update-compression-config')
+    }
   }
 }

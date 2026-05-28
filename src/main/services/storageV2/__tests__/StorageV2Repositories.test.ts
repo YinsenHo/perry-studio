@@ -2,7 +2,11 @@ import type { Client } from '@libsql/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { storageV2Database } from '../StorageV2Database'
-import { StorageV2ConversationRepository, StorageV2ProviderRepository } from '../StorageV2Repositories'
+import {
+  StorageV2ConversationRepository,
+  StorageV2KnowledgeRepository,
+  StorageV2ProviderRepository
+} from '../StorageV2Repositories'
 import { storageV2SyncLogService } from '../SyncLogService'
 
 function createMockClient() {
@@ -143,5 +147,94 @@ describe('StorageV2ProviderRepository', () => {
           input.args?.[0] === 'provider-1'
       )
     ).toBe(true)
+  })
+})
+
+describe('StorageV2KnowledgeRepository', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('reconstructs knowledge bases from structured Storage v2 tables', async () => {
+    const execute = vi.fn(async (input: string | { sql: string; args?: unknown[] }) => {
+      const sql = typeof input === 'string' ? input : input.sql
+
+      if (sql.includes('FROM knowledge_bases')) {
+        return {
+          rows: [
+            {
+              id: 'base-1',
+              name: 'Docs',
+              model_id: 'embedding-model',
+              rerank_model_id: 'rerank-model',
+              settings_json: JSON.stringify({
+                id: 'base-1',
+                name: 'Docs',
+                model: { id: 'embedding-model', name: 'Embedding Model' },
+                items: [],
+                created_at: 1760000000000,
+                updated_at: 1760000000100,
+                version: 2
+              }),
+              created_at: '2026-01-01T00:00:00.000Z',
+              updated_at: '2026-01-01T00:00:01.000Z',
+              version: 2
+            }
+          ],
+          columns: [],
+          columnTypes: []
+        }
+      }
+
+      if (sql.includes('FROM knowledge_items')) {
+        return {
+          rows: [
+            {
+              id: 'item-1',
+              knowledge_base_id: 'base-1',
+              source_type: 'url',
+              source_uri: 'https://example.com/docs',
+              file_id: null,
+              content_hash: 'unique-1',
+              status: 'completed',
+              metadata_json: JSON.stringify({
+                id: 'item-1',
+                type: 'url',
+                content: 'https://example.com/docs',
+                created_at: 1760000000200,
+                updated_at: 1760000000300
+              }),
+              created_at: '2026-01-01T00:00:02.000Z',
+              updated_at: '2026-01-01T00:00:03.000Z',
+              version: 1
+            }
+          ],
+          columns: [],
+          columnTypes: []
+        }
+      }
+
+      return { rows: [], columns: [], columnTypes: [] }
+    })
+
+    vi.spyOn(storageV2Database, 'getClient').mockResolvedValue({ execute } as unknown as Client)
+
+    await expect(new StorageV2KnowledgeRepository().listBases()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'base-1',
+        name: 'Docs',
+        model: { id: 'embedding-model', name: 'Embedding Model' },
+        items: [
+          expect.objectContaining({
+            id: 'item-1',
+            baseId: 'base-1',
+            type: 'url',
+            content: 'https://example.com/docs',
+            uniqueId: 'unique-1',
+            processingStatus: 'completed'
+          })
+        ]
+      })
+    ])
   })
 })

@@ -7,6 +7,7 @@ import { DatabaseManager } from '@main/services/agents/database/DatabaseManager'
 import { getDataPath } from '@main/utils'
 
 import { storageV2DataRootService } from './DataRootService'
+import { getAvailablePathSync, movePathSync } from './SafeFileMove'
 import { storageV2SecretVaultService } from './SecretVaultService'
 import { storageV2Database } from './StorageV2Database'
 
@@ -176,10 +177,9 @@ function archiveFileIfExists(source: string, archiveRoot: string, userDataPath: 
 
   const relativePath = path.relative(userDataPath, source)
   const safeRelativePath = relativePath.startsWith('..') ? path.basename(source) : relativePath
-  const target = path.join(archiveRoot, 'agent-runtime', safeRelativePath)
+  const target = getAvailablePathSync(path.join(archiveRoot, 'agent-runtime', safeRelativePath))
 
-  fs.mkdirSync(path.dirname(target), { recursive: true })
-  fs.renameSync(source, target)
+  movePathSync(source, target)
   return target
 }
 

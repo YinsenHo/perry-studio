@@ -37,6 +37,40 @@ const MIRRORED_ACTION_PREFIXES = [
   'translate/',
   'websearch/'
 ]
+const IMMEDIATE_MIRRORED_ACTION_PREFIXES = [
+  'assistants/addAssistant',
+  'assistants/addAssistantPreset',
+  'assistants/insertAssistant',
+  'assistants/removeAssistant',
+  'assistants/removeAssistantPreset',
+  'assistants/setModel',
+  'assistants/updateAssistant',
+  'assistants/updateAssistantPreset',
+  'assistants/updateAssistantPresetSettings',
+  'assistants/updateAssistantSettings',
+  'assistants/updateAssistants',
+  'assistants/updateDefaultAssistant',
+  'backup/',
+  'codeTools/',
+  'copilot/',
+  'inputTools/',
+  'knowledge/',
+  'llm/',
+  'memory/',
+  'mcp/',
+  'minApps/',
+  'note/',
+  'nutstore/',
+  'ocr/',
+  'openclaw/',
+  'paintings/',
+  'preprocess/',
+  'selectionStore/',
+  'settings/',
+  'shortcuts/',
+  'translate/',
+  'websearch/'
+]
 const DEFAULT_DEBOUNCE_MS = 1200
 
 function cloneJson<T>(value: T): T {
@@ -94,6 +128,11 @@ function shouldMirrorAction(action: ReduxAction) {
   return MIRRORED_ACTION_PREFIXES.some((prefix) => action.type!.startsWith(prefix))
 }
 
+function shouldMirrorActionImmediately(action: ReduxAction) {
+  if (!action.type || action.meta?.fromSync) return false
+  return IMMEDIATE_MIRRORED_ACTION_PREFIXES.some((prefix) => action.type!.startsWith(prefix))
+}
+
 class StorageV2MirrorService {
   private timer: ReturnType<typeof setTimeout> | null = null
   private latestGetState: StateGetter | null = null
@@ -109,7 +148,11 @@ class StorageV2MirrorService {
       const reduxAction = action as ReduxAction
 
       if (!this.suspended && shouldMirrorAction(reduxAction)) {
-        this.schedule(() => storeApi.getState() as Record<string, any>)
+        const mirrorImmediately = shouldMirrorActionImmediately(reduxAction)
+        this.schedule(() => storeApi.getState() as Record<string, any>, mirrorImmediately ? 0 : DEFAULT_DEBOUNCE_MS)
+        if (mirrorImmediately) {
+          void this.flush()
+        }
       }
 
       return result

@@ -15,6 +15,7 @@
  * --------------------------------------------------------------------------
  */
 import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
+import { flushStorageV2ReduxMirror } from '@renderer/services/StorageV2ReduxMirrorFlush'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   setAssistantsTabSortType,
@@ -25,14 +26,24 @@ import {
 } from '@renderer/store/settings'
 import type { AssistantsSortType } from '@renderer/types'
 
+const flushStoreSettingsMirror = (reason: string) => {
+  void flushStorageV2ReduxMirror(reason)
+}
+
 export function useShowAssistants() {
   const showAssistants = useAppSelector((state) => state.settings.showAssistants)
   const dispatch = useAppDispatch()
 
   return {
     showAssistants,
-    setShowAssistants: (show: boolean) => dispatch(setShowAssistants(show)),
-    toggleShowAssistants: () => dispatch(toggleShowAssistants())
+    setShowAssistants: (show: boolean) => {
+      dispatch(setShowAssistants(show))
+      flushStoreSettingsMirror('settings-show-assistants')
+    },
+    toggleShowAssistants: () => {
+      dispatch(toggleShowAssistants())
+      flushStoreSettingsMirror('settings-toggle-show-assistants')
+    }
   }
 }
 
@@ -42,8 +53,14 @@ export function useShowTopics() {
 
   return {
     showTopics,
-    setShowTopics: (show: boolean) => dispatch(setShowTopics(show)),
-    toggleShowTopics: () => dispatch(toggleShowTopics())
+    setShowTopics: (show: boolean) => {
+      dispatch(setShowTopics(show))
+      flushStoreSettingsMirror('settings-show-topics')
+    },
+    toggleShowTopics: () => {
+      dispatch(toggleShowTopics())
+      flushStoreSettingsMirror('settings-toggle-show-topics')
+    }
   }
 }
 
@@ -53,7 +70,10 @@ export function useAssistantsTabSortType() {
 
   return {
     assistantsTabSortType,
-    setAssistantsTabSortType: (sortType: AssistantsSortType) => dispatch(setAssistantsTabSortType(sortType))
+    setAssistantsTabSortType: (sortType: AssistantsSortType) => {
+      dispatch(setAssistantsTabSortType(sortType))
+      flushStoreSettingsMirror('settings-assistants-tab-sort-type')
+    }
   }
 }
 

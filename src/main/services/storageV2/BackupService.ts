@@ -21,6 +21,7 @@ import {
   type StorageV2FileLegacyProjectionReport,
   storageV2FileLegacyProjectionService
 } from './FileLegacyProjectionService'
+import { movePathSync } from './SafeFileMove'
 import { scanStorageV2SecretReferences } from './SecretRefIntegrity'
 import { storageV2SecretVaultService } from './SecretVaultService'
 import { storageV2StatisticsService } from './StatisticsService'
@@ -322,8 +323,7 @@ function archivePathIfExists(source: string, archiveRoot: string) {
   if (!fs.existsSync(source)) return false
 
   const target = path.join(archiveRoot, path.basename(source))
-  fs.mkdirSync(path.dirname(target), { recursive: true })
-  fs.renameSync(source, target)
+  movePathSync(source, target)
   return true
 }
 

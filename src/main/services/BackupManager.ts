@@ -589,7 +589,7 @@ class BackupManager {
     const userDataPath = app.getPath('userData')
     const indexedDBDest = path.join(userDataPath, 'IndexedDB.restore')
     const localStorageDest = path.join(userDataPath, 'Local Storage.restore')
-    const dataDest = path.join(userDataPath, 'Data.restore')
+    const dataDest = getDataPath() + '.restore'
 
     try {
       // Read and validate metadata
@@ -692,9 +692,8 @@ class BackupManager {
 
       logger.debug('[restoreLegacy] restore Data directory')
 
-      const userDataPath = app.getPath('userData')
       const dataSourcePath = path.join(this.tempDir, 'Data')
-      const dataDestPath = path.join(userDataPath, 'Data.restore')
+      const dataDestPath = getDataPath() + '.restore'
 
       const dataExists = await fs.pathExists(dataSourcePath)
       const dataFiles = dataExists ? await fs.readdir(dataSourcePath) : []

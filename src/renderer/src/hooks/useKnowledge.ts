@@ -1,8 +1,10 @@
+import { loggerService } from '@logger'
 import { db } from '@renderer/databases'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import { storageV2DexieTableMirrorService } from '@renderer/services/StorageV2DexieTableMirrorService'
 import { storageV2DexieTableRecoveryService } from '@renderer/services/StorageV2DexieTableRecoveryService'
+import { storageV2MirrorService } from '@renderer/services/StorageV2MirrorService'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch } from '@renderer/store'
 import {
@@ -31,6 +33,16 @@ import { useAssistants } from './useAssistant'
 import { useAssistantPresets } from './useAssistantPresets'
 import { useTimer } from './useTimer'
 
+const logger = loggerService.withContext('useKnowledge')
+
+async function flushStorageV2KnowledgeMirror(reason: string) {
+  try {
+    await storageV2MirrorService.flush()
+  } catch (error) {
+    logger.warn(`Failed to flush Storage v2 knowledge mirror: ${reason}`, error as Error)
+  }
+}
+
 async function getKnowledgeNoteWithStorageV2Fallback(noteId: string, reason: string) {
   let note = await db.knowledge_notes.get(noteId)
   if (!note) {
@@ -50,11 +62,13 @@ export const useKnowledge = (baseId: string) => {
   // 重命名知识库
   const renameKnowledgeBase = (name: string) => {
     dispatch(renameBase({ baseId, name }))
+    void flushStorageV2KnowledgeMirror('rename-knowledge-base')
   }
 
   // 更新知识库
-  const updateKnowledgeBase = (base: KnowledgeBase) => {
+  const updateKnowledgeBase = async (base: KnowledgeBase) => {
     dispatch(updateBase(base))
+    await flushStorageV2KnowledgeMirror('update-knowledge-base')
   }
 
   // 检查知识库
@@ -67,12 +81,14 @@ export const useKnowledge = (baseId: string) => {
   // 批量添加文件
   const addFiles = (files: FileMetadata[]) => {
     dispatch(addFilesThunk(baseId, files))
+    void flushStorageV2KnowledgeMirror('add-files')
     checkAllBases()
   }
 
   // 添加笔记
   const addNote = async (content: string) => {
     await dispatch(addNoteThunk(baseId, content))
+    await flushStorageV2KnowledgeMirror('add-note')
     // 确保数据库写入完成后再触发队列检查
     setTimeout(() => KnowledgeQueue.checkAllBases(), 100)
   }
@@ -80,24 +96,28 @@ export const useKnowledge = (baseId: string) => {
   // 添加URL
   const addUrl = (url: string) => {
     dispatch(addItemThunk(baseId, 'url', url))
+    void flushStorageV2KnowledgeMirror('add-url')
     checkAllBases()
   }
 
   // 添加 Sitemap
   const addSitemap = (url: string) => {
     dispatch(addItemThunk(baseId, 'sitemap', url))
+    void flushStorageV2KnowledgeMirror('add-sitemap')
     checkAllBases()
   }
 
   // Add directory support
   const addDirectory = (path: string) => {
     dispatch(addItemThunk(baseId, 'directory', path))
+    void flushStorageV2KnowledgeMirror('add-directory')
     checkAllBases()
   }
 
   // add video support
   const addVideo = (files: FileMetadata[]) => {
     dispatch(addVedioThunk(baseId, 'video', files))
+    void flushStorageV2KnowledgeMirror('add-video')
     checkAllBases()
   }
 
@@ -111,7 +131,10 @@ export const useKnowledge = (baseId: string) => {
         updated_at: Date.now()
       }
       await db.knowledge_notes.put(updatedNote)
+      storageV2DexieTableMirrorService.scheduleRow('knowledge_notes', updatedNote.id, 0)
+      await storageV2DexieTableMirrorService.flush()
       dispatch(updateNotes({ baseId, item: updatedNote }))
+      await flushStorageV2KnowledgeMirror('update-note-content')
     }
     const noteItem = base?.items.find((item) => item.id === noteId)
     void (noteItem && refreshItem(noteItem))
@@ -124,6 +147,7 @@ export const useKnowledge = (baseId: string) => {
 
   const updateItem = (item: KnowledgeItem) => {
     dispatch(updateItemAction({ baseId, item }))
+    void flushStorageV2KnowledgeMirror('update-item')
   }
 
   // 移除项目
@@ -132,7 +156,9 @@ export const useKnowledge = (baseId: string) => {
     if (isKnowledgeNoteItem(item)) {
       await db.knowledge_notes.delete(item.id)
       storageV2DexieTableMirrorService.scheduleDelete('knowledge_notes', item.id)
+      await storageV2DexieTableMirrorService.flush()
     }
+    await flushStorageV2KnowledgeMirror('remove-item')
 
     if (!base || !item?.uniqueId || !item?.uniqueIds) {
       return
@@ -184,6 +210,7 @@ export const useKnowledge = (baseId: string) => {
         retryCount: 0,
         updated_at: Date.now()
       })
+      void flushStorageV2KnowledgeMirror('refresh-item')
       checkAllBases()
     }
 
@@ -204,6 +231,7 @@ export const useKnowledge = (baseId: string) => {
       retryCount: 0,
       updated_at: Date.now()
     })
+    void flushStorageV2KnowledgeMirror('refresh-item')
     setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
   }
 
@@ -261,6 +289,7 @@ export const useKnowledge = (baseId: string) => {
     } satisfies KnowledgeBase
 
     dispatch(addBase(migratedBase))
+    await flushStorageV2KnowledgeMirror('migrate-base-create')
 
     const files: FileMetadata[] = []
 
@@ -277,6 +306,7 @@ export const useKnowledge = (baseId: string) => {
             const note = await getKnowledgeNoteWithStorageV2Fallback(item.id, 'knowledge-note-migrate-missing')
             const content = note?.content || ''
             await dispatch(addNoteThunk(newBase.id, content))
+            await flushStorageV2KnowledgeMirror('migrate-base-add-note')
           } catch (error) {
             throw new Error(`Failed to migrate note item ${item.id}: ${error}`)
           }
@@ -285,6 +315,7 @@ export const useKnowledge = (baseId: string) => {
           if (typeof item.content === 'string') {
             try {
               dispatch(addItemThunk(newBase.id, item.type, item.content))
+              await flushStorageV2KnowledgeMirror('migrate-base-add-item')
             } catch (error) {
               throw new Error(`Failed to migrate item ${item.id}: ${error}`)
             }
@@ -298,6 +329,7 @@ export const useKnowledge = (baseId: string) => {
     try {
       if (files.length > 0) {
         dispatch(addFilesThunk(newBase.id, files))
+        await flushStorageV2KnowledgeMirror('migrate-base-add-files')
       }
     } catch (error) {
       throw new Error(`Failed to migrate files ${files}: ${error}`)
@@ -362,15 +394,17 @@ export const useKnowledgeBases = () => {
   const { assistants, updateAssistants } = useAssistants()
   const { presets, setAssistantPresets } = useAssistantPresets()
 
-  const addKnowledgeBase = (base: KnowledgeBase) => {
+  const addKnowledgeBase = async (base: KnowledgeBase) => {
     dispatch(addBase(base))
+    await flushStorageV2KnowledgeMirror('add-knowledge-base')
   }
 
-  const renameKnowledgeBase = (baseId: string, name: string) => {
+  const renameKnowledgeBase = async (baseId: string, name: string) => {
     dispatch(renameBase({ baseId, name }))
+    await flushStorageV2KnowledgeMirror('rename-knowledge-base')
   }
 
-  const deleteKnowledgeBase = (baseId: string) => {
+  const deleteKnowledgeBase = async (baseId: string) => {
     const base = bases.find((b) => b.id === baseId)
     if (!base) return
     dispatch(deleteBase({ baseId }))
@@ -379,8 +413,9 @@ export const useKnowledgeBases = () => {
     if (noteIds.length > 0) {
       void db.knowledge_notes
         .bulkDelete(noteIds)
-        .then(() => {
+        .then(async () => {
           storageV2DexieTableMirrorService.scheduleDeletes('knowledge_notes', noteIds)
+          await storageV2DexieTableMirrorService.flush()
         })
         .catch(() => undefined)
     }
@@ -409,10 +444,12 @@ export const useKnowledgeBases = () => {
 
     updateAssistants(_assistants)
     setAssistantPresets(_presets)
+    await flushStorageV2KnowledgeMirror('delete-knowledge-base')
   }
 
   const updateKnowledgeBases = (bases: KnowledgeBase[]) => {
     dispatch(updateBases(bases))
+    void flushStorageV2KnowledgeMirror('update-knowledge-bases')
   }
 
   return {

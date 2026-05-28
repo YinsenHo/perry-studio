@@ -113,7 +113,9 @@ export const addCustomLanguage = async (
   langCode: string
 ): Promise<CustomTranslateLanguage> => {
   // 按langcode判重
-  const existing = await db.translate_languages.where('langCode').equals(langCode).first()
+  const normalizedLangCode = langCode.toLowerCase()
+  const languages = await getAllCustomLanguages()
+  const existing = languages.find((language) => language.langCode.toLowerCase() === normalizedLangCode)
   if (existing) {
     logger.error(`Custom language ${langCode} exists.`)
     throw new Error(t('settings.translate.custom.error.langCode.exists'))
@@ -122,10 +124,12 @@ export const addCustomLanguage = async (
       const item = {
         id: uuid(),
         value,
-        langCode: langCode.toLowerCase(),
+        langCode: normalizedLangCode,
         emoji
       }
       await db.translate_languages.add(item)
+      storageV2DexieTableMirrorService.scheduleRow('translate_languages', item.id, 0)
+      await storageV2DexieTableMirrorService.flush()
       return item
     } catch (e) {
       logger.error('Failed to add custom language.', e as Error)
@@ -142,6 +146,8 @@ export const addCustomLanguage = async (
 export const deleteCustomLanguage = async (id: string) => {
   try {
     await db.translate_languages.delete(id)
+    storageV2DexieTableMirrorService.scheduleDelete('translate_languages', id)
+    await storageV2DexieTableMirrorService.flush()
   } catch (e) {
     logger.error('Delete custom language failed.', e as Error)
     throw e
@@ -169,6 +175,8 @@ export const updateCustomLanguage = async (
       langCode: langCode.toLowerCase(),
       emoji
     })
+    storageV2DexieTableMirrorService.scheduleRow('translate_languages', old.id, 0)
+    await storageV2DexieTableMirrorService.flush()
   } catch (e) {
     logger.error('Update custom language failed.', e as Error)
     throw e
@@ -221,6 +229,8 @@ export const saveTranslateHistory = async (
     createdAt: new Date().toISOString()
   }
   await db.translate_history.add(history)
+  storageV2DexieTableMirrorService.scheduleRow('translate_history', history.id, 0)
+  await storageV2DexieTableMirrorService.flush()
 }
 
 export const recoverTranslateHistoryIfEmpty = async () => {
@@ -240,6 +250,8 @@ export const updateTranslateHistory = async (id: string, update: Omit<Partial<Tr
       id
     }
     await db.translate_history.update(id, history)
+    storageV2DexieTableMirrorService.scheduleRow('translate_history', id, 0)
+    await storageV2DexieTableMirrorService.flush()
   } catch (e) {
     logger.error('Failed to update translate history', e as Error)
     throw e
@@ -255,6 +267,7 @@ export const deleteHistory = async (id: string) => {
   try {
     await db.translate_history.delete(id)
     storageV2DexieTableMirrorService.scheduleDelete('translate_history', id)
+    await storageV2DexieTableMirrorService.flush()
   } catch (e) {
     logger.error('Failed to delete translate history', e as Error)
     throw e
@@ -272,4 +285,5 @@ export const clearHistory = async () => {
     'translate_history',
     histories.map((history) => history.id)
   )
+  await storageV2DexieTableMirrorService.flush()
 }

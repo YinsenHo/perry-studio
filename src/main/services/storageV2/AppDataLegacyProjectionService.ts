@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import { AppDataDatabase, getAppDataDatabase } from '@main/services/appData/AppDataDatabase'
 import { getDataPath } from '@main/utils'
 
+import { getAvailablePathSync, movePathSync } from './SafeFileMove'
 import { storageV2SecretVaultService } from './SecretVaultService'
 import { storageV2Database } from './StorageV2Database'
 
@@ -86,9 +87,8 @@ function getAppDbPath() {
 function archiveFileIfExists(source: string, archiveRoot: string) {
   if (!fs.existsSync(source)) return null
 
-  const target = path.join(archiveRoot, 'app-runtime', 'Data', path.basename(source))
-  fs.mkdirSync(path.dirname(target), { recursive: true })
-  fs.renameSync(source, target)
+  const target = getAvailablePathSync(path.join(archiveRoot, 'app-runtime', 'Data', path.basename(source)))
+  movePathSync(source, target)
   return target
 }
 

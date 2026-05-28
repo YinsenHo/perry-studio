@@ -84,4 +84,32 @@ describe('StorageV2MirrorService', () => {
 
     expect(importLegacyReduxSnapshot).toHaveBeenCalledTimes(1)
   })
+
+  it('flushes high-value settings actions without waiting for debounce', async () => {
+    const { storageV2MirrorService } = await import('../StorageV2MirrorService')
+    const middleware = storageV2MirrorService.createMiddleware()({
+      dispatch: vi.fn(),
+      getState: createState
+    } as any)(vi.fn((action) => action))
+
+    middleware({ type: 'settings/setS3Partial' })
+
+    await vi.waitFor(() => {
+      expect(importLegacyReduxSnapshot).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('flushes persisted redux configuration slices without waiting for debounce', async () => {
+    const { storageV2MirrorService } = await import('../StorageV2MirrorService')
+    const middleware = storageV2MirrorService.createMiddleware()({
+      dispatch: vi.fn(),
+      getState: createState
+    } as any)(vi.fn((action) => action))
+
+    middleware({ type: 'minApps/setPinnedMinApps' })
+
+    await vi.waitFor(() => {
+      expect(importLegacyReduxSnapshot).toHaveBeenCalledTimes(1)
+    })
+  })
 })

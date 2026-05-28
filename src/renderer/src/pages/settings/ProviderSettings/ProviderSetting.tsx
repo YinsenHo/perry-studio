@@ -15,6 +15,7 @@ import AnthropicSettings from '@renderer/pages/settings/ProviderSettings/Anthrop
 import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
 import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
+import { flushStorageV2ReduxMirror } from '@renderer/services/StorageV2ReduxMirrorFlush'
 import { useAppDispatch } from '@renderer/store'
 import { updateWebSearchProvider } from '@renderer/store/websearch'
 import type { SystemProviderId } from '@renderer/types'
@@ -138,7 +139,10 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
 
   const updateWebSearchProviderKey = useCallback(
     ({ apiKey }: { apiKey: string }) => {
-      provider.id === 'zhipu' && dispatch(updateWebSearchProvider({ id: 'zhipu', apiKey: apiKey.split(',')[0] }))
+      if (provider.id !== 'zhipu') return
+
+      dispatch(updateWebSearchProvider({ id: 'zhipu', apiKey: apiKey.split(',')[0] }))
+      void flushStorageV2ReduxMirror('websearch-zhipu-provider-key')
     },
     [dispatch, provider.id]
   )

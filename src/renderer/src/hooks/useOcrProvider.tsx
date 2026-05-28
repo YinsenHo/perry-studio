@@ -4,6 +4,7 @@ import PaddleocrLogo from '@renderer/assets/images/providers/paddleocr.png'
 import TesseractLogo from '@renderer/assets/images/providers/Tesseract.js.png'
 import { BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { getBuiltinOcrProviderLabel } from '@renderer/i18n/label'
+import { flushStorageV2ReduxMirror } from '@renderer/services/StorageV2ReduxMirrorFlush'
 import { useAppSelector } from '@renderer/store'
 import { addOcrProvider, removeOcrProvider, setImageOcrProviderId, updateOcrProviderConfig } from '@renderer/store/ocr'
 import type { ImageOcrProvider, OcrProvider, OcrProviderConfig } from '@renderer/types'
@@ -15,6 +16,10 @@ import { useTranslation } from 'react-i18next'
 import { useDispatch } from 'react-redux'
 
 const logger = loggerService.withContext('useOcrProvider')
+
+const flushOcrMirror = (reason: string) => {
+  void flushStorageV2ReduxMirror(reason)
+}
 
 export const useOcrProviders = () => {
   const providers = useAppSelector((state) => state.ocr.providers)
@@ -38,6 +43,7 @@ export const useOcrProviders = () => {
         throw new Error(msg)
       }
       dispatch(addOcrProvider(provider))
+      flushOcrMirror('ocr-add-provider')
     },
     [dispatch, providers, t]
   )
@@ -56,13 +62,17 @@ export const useOcrProviders = () => {
     }
 
     dispatch(removeOcrProvider(id))
+    flushOcrMirror('ocr-remove-provider')
   }
 
   const setImageProviderId = useCallback(
     (id: string) => {
+      if (id === imageProviderId) return
+
       dispatch(setImageOcrProviderId(id))
+      flushOcrMirror('ocr-set-image-provider')
     },
-    [dispatch]
+    [dispatch, imageProviderId]
   )
 
   const getOcrProviderName = (p: OcrProvider) => {
@@ -139,6 +149,7 @@ export const useOcrProvider = (id: string) => {
 
   const updateConfig = (update: Partial<OcrProviderConfig>) => {
     dispatch(updateOcrProviderConfig({ id: provider.id, update }))
+    flushOcrMirror('ocr-update-provider-config')
   }
 
   return {

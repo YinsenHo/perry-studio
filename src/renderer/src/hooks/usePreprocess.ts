@@ -1,3 +1,4 @@
+import { flushStorageV2ReduxMirror } from '@renderer/services/StorageV2ReduxMirrorFlush'
 import type { RootState } from '@renderer/store'
 import { syncPreprocessProvider as _syncPreprocessProvider } from '@renderer/store/knowledge'
 import {
@@ -7,6 +8,10 @@ import {
 } from '@renderer/store/preprocess'
 import type { PreprocessProvider, PreprocessProviderId } from '@renderer/types'
 import { useDispatch, useSelector } from 'react-redux'
+
+const flushPreprocessMirror = (reason: string) => {
+  void flushStorageV2ReduxMirror(reason)
+}
 
 export const usePreprocessProvider = (id: PreprocessProviderId) => {
   const dispatch = useDispatch()
@@ -25,6 +30,7 @@ export const usePreprocessProvider = (id: PreprocessProviderId) => {
       if (updates.apiHost || updates.apiKey || updates.model) {
         dispatch(_syncPreprocessProvider(payload))
       }
+      flushPreprocessMirror('preprocess-update-provider')
     }
   }
 }
@@ -34,8 +40,10 @@ export const usePreprocessProviders = () => {
   const preprocessProviders = useSelector((state: RootState) => state.preprocess.providers)
   return {
     preprocessProviders: preprocessProviders,
-    updatePreprocessProviders: (preprocessProviders: PreprocessProvider[]) =>
+    updatePreprocessProviders: (preprocessProviders: PreprocessProvider[]) => {
       dispatch(_updatePreprocessProviders(preprocessProviders))
+      flushPreprocessMirror('preprocess-update-providers')
+    }
   }
 }
 
@@ -49,9 +57,11 @@ export const useDefaultPreprocessProvider = () => {
 
   const setDefaultPreprocessProvider = (preprocessProvider: PreprocessProvider) => {
     dispatch(_setDefaultPreprocessProvider(preprocessProvider.id))
+    flushPreprocessMirror('preprocess-default-provider')
   }
   const updateDefaultPreprocessProvider = (preprocessProvider: PreprocessProvider) => {
     dispatch(_updatePreprocessProvider(preprocessProvider))
+    flushPreprocessMirror('preprocess-update-default-provider')
   }
   return { provider, setDefaultPreprocessProvider, updateDefaultPreprocessProvider }
 }

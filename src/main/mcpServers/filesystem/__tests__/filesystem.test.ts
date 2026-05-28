@@ -30,6 +30,26 @@ describe('filesystem MCP security', () => {
     expect(resolveFilesystemBaseDir([], {})).toBeUndefined()
   })
 
+  it('uses the stable Data workspace for the default filesystem server root', async () => {
+    vi.resetModules()
+    const dataRoot = await createTempDir('filesystem-stable-data-')
+    const mkdirSpy = vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined)
+
+    vi.doMock('@main/utils', () => ({
+      getDataPath: vi.fn((subPath?: string) => (subPath ? path.join(dataRoot, subPath) : dataRoot))
+    }))
+
+    try {
+      const { FileSystemServer } = await import('../server')
+      const server = new FileSystemServer()
+
+      expect((server as any).baseDir).toBe(path.join(dataRoot, 'Workspace'))
+      expect(mkdirSpy).toHaveBeenCalledWith(path.join(dataRoot, 'Workspace'), { recursive: true })
+    } finally {
+      vi.doUnmock('@main/utils')
+    }
+  })
+
   it('allows paths inside the configured root and rejects paths outside it', async () => {
     const workspaceRoot = await createTempDir('filesystem-root-')
     const outsideRoot = await createTempDir('filesystem-outside-')

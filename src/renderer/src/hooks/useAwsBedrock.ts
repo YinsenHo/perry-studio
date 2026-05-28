@@ -1,3 +1,4 @@
+import { flushStorageV2ReduxMirror } from '@renderer/services/StorageV2ReduxMirrorFlush'
 import store, { useAppSelector } from '@renderer/store'
 import {
   setAwsBedrockAccessKeyId,
@@ -15,11 +16,26 @@ export function useAwsBedrockSettings() {
 
   return {
     ...settings,
-    setAuthType: (authType: AwsBedrockAuthType) => dispatch(setAwsBedrockAuthType(authType)),
-    setAccessKeyId: (accessKeyId: string) => dispatch(setAwsBedrockAccessKeyId(accessKeyId)),
-    setSecretAccessKey: (secretAccessKey: string) => dispatch(setAwsBedrockSecretAccessKey(secretAccessKey)),
-    setApiKey: (apiKey: string) => dispatch(setAwsBedrockApiKey(apiKey)),
-    setRegion: (region: string) => dispatch(setAwsBedrockRegion(region))
+    setAuthType: (authType: AwsBedrockAuthType) => {
+      dispatch(setAwsBedrockAuthType(authType))
+      void flushStorageV2ReduxMirror('aws-bedrock-auth-type')
+    },
+    setAccessKeyId: (accessKeyId: string) => {
+      dispatch(setAwsBedrockAccessKeyId(accessKeyId))
+      void flushStorageV2ReduxMirror('aws-bedrock-access-key-id')
+    },
+    setSecretAccessKey: (secretAccessKey: string) => {
+      dispatch(setAwsBedrockSecretAccessKey(secretAccessKey))
+      void flushStorageV2ReduxMirror('aws-bedrock-secret-access-key')
+    },
+    setApiKey: (apiKey: string) => {
+      dispatch(setAwsBedrockApiKey(apiKey))
+      void flushStorageV2ReduxMirror('aws-bedrock-api-key')
+    },
+    setRegion: (region: string) => {
+      dispatch(setAwsBedrockRegion(region))
+      void flushStorageV2ReduxMirror('aws-bedrock-region')
+    }
   }
 }
 

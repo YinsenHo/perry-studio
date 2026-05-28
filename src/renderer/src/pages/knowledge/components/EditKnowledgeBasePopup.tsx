@@ -89,7 +89,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ base: _base, resolve })
     } else {
       try {
         logger.debug('newbase', newBase)
-        updateKnowledgeBase(newBase)
+        await updateKnowledgeBase(newBase)
         setOpen(false)
         resolve(newBase)
       } catch (error) {

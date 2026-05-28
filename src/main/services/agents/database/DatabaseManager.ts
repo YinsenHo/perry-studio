@@ -28,6 +28,8 @@ import { DataMigrationService } from './DataMigrationService'
 import { MigrationService } from './MigrationService'
 import * as schema from './schema'
 
+const SQLITE_AUXILIARY_SUFFIXES = ['-wal', '-shm'] as const
+
 function getDbPath() {
   return path.join(getDataPath(), 'agents.db')
 }
@@ -81,8 +83,9 @@ export class DatabaseManager {
   }
 
   /**
-   * Migrate agents.db from old path ({userData}/agents.db) to new path ({userData}/Data/agents.db).
-   * Only moves when old path exists and new path does not. Also handles -wal and -shm auxiliary files.
+   * Migrate agents.db from old userData path to the stable Storage v2 data root.
+   * If the stable database already exists, archive the legacy copy instead of
+   * overwriting active agent data.
    */
   private static migrateFromOldPath(): void {
     if (isDev) {
@@ -91,24 +94,59 @@ export class DatabaseManager {
 
     const oldPath = getOldDbPath()
     const dbPath = getDbPath()
-    if (!fs.existsSync(oldPath) || fs.existsSync(dbPath)) {
+    if (!fs.existsSync(oldPath)) {
       return
     }
 
     const dbDir = path.dirname(dbPath)
-    if (!fs.existsSync(dbDir)) {
-      fs.mkdirSync(dbDir, { recursive: true })
+    DatabaseManager.ensureDir(dbDir)
+
+    if (fs.existsSync(dbPath)) {
+      const archiveDir = path.join(dbDir, 'legacy', `pre-storage-v2-agents-${Date.now()}`)
+      DatabaseManager.moveDatabaseFiles(oldPath, path.join(archiveDir, 'agents.db'))
+      logger.warn('Archived old agents database because the Storage v2 agents database already exists', {
+        oldPath,
+        archiveDir,
+        dbPath
+      })
+      return
     }
 
     logger.info(`Migrating agents.db from ${oldPath} to ${dbPath}`)
-    fs.renameSync(oldPath, dbPath)
+    DatabaseManager.moveDatabaseFiles(oldPath, dbPath)
+  }
+
+  private static moveDatabaseFiles(sourceMainDbPath: string, targetMainDbPath: string): void {
+    DatabaseManager.moveFile(sourceMainDbPath, targetMainDbPath)
 
     // SQLite WAL mode auxiliary files: -wal (write-ahead log with uncommitted data) and -shm (shared memory index)
-    for (const suffix of ['-wal', '-shm']) {
-      const oldAux = oldPath + suffix
-      if (fs.existsSync(oldAux)) {
-        fs.renameSync(oldAux, dbPath + suffix)
+    for (const suffix of SQLITE_AUXILIARY_SUFFIXES) {
+      const sourcePath = `${sourceMainDbPath}${suffix}`
+      if (fs.existsSync(sourcePath)) {
+        DatabaseManager.moveFile(sourcePath, `${targetMainDbPath}${suffix}`)
       }
+    }
+  }
+
+  private static moveFile(sourcePath: string, targetPath: string): void {
+    DatabaseManager.ensureDir(path.dirname(targetPath))
+
+    try {
+      fs.renameSync(sourcePath, targetPath)
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'EXDEV') {
+        fs.copyFileSync(sourcePath, targetPath)
+        fs.unlinkSync(sourcePath)
+        return
+      }
+
+      throw error
+    }
+  }
+
+  private static ensureDir(dirPath: string): void {
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true })
     }
   }
 

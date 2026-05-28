@@ -4,6 +4,10 @@ import i18n from '@renderer/i18n'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { safeDeleteFiles } from '@renderer/services/MessagesService'
+import {
+  fetchStorageV2TopicMessages,
+  hydrateStorageV2ConversationsIfDexieEmpty
+} from '@renderer/services/StorageV2ConversationHydrationService'
 import { storageV2ConversationMirrorService } from '@renderer/services/StorageV2ConversationMirrorService'
 import store from '@renderer/store'
 import { updateTopic } from '@renderer/store/assistants'
@@ -196,11 +200,29 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
 // 只有静态方法,没必要用class，可以export {}
 export const TopicManager = {
   async getTopic(id: string) {
-    return await db.topics.get(id)
+    let topic = await db.topics.get(id)
+    if (topic) {
+      return topic
+    }
+
+    const restored = await fetchStorageV2TopicMessages(id)
+    if (!restored) {
+      return undefined
+    }
+
+    topic = await db.topics.get(id)
+    return topic ?? { id, messages: restored.messages }
   },
 
   async getAllTopics() {
-    return await db.topics.toArray()
+    let topics = await db.topics.toArray()
+    if (topics.length > 0) {
+      return topics
+    }
+
+    await hydrateStorageV2ConversationsIfDexieEmpty('topic-manager-empty-list')
+    topics = await db.topics.toArray()
+    return topics
   },
 
   /**

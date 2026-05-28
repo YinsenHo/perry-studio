@@ -80,7 +80,7 @@ export class StorageV2MigrationAuditService {
   async runAudit(): Promise<StorageV2MigrationAudit> {
     const userDataPath = app.getPath('userData')
     const dataRootInfo = storageV2DataRootService.resolveDataRoot()
-    const dataPath = path.join(userDataPath, 'Data')
+    const dataPath = dataRootInfo.dataRoot
 
     const items = await Promise.all([
       auditPath('indexeddb', 'Chromium IndexedDB', path.join(userDataPath, 'IndexedDB')),

@@ -8,7 +8,9 @@ const mocks = vi.hoisted(() => ({
   fs: {
     existsSync: vi.fn(),
     readFileSync: vi.fn(),
+    readdirSync: vi.fn(),
     mkdirSync: vi.fn(),
+    statSync: vi.fn(),
     writeFileSync: vi.fn(),
     renameSync: vi.fn()
   }
@@ -45,12 +47,19 @@ describe('StorageV2DataRootService', () => {
     mocks.getDefaultDataPath.mockReturnValue('/mock/appData/Cherry Studio Pi/Data')
     vi.mocked(app.getPath).mockImplementation((key: string) => {
       if (key === 'appData') return '/mock/appData'
+      if (key === 'home') return '/mock/home'
       if (key === 'userData') return '/mock/appData/Cherry Studio Pi'
       return '/mock/unknown'
     })
     vi.mocked(fs.existsSync).mockReturnValue(false)
     vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(manifest))
+    vi.mocked(fs.readdirSync).mockReturnValue([])
     vi.mocked(fs.mkdirSync).mockReturnValue(undefined as never)
+    vi.mocked(fs.statSync).mockReturnValue({
+      isDirectory: () => false,
+      isFile: () => true,
+      size: 1
+    } as never)
     vi.mocked(fs.writeFileSync).mockReturnValue(undefined as never)
     vi.mocked(fs.renameSync).mockReturnValue(undefined as never)
   })
@@ -79,6 +88,18 @@ describe('StorageV2DataRootService', () => {
 
     expect(info.dataRoot).toBe('/mock/appData/Cherry Studio Pi/Data')
     expect(info.source).toBe('current-user-data')
+  })
+
+  it('treats a Storage v2 main database as existing data even when the manifest is missing', async () => {
+    vi.mocked(fs.existsSync).mockImplementation(
+      (candidate) => String(candidate) === '/mock/appData/Perry Studio/Data/main.db'
+    )
+
+    const { StorageV2DataRootService } = await import('../DataRootService')
+    const info = new StorageV2DataRootService().resolveDataRoot()
+
+    expect(info.dataRoot).toBe('/mock/appData/Perry Studio/Data')
+    expect(info.source).toBe('legacy-user-data')
   })
 
   it('prefers an existing Storage v2 manifest over legacy data candidates', async () => {
@@ -124,6 +145,105 @@ describe('StorageV2DataRootService', () => {
     expect(info.source).toBe('config')
   })
 
+  it('accepts active configured roots written by legacy Perry Studio builds', async () => {
+    const configPath = '/mock/home/.cherrystudio/config/config.json'
+    vi.mocked(fs.existsSync).mockImplementation((candidate) =>
+      [configPath, '/mock/perry-custom-root', '/mock/perry-custom-root/main.db'].includes(String(candidate))
+    )
+    vi.mocked(fs.readFileSync).mockImplementation((candidate) => {
+      if (String(candidate) === configPath) {
+        return JSON.stringify({
+          dataRoots: [
+            {
+              app: 'perry-studio',
+              profileId: 'default',
+              path: '/mock/perry-custom-root',
+              active: true
+            }
+          ]
+        })
+      }
+
+      return JSON.stringify(manifest)
+    })
+
+    const { StorageV2DataRootService } = await import('../DataRootService')
+    const info = new StorageV2DataRootService().resolveDataRoot()
+
+    expect(info.dataRoot).toBe('/mock/perry-custom-root')
+    expect(info.source).toBe('config')
+  })
+
+  it('does not let an empty configured root shadow real data in the current root', async () => {
+    const configPath = '/mock/home/.cherrystudio/config/config.json'
+    const currentRoot = '/mock/appData/Cherry Studio Pi/Data'
+    vi.mocked(fs.existsSync).mockImplementation((candidate) =>
+      [configPath, '/mock/configured-root', `${currentRoot}/agents.db`].includes(String(candidate))
+    )
+    vi.mocked(fs.readFileSync).mockImplementation((candidate) => {
+      if (String(candidate) === configPath) {
+        return JSON.stringify({
+          dataRoots: [
+            {
+              app: 'cherry-studio-pi',
+              profileId: 'default',
+              path: '/mock/configured-root',
+              active: true
+            }
+          ]
+        })
+      }
+
+      return JSON.stringify(manifest)
+    })
+
+    const { StorageV2DataRootService } = await import('../DataRootService')
+    const info = new StorageV2DataRootService().resolveDataRoot()
+
+    expect(info.dataRoot).toBe(currentRoot)
+    expect(info.source).toBe('current-user-data')
+  })
+
+  it('does not count empty data directories as real runtime data', async () => {
+    const configPath = '/mock/home/.cherrystudio/config/config.json'
+    const configuredRoot = '/mock/stale-root'
+    const currentRoot = '/mock/appData/Cherry Studio Pi/Data'
+    vi.mocked(fs.existsSync).mockImplementation((candidate) =>
+      [configPath, configuredRoot, `${configuredRoot}/Files`, `${currentRoot}/app.db`].includes(String(candidate))
+    )
+    vi.mocked(fs.statSync).mockImplementation(
+      (candidate) =>
+        ({
+          isDirectory: () => String(candidate).endsWith('/Files'),
+          isFile: () => !String(candidate).endsWith('/Files'),
+          size: 1
+        }) as never
+    )
+    vi.mocked(fs.readdirSync).mockReturnValue([])
+    vi.mocked(fs.readFileSync).mockImplementation((candidate) => {
+      if (String(candidate) === configPath) {
+        return JSON.stringify({
+          dataRoots: [
+            {
+              app: 'cherry-studio-pi',
+              profileId: 'default',
+              path: configuredRoot,
+              active: true
+            }
+          ]
+        })
+      }
+
+      return JSON.stringify(manifest)
+    })
+
+    const { StorageV2DataRootService } = await import('../DataRootService')
+    const info = new StorageV2DataRootService().resolveDataRoot()
+
+    expect(info.dataRoot).toBe(currentRoot)
+    expect(info.source).toBe('current-user-data')
+  })
+
   it('registers a restored current data root as active', async () => {
     const configPath = '/mock/home/.cherrystudio/config/config.json'
     const restoredRoot = '/mock/appData/Cherry Studio Pi/Data'
@@ -136,7 +256,7 @@ describe('StorageV2DataRootService', () => {
         return JSON.stringify({
           dataRoots: [
             {
-              app: 'cherry-studio-pi',
+              app: 'perry-studio',
               profileId: 'default',
               path: configuredRoot,
               active: true,

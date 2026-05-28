@@ -38,10 +38,54 @@ export function expandHome(filepath: string): string {
   return filepath
 }
 
+function isPathInside(targetPath: string, rootPath: string): boolean {
+  const relativePath = path.relative(rootPath, targetPath)
+  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
+}
+
+async function nearestExistingPath(targetPath: string): Promise<string | null> {
+  let currentPath = targetPath
+
+  while (true) {
+    try {
+      await fs.lstat(currentPath)
+      return currentPath
+    } catch (error) {
+      if (!error || typeof error !== 'object' || !('code' in error) || error.code !== 'ENOENT') {
+        throw error
+      }
+
+      const parentPath = path.dirname(currentPath)
+      if (parentPath === currentPath) {
+        return null
+      }
+      currentPath = parentPath
+    }
+  }
+}
+
 export async function validatePath(requestedPath: string, baseDir?: string): Promise<string> {
   const expandedPath = expandHome(requestedPath)
   const root = expandHome(baseDir ?? process.cwd())
-  return path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(root, expandedPath)
+  const resolvedRoot = path.resolve(root)
+  const resolvedPath = path.isAbsolute(expandedPath)
+    ? path.resolve(expandedPath)
+    : path.resolve(resolvedRoot, expandedPath)
+
+  if (!isPathInside(resolvedPath, resolvedRoot)) {
+    throw new Error(`Path is outside the configured workspace root: ${requestedPath}`)
+  }
+
+  const realRoot = await fs.realpath(resolvedRoot).catch(() => resolvedRoot)
+  const existingPath = await nearestExistingPath(resolvedPath)
+  if (existingPath) {
+    const realExistingPath = await fs.realpath(existingPath)
+    if (!isPathInside(realExistingPath, realRoot)) {
+      throw new Error(`Path is outside the configured workspace root: ${requestedPath}`)
+    }
+  }
+
+  return resolvedPath
 }
 
 // ============================================================================

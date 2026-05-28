@@ -9,6 +9,7 @@ import {
 import { db } from '@renderer/databases'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { storageV2ConversationMirrorService } from '@renderer/services/StorageV2ConversationMirrorService'
+import { flushStorageV2ReduxMirror } from '@renderer/services/StorageV2ReduxMirrorFlush'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addAssistant,
@@ -43,6 +44,10 @@ const scheduleStorageV2TopicMirrors = (topicIds: Iterable<string | undefined>) =
   storageV2ConversationMirrorService.scheduleTopics(topicIds, () => store.getState())
 }
 
+const flushAssistantMirror = (reason: string) => {
+  void flushStorageV2ReduxMirror(reason)
+}
+
 const pickFallbackModel = (providers: Provider[]): Model | undefined => {
   const provider = providers.find(
     (provider) =>
@@ -63,9 +68,18 @@ export function useAssistants() {
 
   return {
     assistants,
-    updateAssistants: (assistants: Assistant[]) => dispatch(updateAssistants(assistants)),
-    addAssistant: (assistant: Assistant) => dispatch(addAssistant(assistant)),
-    insertAssistant: (index: number, assistant: Assistant) => dispatch(insertAssistant({ index, assistant })),
+    updateAssistants: (assistants: Assistant[]) => {
+      dispatch(updateAssistants(assistants))
+      flushAssistantMirror('assistants-update-list')
+    },
+    addAssistant: (assistant: Assistant) => {
+      dispatch(addAssistant(assistant))
+      flushAssistantMirror('assistants-add')
+    },
+    insertAssistant: (index: number, assistant: Assistant) => {
+      dispatch(insertAssistant({ index, assistant }))
+      flushAssistantMirror('assistants-insert')
+    },
     copyAssistant: (assistant: Assistant): Assistant | undefined => {
       if (!assistant) {
         logger.error("assistant doesn't exists.")
@@ -76,10 +90,12 @@ export function useAssistants() {
       if (index === -1) {
         logger.warn("Origin assistant's id not found. Fallback to addAssistant.")
         dispatch(addAssistant(_assistant))
+        flushAssistantMirror('assistants-copy')
       } else {
         // 插入到后面
         try {
           dispatch(insertAssistant({ index: index + 1, assistant: _assistant }))
+          flushAssistantMirror('assistants-copy')
         } catch (e) {
           logger.error('Failed to insert assistant', e as Error)
           window.toast.error(t('message.error.copy'))
@@ -89,6 +105,7 @@ export function useAssistants() {
     },
     removeAssistant: (id: string) => {
       dispatch(removeAssistant({ id }))
+      flushAssistantMirror('assistants-remove')
       const assistant = assistants.find((a) => a.id === id)
       const topics = assistant?.topics || []
       topics.forEach(({ id }) => TopicManager.removeTopic(id))
@@ -124,7 +141,10 @@ export function useAssistant(id: string) {
 
   const updateAssistantSettings = useCallback(
     (settings: Partial<AssistantSettings>) => {
-      assistant?.id && dispatch(_updateAssistantSettings({ assistantId: assistant.id, settings }))
+      if (!assistant?.id) return
+
+      dispatch(_updateAssistantSettings({ assistantId: assistant.id, settings }))
+      flushAssistantMirror('assistant-settings-update')
     },
     [assistant?.id, dispatch]
   )
@@ -212,11 +232,19 @@ export function useAssistant(id: string) {
     },
     removeAllTopics: () => dispatch(removeAllTopics({ assistantId: assistant.id })),
     setModel: useCallback(
-      (model: Model) => assistant && dispatch(setModel({ assistantId: assistant?.id, model })),
+      (model: Model) => {
+        if (!assistant) return
+
+        dispatch(setModel({ assistantId: assistant.id, model }))
+        flushAssistantMirror('assistant-set-model')
+      },
       [assistant, dispatch]
     ),
     updateAssistant: useCallback(
-      (update: Partial<Omit<Assistant, 'id'>>) => dispatch(updateAssistant({ id, ...update })),
+      (update: Partial<Omit<Assistant, 'id'>>) => {
+        dispatch(updateAssistant({ id, ...update }))
+        flushAssistantMirror('assistant-update')
+      },
       [dispatch, id]
     ),
     updateAssistantSettings
@@ -233,7 +261,10 @@ export function useDefaultAssistant() {
       ...defaultAssistant,
       topics: memoizedTopics
     },
-    updateDefaultAssistant: (assistant: Assistant) => dispatch(updateDefaultAssistant({ assistant }))
+    updateDefaultAssistant: (assistant: Assistant) => {
+      dispatch(updateDefaultAssistant({ assistant }))
+      flushAssistantMirror('default-assistant-update')
+    }
   }
 }
 
@@ -246,8 +277,17 @@ export function useDefaultModel() {
     defaultModel: defaultModel ?? fallbackModel,
     quickModel: quickModel ?? fallbackModel,
     translateModel: translateModel ?? fallbackModel,
-    setDefaultModel: (model: Model) => dispatch(setDefaultModel({ model })),
-    setQuickModel: (model: Model) => dispatch(setQuickModel({ model })),
-    setTranslateModel: (model: Model) => dispatch(setTranslateModel({ model }))
+    setDefaultModel: (model: Model) => {
+      dispatch(setDefaultModel({ model }))
+      flushAssistantMirror('llm-default-model')
+    },
+    setQuickModel: (model: Model) => {
+      dispatch(setQuickModel({ model }))
+      flushAssistantMirror('llm-quick-model')
+    },
+    setTranslateModel: (model: Model) => {
+      dispatch(setTranslateModel({ model }))
+      flushAssistantMirror('llm-translate-model')
+    }
   }
 }

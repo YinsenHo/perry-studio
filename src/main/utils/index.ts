@@ -8,6 +8,7 @@ import { app } from 'electron'
 const STORAGE_FORMAT = 'cherry-studio-pi-storage'
 const STORAGE_VERSION = 2
 const STORAGE_APP_ID = 'cherry-studio-pi'
+const COMPATIBLE_STORAGE_APP_IDS = new Set([STORAGE_APP_ID, 'perry-studio', 'cherry-studio'])
 const KNOWN_DATA_ROOT_NAMES = [
   'Cherry Studio Pi',
   'CherryStudioPi',
@@ -72,10 +73,36 @@ function hasStorageV2Manifest(dataRoot: string) {
   return manifest?.format === STORAGE_FORMAT && manifest.version === STORAGE_VERSION
 }
 
+function hasDataEntry(entryPath: string) {
+  if (!fs.existsSync(entryPath)) return false
+
+  try {
+    const stats = fs.statSync(entryPath)
+    if (stats.isDirectory()) {
+      return fs.readdirSync(entryPath).length > 0
+    }
+    if (stats.isFile()) {
+      return stats.size > 0
+    }
+    return true
+  } catch {
+    return true
+  }
+}
+
 function hasLegacyRuntimeData(dataRoot: string) {
-  return ['main.db', 'agents.db', 'app.db', 'Files', 'KnowledgeBase', 'Memory', 'Skills', 'Agents'].some((entry) =>
-    fs.existsSync(path.join(dataRoot, entry))
-  )
+  return [
+    'main.db',
+    'agents.db',
+    'app.db',
+    'blobs',
+    'secrets',
+    'Files',
+    'KnowledgeBase',
+    'Memory',
+    'Skills',
+    'Agents'
+  ].some((entry) => hasDataEntry(path.join(dataRoot, entry)))
 }
 
 function getGlobalConfigPath() {
@@ -88,7 +115,7 @@ function getConfiguredDataRoots(): string[] {
 
   return config.dataRoots
     .filter((entry) => entry.active !== false)
-    .filter((entry) => !entry.app || entry.app === STORAGE_APP_ID)
+    .filter((entry) => !entry.app || COMPATIBLE_STORAGE_APP_IDS.has(entry.app))
     .map((entry) => entry.path)
     .filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
 }
@@ -117,9 +144,10 @@ function resolveRuntimeDataRoot() {
 
   return (
     uniqueCandidates.find((candidate) => hasStorageV2Manifest(candidate)) ??
-    uniqueCandidates.find((candidate) => configuredDataRootSet.has(candidate) && fs.existsSync(candidate)) ??
+    uniqueCandidates.find((candidate) => configuredDataRootSet.has(candidate) && hasLegacyRuntimeData(candidate)) ??
     uniqueCandidates.find((candidate) => candidate === resolvedDefaultDataRoot && hasLegacyRuntimeData(candidate)) ??
     uniqueCandidates.find((candidate) => candidate !== resolvedDefaultDataRoot && hasLegacyRuntimeData(candidate)) ??
+    uniqueCandidates.find((candidate) => configuredDataRootSet.has(candidate) && fs.existsSync(candidate)) ??
     defaultDataRoot
   )
 }

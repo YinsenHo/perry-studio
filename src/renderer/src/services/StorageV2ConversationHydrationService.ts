@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import db from '@renderer/databases'
-import type { FileMetadata } from '@renderer/types'
+import type { FileMetadata, Topic } from '@renderer/types'
 import {
   AssistantMessageStatus,
   type Message,
@@ -15,10 +15,15 @@ import { listStorageV2Conversations, listStorageV2Messages } from './StorageV2Se
 
 const logger = loggerService.withContext('StorageV2ConversationHydrationService')
 let filesPathPromise: Promise<string | null> | null = null
+let hydrateConversationsPromise: Promise<boolean> | null = null
 
 type StorageV2StoredConversation = {
   id: string
   ownerId?: string
+  title?: string | null
+  createdAt?: string
+  updatedAt?: string | null
+  pinned?: boolean
 }
 
 type StorageV2StoredMessageBlock = {
@@ -41,6 +46,11 @@ type StorageV2StoredMessage = {
   updatedAt?: string | null
   blocks: StorageV2StoredMessageBlock[]
 }
+
+type DexieConversationTopic = {
+  id: string
+  messages: Message[]
+} & Partial<Topic>
 
 function isRecord(value: unknown): value is Record<string, any> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
@@ -172,7 +182,38 @@ async function getStorageV2Conversation(topicId: string) {
   return conversations.find((conversation) => conversation.id === topicId) ?? null
 }
 
-async function seedDexieTopic(topicId: string, messages: Message[], blocks: MessageBlock[]) {
+function toDexieTopic(
+  topicId: string,
+  messages: Message[],
+  conversation?: StorageV2StoredConversation | null
+): DexieConversationTopic {
+  const firstMessage = messages[0]
+  const lastMessage = messages.at(-1)
+  const createdAt = conversation?.createdAt ?? firstMessage?.createdAt ?? new Date().toISOString()
+  const updatedAt = conversation?.updatedAt ?? lastMessage?.updatedAt ?? lastMessage?.createdAt ?? createdAt
+
+  const topic: DexieConversationTopic = {
+    id: topicId,
+    assistantId: conversation?.ownerId ?? firstMessage?.assistantId ?? '',
+    name: conversation?.title || topicId,
+    createdAt,
+    updatedAt,
+    messages
+  }
+
+  if (typeof conversation?.pinned === 'boolean') {
+    topic.pinned = conversation.pinned
+  }
+
+  return topic
+}
+
+async function seedDexieTopic(
+  topicId: string,
+  messages: Message[],
+  blocks: MessageBlock[],
+  conversation?: StorageV2StoredConversation | null
+) {
   const files = collectFilesFromBlocks(blocks)
 
   await db.transaction('rw', db.topics, db.message_blocks, db.files, async () => {
@@ -194,10 +235,7 @@ async function seedDexieTopic(topicId: string, messages: Message[], blocks: Mess
       await db.files.bulkPut(files)
     }
 
-    await db.topics.put({
-      id: topicId,
-      messages
-    })
+    await db.topics.put(toDexieTopic(topicId, messages, conversation))
   })
 }
 
@@ -241,43 +279,131 @@ export async function fetchStorageV2TopicMessages(
   blocks: MessageBlock[]
 } | null> {
   try {
-    const storedMessages = await listAllStorageV2Messages(topicId)
     const conversation = await getStorageV2Conversation(topicId)
     if (!conversation) return null
 
-    if (storedMessages.length === 0) {
-      if (options.seedDexie !== false) {
-        await seedDexieTopic(topicId, [], [])
-      }
-
-      return {
-        messages: [],
-        blocks: []
-      }
-    }
-
-    const assistantId = conversation.ownerId ?? ''
-    const blocks = await normalizeBlocksForRuntime(
-      storedMessages.flatMap((message) => message.blocks.map(toMessageBlock))
-    )
-    const messages = storedMessages.map((message) => toMessage(topicId, assistantId, message))
-
-    if (options.seedDexie !== false) {
-      await seedDexieTopic(topicId, messages, blocks)
-    }
-
-    logger.info('Hydrated topic messages from Storage v2', {
-      topicId,
-      messageCount: messages.length,
-      blockCount: blocks.length
-    })
-
-    return {
-      messages,
-      blocks
-    }
+    return await fetchStorageV2TopicMessagesForConversation(conversation, options)
   } catch (error) {
     logger.warn('Failed to hydrate topic messages from Storage v2', error as Error)
     return null
   }
+}
+
+async function fetchStorageV2TopicMessagesForConversation(
+  conversation: StorageV2StoredConversation,
+  options: {
+    seedDexie?: boolean
+  } = {}
+): Promise<{
+  messages: Message[]
+  blocks: MessageBlock[]
+} | null> {
+  const topicId = conversation.id
+  const storedMessages = await listAllStorageV2Messages(topicId)
+
+  if (storedMessages.length === 0) {
+    if (options.seedDexie !== false) {
+      await seedDexieTopic(topicId, [], [], conversation)
+    }
+
+    return {
+      messages: [],
+      blocks: []
+    }
+  }
+
+  const assistantId = conversation.ownerId ?? ''
+  const blocks = await normalizeBlocksForRuntime(
+    storedMessages.flatMap((message) => message.blocks.map(toMessageBlock))
+  )
+  const messages = storedMessages.map((message) => toMessage(topicId, assistantId, message))
+
+  if (options.seedDexie !== false) {
+    await seedDexieTopic(topicId, messages, blocks, conversation)
+  }
+
+  logger.info('Hydrated topic messages from Storage v2', {
+    topicId,
+    messageCount: messages.length,
+    blockCount: blocks.length
+  })
+
+  return {
+    messages,
+    blocks
+  }
+}
+
+async function shouldHydrateDexieConversationCache() {
+  const topicCount = await db.topics.count()
+  if (topicCount === 0) return true
+
+  const blockCount = await db.message_blocks.count()
+  if (blockCount > 0) return false
+
+  const topics = await db.topics.toArray()
+  return topics.some((topic) => topic.messages?.some((message) => (message.blocks?.length ?? 0) > 0))
+}
+
+export async function hydrateStorageV2ConversationsIfDexieEmpty(reason: string): Promise<boolean> {
+  if (hydrateConversationsPromise) {
+    return hydrateConversationsPromise
+  }
+
+  hydrateConversationsPromise = (async () => {
+    try {
+      const shouldHydrateAll = await shouldHydrateDexieConversationCache()
+
+      const conversations = (await listStorageV2Conversations({
+        ownerType: 'assistant'
+      })) as StorageV2StoredConversation[]
+
+      if (conversations.length === 0) {
+        return false
+      }
+
+      const existingDexieTopics = shouldHydrateAll
+        ? new Map<string, DexieConversationTopic>()
+        : new Map((await db.topics.toArray()).map((topic) => [topic.id, topic as DexieConversationTopic]))
+      const conversationsToHydrate = shouldHydrateAll
+        ? conversations
+        : conversations.filter((conversation) => {
+            const existingTopic = existingDexieTopics.get(conversation.id)
+            return !existingTopic || (existingTopic.messages?.length ?? 0) === 0
+          })
+
+      if (conversationsToHydrate.length === 0) {
+        return false
+      }
+
+      let hydratedCount = 0
+
+      for (const conversation of conversationsToHydrate) {
+        try {
+          const result = await fetchStorageV2TopicMessagesForConversation(conversation)
+          if (result) {
+            hydratedCount += 1
+          }
+        } catch (error) {
+          logger.warn('Failed to hydrate assistant conversation from Storage v2', error as Error)
+        }
+      }
+
+      if (hydratedCount > 0) {
+        logger.info('Hydrated assistant conversations from Storage v2 into Dexie cache', {
+          reason,
+          conversationCount: hydratedCount
+        })
+      }
+
+      return hydratedCount > 0
+    } catch (error) {
+      logger.warn('Failed to hydrate assistant conversations from Storage v2', error as Error)
+      return false
+    } finally {
+      hydrateConversationsPromise = null
+    }
+  })()
+
+  return hydrateConversationsPromise
 }

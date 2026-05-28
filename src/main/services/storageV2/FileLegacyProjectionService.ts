@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import { getFilesDir } from '@main/utils/file'
 
 import { storageV2DataRootService } from './DataRootService'
+import { getAvailablePathSync, movePathSync } from './SafeFileMove'
 import { storageV2Database } from './StorageV2Database'
 
 export type StorageV2FileLegacyProjectionReport = {
@@ -101,9 +102,8 @@ async function archiveExistingFileIfDifferent(
 
   if (await fileMatchesBlob(target, expectedSize, expectedChecksum)) return
 
-  const archivePath = path.join(archiveRoot, 'file-runtime', 'Files', path.basename(target))
-  fs.mkdirSync(path.dirname(archivePath), { recursive: true })
-  fs.renameSync(target, archivePath)
+  const archivePath = getAvailablePathSync(path.join(archiveRoot, 'file-runtime', 'Files', path.basename(target)))
+  movePathSync(target, archivePath)
   report.archivedFileCount++
   report.archivedFiles.push(archivePath)
 }

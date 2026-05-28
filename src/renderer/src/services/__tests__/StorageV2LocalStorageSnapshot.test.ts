@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   applyStorageV2LocalStorageSnapshot,
   flushStorageV2LocalStorageMirror,
-  getStorageV2LocalStorageSnapshot
+  getStorageV2LocalStorageSnapshot,
+  scheduleStorageV2LocalStorageMirror
 } from '../StorageV2LocalStorageSnapshot'
 
 describe('StorageV2LocalStorageSnapshot', () => {
@@ -107,5 +108,24 @@ describe('StorageV2LocalStorageSnapshot', () => {
       },
       { dryRun: false }
     )
+  })
+
+  it('flushes scheduled durable localStorage mirrors immediately by default', async () => {
+    const importLegacyReduxSnapshot = vi.fn().mockResolvedValue({ dryRun: false })
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        storageV2: {
+          importLegacyReduxSnapshot
+        }
+      }
+    })
+    localStorage.setItem('privacy-popup-accepted', 'true')
+
+    scheduleStorageV2LocalStorageMirror()
+
+    await vi.waitFor(() => {
+      expect(importLegacyReduxSnapshot).toHaveBeenCalledTimes(1)
+    })
   })
 })

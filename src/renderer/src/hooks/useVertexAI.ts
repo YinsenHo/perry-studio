@@ -1,3 +1,4 @@
+import { flushStorageV2ReduxMirror } from '@renderer/services/StorageV2ReduxMirrorFlush'
 import store, { useAppSelector } from '@renderer/store'
 import {
   setVertexAILocation,
@@ -14,10 +15,22 @@ export function useVertexAISettings() {
 
   return {
     ...settings,
-    setProjectId: (projectId: string) => dispatch(setVertexAIProjectId(projectId)),
-    setLocation: (location: string) => dispatch(setVertexAILocation(location)),
-    setServiceAccountPrivateKey: (privateKey: string) => dispatch(setVertexAIServiceAccountPrivateKey(privateKey)),
-    setServiceAccountClientEmail: (clientEmail: string) => dispatch(setVertexAIServiceAccountClientEmail(clientEmail))
+    setProjectId: (projectId: string) => {
+      dispatch(setVertexAIProjectId(projectId))
+      void flushStorageV2ReduxMirror('vertex-ai-project-id')
+    },
+    setLocation: (location: string) => {
+      dispatch(setVertexAILocation(location))
+      void flushStorageV2ReduxMirror('vertex-ai-location')
+    },
+    setServiceAccountPrivateKey: (privateKey: string) => {
+      dispatch(setVertexAIServiceAccountPrivateKey(privateKey))
+      void flushStorageV2ReduxMirror('vertex-ai-service-account-private-key')
+    },
+    setServiceAccountClientEmail: (clientEmail: string) => {
+      dispatch(setVertexAIServiceAccountClientEmail(clientEmail))
+      void flushStorageV2ReduxMirror('vertex-ai-service-account-client-email')
+    }
   }
 }
 

@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -16,6 +15,7 @@ const STORAGE_FORMAT = 'cherry-studio-pi-storage'
 const STORAGE_VERSION = 2
 const STORAGE_APP_ID = 'cherry-studio-pi'
 const STORAGE_PRODUCT_NAME = 'Cherry Studio Pi'
+const COMPATIBLE_STORAGE_APP_IDS = new Set([STORAGE_APP_ID, 'perry-studio', 'cherry-studio'])
 
 type DataRootConfigEntry = {
   app?: string
@@ -45,10 +45,36 @@ function readJson<T>(filePath: string): T | null {
   }
 }
 
+function hasDataEntry(entryPath: string): boolean {
+  if (!fs.existsSync(entryPath)) return false
+
+  try {
+    const stats = fs.statSync(entryPath)
+    if (stats.isDirectory()) {
+      return fs.readdirSync(entryPath).length > 0
+    }
+    if (stats.isFile()) {
+      return stats.size > 0
+    }
+    return true
+  } catch {
+    return true
+  }
+}
+
 function hasLegacyData(dataRoot: string): boolean {
-  return ['agents.db', 'app.db', 'Files', 'KnowledgeBase', 'Memory', 'Skills', 'Agents'].some((entry) =>
-    fs.existsSync(path.join(dataRoot, entry))
-  )
+  return [
+    'main.db',
+    'agents.db',
+    'app.db',
+    'blobs',
+    'secrets',
+    'Files',
+    'KnowledgeBase',
+    'Memory',
+    'Skills',
+    'Agents'
+  ].some((entry) => hasDataEntry(path.join(dataRoot, entry)))
 }
 
 function hasManifest(dataRoot: string): boolean {
@@ -74,7 +100,7 @@ function makeCandidate(
 }
 
 function getConfigPath() {
-  return path.join(os.homedir(), HOME_CHERRY_DIR, 'config', 'config.json')
+  return path.join(app.getPath('home'), HOME_CHERRY_DIR, 'config', 'config.json')
 }
 
 function getConfiguredDataRoots(): string[] {
@@ -86,7 +112,7 @@ function getConfiguredDataRoots(): string[] {
 
   const activeRoots = config.dataRoots
     .filter((entry) => entry.active !== false)
-    .filter((entry) => !entry.app || entry.app === STORAGE_APP_ID)
+    .filter((entry) => !entry.app || COMPATIBLE_STORAGE_APP_IDS.has(entry.app))
     .map((entry) => entry.path)
   return activeRoots.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
 }
@@ -139,9 +165,10 @@ export class StorageV2DataRootService {
     const selected =
       candidates.find((candidate) => candidate.source === 'env') ??
       candidates.find((candidate) => candidate.hasManifest) ??
-      candidates.find((candidate) => candidate.source === 'config' && candidate.exists) ??
+      candidates.find((candidate) => candidate.source === 'config' && candidate.hasLegacyData) ??
       candidates.find((candidate) => candidate.source === 'current-user-data' && candidate.hasLegacyData) ??
       candidates.find((candidate) => candidate.source === 'legacy-user-data' && candidate.hasLegacyData) ??
+      candidates.find((candidate) => candidate.source === 'config' && candidate.exists) ??
       candidates.find((candidate) => candidate.source === 'current-user-data')!
 
     return {
@@ -258,7 +285,10 @@ export class StorageV2DataRootService {
         return nextEntry
       }
 
-      if (entry.app === STORAGE_APP_ID && (entry.profileId ?? 'default') === manifest.profileId) {
+      if (
+        (!entry.app || COMPATIBLE_STORAGE_APP_IDS.has(entry.app)) &&
+        (entry.profileId ?? 'default') === manifest.profileId
+      ) {
         return {
           ...entry,
           active: false,

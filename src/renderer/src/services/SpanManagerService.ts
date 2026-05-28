@@ -8,6 +8,7 @@ import { context, SpanStatusCode, trace } from '@opentelemetry/api'
 import { db } from '@renderer/databases'
 import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { fetchStorageV2TopicMessages } from '@renderer/services/StorageV2ConversationHydrationService'
 import { handleResult } from '@renderer/trace/dataHandler/CommonResultHandler'
 import { handleMessageStream } from '@renderer/trace/dataHandler/MessageStreamHandler'
 import { handleStream } from '@renderer/trace/dataHandler/StreamHandler'
@@ -79,7 +80,11 @@ class SpanManagerService {
     if (message.role === 'user') {
       await window.api.trace.cleanHistory(message.topicId, message.traceId)
 
-      const topic = await db.topics.get(message.topicId)
+      let topic = await db.topics.get(message.topicId)
+      if (!topic) {
+        const restored = await fetchStorageV2TopicMessages(message.topicId)
+        topic = restored ? { id: message.topicId, messages: restored.messages } : undefined
+      }
       _models = topic?.messages.filter((m) => m.role === 'assistant' && m.askId === message.id).map((m) => m.model)
     } else {
       _models = [message.model]
@@ -138,11 +143,21 @@ class SpanManagerService {
   private async _getContentFromMessage(message: Message, content?: string): Promise<StartSpanParams> {
     let _content = content
     if (!_content) {
-      const blocks = await Promise.all(
+      let blocks = await Promise.all(
         message.blocks.map(async (blockId) => {
           return await db.message_blocks.get(blockId)
         })
       )
+      if (!blocks.some(Boolean)) {
+        const restored = await fetchStorageV2TopicMessages(message.topicId)
+        if (restored) {
+          blocks = await Promise.all(
+            message.blocks.map(async (blockId) => {
+              return await db.message_blocks.get(blockId)
+            })
+          )
+        }
+      }
       _content = blocks.find((data) => data?.type === MessageBlockType.MAIN_TEXT)?.content
     }
     return {

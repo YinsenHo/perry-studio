@@ -3,9 +3,14 @@ import db from '@renderer/databases'
 import type { QuickPhrase } from '@renderer/types'
 import { v4 as uuidv4 } from 'uuid'
 
+import { storageV2DexieTableMirrorService } from './StorageV2DexieTableMirrorService'
 import { storageV2DexieTableRecoveryService } from './StorageV2DexieTableRecoveryService'
 
 const logger = loggerService.withContext('QuickPhraseService')
+
+function sortQuickPhrases(phrases: QuickPhrase[]) {
+  return phrases.sort((a, b) => (b.order ?? 0) - (a.order ?? 0))
+}
 
 export class QuickPhraseService {
   private static _isInitialized: boolean = false
@@ -36,7 +41,7 @@ export class QuickPhraseService {
         phrases = await db.quick_phrases.toArray()
       }
     }
-    return phrases.sort((a, b) => (b.order ?? 0) - (a.order ?? 0))
+    return sortQuickPhrases(phrases)
   }
 
   static async add(data: Pick<QuickPhrase, 'title' | 'content'>): Promise<QuickPhrase> {
@@ -61,6 +66,11 @@ export class QuickPhraseService {
     }
 
     await db.quick_phrases.add(phrase)
+    for (const existingPhrase of phrases) {
+      storageV2DexieTableMirrorService.scheduleRow('quick_phrases', existingPhrase.id, 0)
+    }
+    storageV2DexieTableMirrorService.scheduleRow('quick_phrases', phrase.id, 0)
+    await storageV2DexieTableMirrorService.flush()
     return phrase
   }
 
@@ -70,11 +80,14 @@ export class QuickPhraseService {
       ...data,
       updatedAt: Date.now()
     })
+    storageV2DexieTableMirrorService.scheduleRow('quick_phrases', id, 0)
+    await storageV2DexieTableMirrorService.flush()
   }
 
   static async delete(id: string): Promise<void> {
     await db.quick_phrases.delete(id)
-    const phrases = await this.getAll()
+    storageV2DexieTableMirrorService.scheduleDelete('quick_phrases', id)
+    const phrases = sortQuickPhrases(await db.quick_phrases.toArray())
     await Promise.all(
       phrases.map((phrase, index) =>
         db.quick_phrases.update(phrase.id, {
@@ -82,6 +95,7 @@ export class QuickPhraseService {
         })
       )
     )
+    await storageV2DexieTableMirrorService.flush()
   }
 
   static async updateOrder(phrases: QuickPhrase[]): Promise<void> {
@@ -95,6 +109,10 @@ export class QuickPhraseService {
         })
       )
     )
+    for (const phrase of phrases) {
+      storageV2DexieTableMirrorService.scheduleRow('quick_phrases', phrase.id, 0)
+    }
+    await storageV2DexieTableMirrorService.flush()
   }
 }
 

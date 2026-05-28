@@ -32,7 +32,7 @@ import { DynamicFormRender } from './components/DynamicFormRender'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { DEFAULT_TOKENFLUX_PAINTING, type TokenFluxModel } from './config/tokenFluxConfig'
-import { checkProviderEnabled } from './utils'
+import { checkProviderEnabled, cleanupReplacedPaintingFiles } from './utils'
 import TokenFluxService from './utils/TokenFluxService'
 
 const logger = loggerService.withContext('TokenFluxPage')
@@ -125,6 +125,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const onGenerate = async () => {
     await checkProviderEnabled(tokenfluxProvider, t)
 
+    let filesToDeleteAfterSuccess: typeof painting.files = []
+
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
         content: t('paintings.regenerate.confirm'),
@@ -132,7 +134,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       })
 
       if (!confirmed) return
-      await FileManager.deleteFiles(painting.files)
+      filesToDeleteAfterSuccess = painting.files
     }
 
     const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
@@ -179,6 +181,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
         const validFiles = await tokenFluxService.downloadImages(urls)
         await FileManager.addFiles(validFiles)
         updatePaintingState({ files: validFiles, urls, status: 'succeeded' })
+        await cleanupReplacedPaintingFiles(filesToDeleteAfterSuccess, validFiles)
       }
 
       setIsLoading(false)

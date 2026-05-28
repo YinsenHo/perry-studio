@@ -33,7 +33,7 @@ import {
   TOP_UP_URL,
   ZHIPU_PAINTING_MODELS
 } from './config/ZhipuConfig'
-import { checkProviderEnabled } from './utils'
+import { checkProviderEnabled, cleanupReplacedPaintingFiles } from './utils'
 
 const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { zhipu_paintings, addPainting, removePainting, updatePainting } = usePaintings()
@@ -94,13 +94,15 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     // 检查是否需要重新生成（如果已有图片）
+    let filesToDeleteAfterSuccess: typeof painting.files = []
+
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
         content: t('paintings.regenerate.confirm'),
         centered: true
       })
       if (!confirmed) return
-      await FileManager.deleteFiles(painting.files)
+      filesToDeleteAfterSuccess = painting.files
     }
 
     setIsLoading(true)
@@ -196,6 +198,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         }
 
         updatePaintingState(newPainting)
+        await cleanupReplacedPaintingFiles(filesToDeleteAfterSuccess, validFiles)
       }
     } catch (error) {
       if (error instanceof Error && error.name !== 'AbortError') {

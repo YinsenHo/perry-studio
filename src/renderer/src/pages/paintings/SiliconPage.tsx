@@ -39,7 +39,7 @@ import { SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
-import { checkProviderEnabled } from './utils'
+import { checkProviderEnabled, cleanupReplacedPaintingFiles } from './utils'
 
 export const TEXT_TO_IMAGES_MODELS = [
   {
@@ -157,6 +157,8 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const onGenerate = async () => {
     await checkProviderEnabled(siliconFlowProvider, t)
 
+    let filesToDeleteAfterSuccess: typeof painting.files = []
+
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
         content: t('paintings.regenerate.confirm'),
@@ -167,7 +169,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
         return
       }
 
-      await FileManager.deleteFiles(painting.files)
+      filesToDeleteAfterSuccess = painting.files
     }
 
     const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
@@ -237,6 +239,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
         await FileManager.addFiles(validFiles)
 
         updatePaintingState({ files: validFiles, urls })
+        await cleanupReplacedPaintingFiles(filesToDeleteAfterSuccess, validFiles)
       }
     } catch (error: unknown) {
       if (error instanceof Error && error.name !== 'AbortError') {

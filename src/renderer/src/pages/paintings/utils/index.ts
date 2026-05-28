@@ -1,3 +1,5 @@
+import FileManager from '@renderer/services/FileManager'
+import { storageV2MirrorService } from '@renderer/services/StorageV2MirrorService'
 import type { FileMetadata, Provider } from '@renderer/types'
 import type { TFunction } from 'i18next'
 import { isEmpty } from 'lodash'
@@ -34,4 +36,19 @@ export function findPaintingByFiles<T extends { providerId?: string; files: Read
       painting.files.length === files.length &&
       painting.files.every((file, index) => file.id === files[index]?.id)
   )
+}
+
+export async function cleanupReplacedPaintingFiles(
+  oldFiles: ReadonlyArray<FileMetadata> | undefined,
+  replacementFiles: ReadonlyArray<Pick<FileMetadata, 'id'>> = []
+): Promise<void> {
+  const replacementIds = new Set(replacementFiles.map((file) => file.id))
+  const filesToDelete = (oldFiles ?? []).filter((file) => file.id && !replacementIds.has(file.id))
+
+  if (filesToDelete.length === 0) {
+    return
+  }
+
+  await storageV2MirrorService.flushStrict()
+  await FileManager.deleteFiles(filesToDelete)
 }

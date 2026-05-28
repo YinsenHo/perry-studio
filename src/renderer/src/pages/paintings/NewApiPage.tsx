@@ -44,7 +44,7 @@ import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import ProviderSelect from './components/ProviderSelect'
-import { checkProviderEnabled, findPaintingByFiles } from './utils'
+import { checkProviderEnabled, cleanupReplacedPaintingFiles, findPaintingByFiles } from './utils'
 
 const logger = loggerService.withContext('NewApiPage')
 
@@ -266,6 +266,8 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const onGenerate = async () => {
     await checkProviderEnabled(newApiProvider, t)
 
+    let filesToDeleteAfterSuccess: typeof painting.files = []
+
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
         content: t('paintings.regenerate.confirm'),
@@ -273,7 +275,12 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       })
 
       if (!confirmed) return
-      await FileManager.deleteFiles(painting.files)
+      filesToDeleteAfterSuccess = painting.files
+    }
+
+    const cleanupFilesAfterSuccessfulUpdate = async (files: FileMetadata[]) => {
+      await cleanupReplacedPaintingFiles(filesToDeleteAfterSuccess, files)
+      filesToDeleteAfterSuccess = []
     }
 
     const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
@@ -379,6 +386,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
         const validFiles = await downloadImages(urls)
         await FileManager.addFiles(validFiles)
         updatePaintingState({ files: validFiles, urls })
+        await cleanupFilesAfterSuccessfulUpdate(validFiles)
       }
 
       if (base64s?.length > 0) {
@@ -389,6 +397,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
         )
         await FileManager.addFiles(validFiles)
         updatePaintingState({ files: validFiles, urls: [] })
+        await cleanupFilesAfterSuccessfulUpdate(validFiles)
       }
     } catch (error: unknown) {
       handleError(error)

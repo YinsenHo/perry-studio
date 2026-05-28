@@ -38,7 +38,7 @@ import {
   STYLE_TYPE_OPTIONS,
   TOP_UP_URL
 } from './config/DmxapiConfig'
-import { checkProviderEnabled } from './utils'
+import { checkProviderEnabled, cleanupReplacedPaintingFiles } from './utils'
 
 const generateRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
 
@@ -550,12 +550,15 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       checkProviderStatus()
 
       // 处理已有文件
+      let filesToDeleteAfterSuccess: typeof painting.files = []
+
       if (painting.files.length > 0 && !painting.autoCreate) {
         const confirmed = await window.modal.confirm({
           content: t('paintings.regenerate.confirm'),
           centered: true
         })
         if (!confirmed) return
+        filesToDeleteAfterSuccess = painting.files
       }
 
       setIsLoading(true)
@@ -582,12 +585,10 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             await FileManager.addFiles(validFiles)
             getNewPaintingPanel({ files: validFiles, urls })
           } else {
-            // 删除之前的图片
-            await FileManager.deleteFiles(painting.files)
-
             // 保存文件并更新状态
             await FileManager.addFiles(validFiles)
             updatePaintingState({ files: validFiles, urls })
+            await cleanupReplacedPaintingFiles(filesToDeleteAfterSuccess, validFiles)
           }
         } else {
           window.toast.warning(t('paintings.req_error_text'))

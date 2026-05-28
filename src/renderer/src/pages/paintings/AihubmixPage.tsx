@@ -36,7 +36,7 @@ import Artboard from './components/Artboard'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { type ConfigItem, createModeConfigs, DEFAULT_PAINTING } from './config/aihubmixConfig'
-import { checkProviderEnabled } from './utils'
+import { checkProviderEnabled, cleanupReplacedPaintingFiles } from './utils'
 
 const logger = loggerService.withContext('AihubmixPage')
 
@@ -144,6 +144,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const onGenerate = async () => {
     await checkProviderEnabled(aihubmixProvider, t)
 
+    let filesToDeleteAfterSuccess: typeof painting.files = []
+
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
         content: t('paintings.regenerate.confirm'),
@@ -151,7 +153,12 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       })
 
       if (!confirmed) return
-      await FileManager.deleteFiles(painting.files)
+      filesToDeleteAfterSuccess = painting.files
+    }
+
+    const cleanupFilesAfterSuccessfulUpdate = async (files: FileMetadata[]) => {
+      await cleanupReplacedPaintingFiles(filesToDeleteAfterSuccess, files)
+      filesToDeleteAfterSuccess = []
     }
 
     const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
@@ -199,6 +206,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             )
             await FileManager.addFiles(validFiles)
             updatePaintingState({ files: validFiles, urls: [] })
+            await cleanupFilesAfterSuccessfulUpdate(validFiles)
           }
           return
         } else if (painting.model === 'gemini-3-pro-image-preview') {
@@ -267,6 +275,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             )
             await FileManager.addFiles(validFiles)
             updatePaintingState({ files: validFiles, urls: [] })
+            await cleanupFilesAfterSuccessfulUpdate(validFiles)
           }
           return
         } else if (painting.model === 'V_3') {
@@ -351,6 +360,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               const validFiles = await downloadImages(urls)
               await FileManager.addFiles(validFiles)
               updatePaintingState({ files: validFiles, urls })
+              await cleanupFilesAfterSuccessfulUpdate(validFiles)
             }
             return
           } catch (error: unknown) {
@@ -480,6 +490,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             const validFiles = await downloadImages(urls)
             await FileManager.addFiles(validFiles)
             updatePaintingState({ files: validFiles, urls })
+            await cleanupFilesAfterSuccessfulUpdate(validFiles)
           }
           return
         } else {
@@ -552,6 +563,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           )
           await FileManager.addFiles(validFiles)
           updatePaintingState({ files: validFiles, urls: [] })
+          await cleanupFilesAfterSuccessfulUpdate(validFiles)
           return
         }
         const urls = data.data.filter((item) => item.url).map((item) => item.url)
@@ -561,6 +573,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           const validFiles = await downloadImages(urls)
           await FileManager.addFiles(validFiles)
           updatePaintingState({ files: validFiles, urls })
+          await cleanupFilesAfterSuccessfulUpdate(validFiles)
         }
 
         if (base64s?.length > 0) {
@@ -571,6 +584,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           )
           await FileManager.addFiles(validFiles)
           updatePaintingState({ files: validFiles, urls: [] })
+          await cleanupFilesAfterSuccessfulUpdate(validFiles)
         }
       }
     } catch (error: unknown) {

@@ -38,6 +38,7 @@ import {
   getOvmsModels,
   OVMS_MODELS
 } from './config/ovmsConfig'
+import { cleanupReplacedPaintingFiles } from './utils'
 
 const logger = loggerService.withContext('OvmsPage')
 
@@ -159,6 +160,8 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerate = async () => {
+    let filesToDeleteAfterSuccess: typeof painting.files = []
+
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
         content: t('paintings.regenerate.confirm'),
@@ -166,7 +169,12 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
       })
 
       if (!confirmed) return
-      await FileManager.deleteFiles(painting.files)
+      filesToDeleteAfterSuccess = painting.files
+    }
+
+    const cleanupFilesAfterSuccessfulUpdate = async (files: FileMetadata[]) => {
+      await cleanupReplacedPaintingFiles(filesToDeleteAfterSuccess, files)
+      filesToDeleteAfterSuccess = []
     }
 
     const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
@@ -223,6 +231,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
           )
           await FileManager.addFiles(validFiles)
           updatePaintingState({ files: validFiles, urls: [] })
+          await cleanupFilesAfterSuccessfulUpdate(validFiles)
         }
 
         // Handle URL-based images if available
@@ -232,6 +241,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
           const validFiles = await downloadImages(urls)
           await FileManager.addFiles(validFiles)
           updatePaintingState({ files: validFiles, urls })
+          await cleanupFilesAfterSuccessfulUpdate(validFiles)
         }
       }
     } catch (error: unknown) {

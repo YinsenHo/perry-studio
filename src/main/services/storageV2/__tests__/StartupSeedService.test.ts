@@ -138,4 +138,27 @@ describe('StorageV2StartupSeedService', () => {
 
     expect(mocks.importAppDb).toHaveBeenCalledTimes(1)
   })
+
+  it('still seeds app data when the agent database import fails', async () => {
+    mocks.importAgentDb.mockRejectedValueOnce(new Error('agents.db locked'))
+
+    const report = await new StorageV2StartupSeedService().seedFromLegacyRuntimeDatabases()
+
+    expect(mocks.importAppDb).toHaveBeenCalledTimes(1)
+    expect(report.agent.sourceDbPath).toBeNull()
+    expect(report.agent.importedAgentCount).toBe(0)
+    expect(report.agent.warnings[0]).toContain('agents.db locked')
+    expect(report.appData.sourceDbPath).toBe('/data/app.db')
+  })
+
+  it('returns a warning report when the app database import fails', async () => {
+    mocks.importAppDb.mockRejectedValueOnce(new Error('app.db locked'))
+
+    const report = await new StorageV2StartupSeedService().seedFromLegacyRuntimeDatabases()
+
+    expect(report.agent.sourceDbPath).toBe('/data/agents.db')
+    expect(report.appData.sourceDbPath).toBeNull()
+    expect(report.appData.importedRecordCount).toBe(0)
+    expect(report.appData.warnings[0]).toContain('app.db locked')
+  })
 })

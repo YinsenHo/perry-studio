@@ -208,7 +208,10 @@ class PiAgentService implements AgentServiceInterface {
       resumed: Boolean(lastAgentSessionId)
     })
 
-    const tools = [...createPiTools(cwd, session.accessible_paths), ...(await createPiMcpTools(session.mcps))]
+    const tools = [
+      ...createPiTools(cwd, session.accessible_paths, { sessionId }),
+      ...(await createPiMcpTools(session.mcps))
+    ]
     const allowedToolSet = new Set(session.allowed_tools ?? [])
     const configuredTools =
       allowedToolSet.size > 0

@@ -147,6 +147,7 @@ class StorageV2ConversationMirrorService {
   private inflight: Promise<void> | null = null
   private needsFollowUp = false
   private suspended = false
+  private lastError: unknown = null
 
   scheduleTopic(
     topicId: string | undefined,
@@ -277,6 +278,14 @@ class StorageV2ConversationMirrorService {
     await this.inflight
   }
 
+  async flushStrict() {
+    await this.flush()
+
+    if (this.hasPendingWork() && this.lastError) {
+      throw this.lastError instanceof Error ? this.lastError : new Error('Failed to mirror conversations to Storage v2')
+    }
+  }
+
   private scheduleFlush(debounceMs: number) {
     if (this.timer) {
       clearTimeout(this.timer)
@@ -325,7 +334,10 @@ class StorageV2ConversationMirrorService {
       }
     }
 
-    if (topicIds.size === 0) return
+    if (topicIds.size === 0) {
+      this.lastError = null
+      return
+    }
 
     try {
       const conversations: ConversationSnapshot[] = []
@@ -349,7 +361,10 @@ class StorageV2ConversationMirrorService {
         }
       }
 
-      if (conversations.length === 0) return
+      if (conversations.length === 0) {
+        this.lastError = null
+        return
+      }
 
       await this.mirrorConversations(conversations, Array.from(filesById.values()))
 
@@ -358,6 +373,7 @@ class StorageV2ConversationMirrorService {
       }
 
       logger.debug(`Mirrored ${conversations.length} conversation(s) to Storage v2`)
+      this.lastError = null
     } catch (error) {
       for (const topicId of topicIds) {
         this.pendingTopicIds.add(topicId)
@@ -366,6 +382,7 @@ class StorageV2ConversationMirrorService {
         }
       }
       this.scheduleFlush(DEFAULT_DEBOUNCE_MS)
+      this.lastError = error
 
       logger.warn('Failed to mirror conversations to Storage v2', error as Error)
     }
@@ -504,6 +521,7 @@ class StorageV2ConversationMirrorService {
     this.pendingMessageIds.clear()
     this.pendingBlockIds.clear()
     this.needsFollowUp = false
+    this.lastError = null
 
     if (this.timer) {
       clearTimeout(this.timer)

@@ -147,6 +147,7 @@ class StorageV2MirrorService {
   private suspended = false
   private paused = false
   private pendingPruneMissing: boolean | null = null
+  private lastError: unknown = null
 
   createMiddleware(): Middleware {
     return (storeApi) => (next) => (action) => {
@@ -216,6 +217,16 @@ class StorageV2MirrorService {
     await this.inflight
   }
 
+  async flushStrict() {
+    await this.flush()
+
+    if ((this.timer || this.pendingPruneMissing !== null) && this.lastError) {
+      throw this.lastError instanceof Error
+        ? this.lastError
+        : new Error('Failed to mirror Redux settings to Storage v2')
+    }
+  }
+
   private async mirrorNow() {
     if (!this.latestGetState || !window.api?.storageV2) return
 
@@ -233,8 +244,10 @@ class StorageV2MirrorService {
       this.pendingPruneMissing = null
       this.lastSnapshotJson = snapshotJson
       this.lastSnapshotPruneMissing = pruneMissing
+      this.lastError = null
       logger.debug('Mirrored Redux settings to Storage v2')
     } catch (error) {
+      this.lastError = error
       this.scheduleRetry()
       logger.warn('Failed to mirror Redux settings to Storage v2', error as Error)
     }
@@ -256,6 +269,7 @@ class StorageV2MirrorService {
     this.needsFollowUp = false
     this.pendingPruneMissing = null
     this.lastSnapshotPruneMissing = null
+    this.lastError = null
 
     if (this.timer) {
       clearTimeout(this.timer)

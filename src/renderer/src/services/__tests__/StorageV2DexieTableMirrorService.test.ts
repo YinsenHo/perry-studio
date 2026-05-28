@@ -102,4 +102,28 @@ describe('StorageV2DexieTableMirrorService', () => {
       'dexie-table:quick_phrases'
     )
   })
+
+  it('rejects strict flushes when an auxiliary table mirror write is still pending after failure', async () => {
+    vi.useFakeTimers()
+    const setSetting = vi.fn().mockRejectedValue(new Error('storage busy'))
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        storageV2: {
+          setSetting
+        }
+      }
+    })
+
+    try {
+      const { storageV2DexieTableMirrorService } = await import('../StorageV2DexieTableMirrorService')
+
+      storageV2DexieTableMirrorService.scheduleRow('quick_phrases', 'phrase-1', 1000)
+
+      await expect(storageV2DexieTableMirrorService.flushStrict()).rejects.toThrow('storage busy')
+      expect(setSetting).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

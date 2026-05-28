@@ -11,6 +11,7 @@ class StorageV2FileMirrorService {
   private inflight: Promise<void> | null = null
   private needsFollowUp = false
   private suspended = false
+  private lastError: unknown = null
 
   scheduleFile(fileId: string | undefined, debounceMs = DEFAULT_DEBOUNCE_MS) {
     if (this.suspended) return
@@ -60,6 +61,14 @@ class StorageV2FileMirrorService {
     await this.inflight
   }
 
+  async flushStrict() {
+    await this.flush()
+
+    if (this.pendingFileIds.size > 0 && this.lastError) {
+      throw this.lastError instanceof Error ? this.lastError : new Error('Failed to mirror files to Storage v2')
+    }
+  }
+
   private scheduleFlush(debounceMs: number) {
     if (this.timer) {
       clearTimeout(this.timer)
@@ -103,10 +112,12 @@ class StorageV2FileMirrorService {
       logger.debug(
         `Mirrored ${files.length} file(s) and ${missingFileIds.length} missing file tombstone(s) to Storage v2`
       )
+      this.lastError = null
     } catch (error) {
       for (const fileId of fileIds) {
         this.pendingFileIds.add(fileId)
       }
+      this.lastError = error
       this.scheduleFlush(DEFAULT_DEBOUNCE_MS)
       logger.warn('Failed to mirror files to Storage v2', error as Error)
     }
@@ -116,6 +127,7 @@ class StorageV2FileMirrorService {
     this.suspended = true
     this.pendingFileIds.clear()
     this.needsFollowUp = false
+    this.lastError = null
 
     if (this.timer) {
       clearTimeout(this.timer)

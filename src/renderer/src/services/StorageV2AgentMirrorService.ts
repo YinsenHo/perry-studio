@@ -10,6 +10,7 @@ class StorageV2AgentMirrorService {
   private inflight: Promise<void> | null = null
   private needsFollowUp = false
   private suspended = false
+  private lastError: unknown = null
 
   schedule(debounceMs = DEFAULT_DEBOUNCE_MS) {
     if (this.suspended) return
@@ -52,12 +53,24 @@ class StorageV2AgentMirrorService {
     await this.inflight
   }
 
+  async flushStrict() {
+    await this.flush()
+
+    if (this.pending && this.lastError) {
+      throw this.lastError instanceof Error
+        ? this.lastError
+        : new Error('Failed to mirror agent database to Storage v2')
+    }
+  }
+
   private async mirrorNow() {
     try {
       await window.api.storageV2.importLegacyAgentDb({ dryRun: false, createSnapshot: false })
+      this.lastError = null
       logger.debug('Mirrored agent database to Storage v2')
     } catch (error) {
       this.pending = true
+      this.lastError = error
       this.schedule()
       logger.warn('Failed to mirror agent database to Storage v2', error as Error)
     }
@@ -67,6 +80,7 @@ class StorageV2AgentMirrorService {
     this.suspended = true
     this.pending = false
     this.needsFollowUp = false
+    this.lastError = null
 
     if (this.timer) {
       clearTimeout(this.timer)

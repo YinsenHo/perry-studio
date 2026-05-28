@@ -92,4 +92,23 @@ describe('StorageV2DexieSettingsMirrorService', () => {
     await vi.advanceTimersByTimeAsync(1)
     expect(setSetting).toHaveBeenCalledTimes(2)
   })
+
+  it('rejects strict flushes when a settings mirror write is still pending after failure', async () => {
+    const setSetting = vi.fn().mockRejectedValue(new Error('storage busy'))
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        storageV2: {
+          setSetting
+        }
+      }
+    })
+
+    const { storageV2DexieSettingsMirrorService } = await import('../StorageV2DexieSettingsMirrorService')
+
+    storageV2DexieSettingsMirrorService.scheduleSetting('language', 1000)
+
+    await expect(storageV2DexieSettingsMirrorService.flushStrict()).rejects.toThrow('storage busy')
+    expect(setSetting).toHaveBeenCalledTimes(1)
+  })
 })

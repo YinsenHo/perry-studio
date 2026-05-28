@@ -56,6 +56,7 @@ class StorageV2DexieTableMirrorService {
   private inflight: Promise<void> | null = null
   private needsFollowUp = false
   private suspended = false
+  private lastError: unknown = null
 
   install() {
     if (this.installed) return
@@ -130,11 +131,22 @@ class StorageV2DexieTableMirrorService {
     await this.inflight
   }
 
+  async flushStrict() {
+    await this.flush()
+
+    if (this.hasPendingWork() && this.lastError) {
+      throw this.lastError instanceof Error
+        ? this.lastError
+        : new Error('Failed to mirror Dexie auxiliary tables to Storage v2')
+    }
+  }
+
   suspendUntilReload() {
     this.suspended = true
     this.pendingRowIds.clear()
     this.pendingDeletedIds.clear()
     this.needsFollowUp = false
+    this.lastError = null
 
     if (this.timer) {
       clearTimeout(this.timer)
@@ -160,6 +172,10 @@ class StorageV2DexieTableMirrorService {
       this.timer = null
       void this.flush()
     }, debounceMs)
+  }
+
+  private hasPendingWork() {
+    return this.pendingRowIds.size > 0 || this.pendingDeletedIds.size > 0
   }
 
   private addPending(
@@ -244,8 +260,10 @@ class StorageV2DexieTableMirrorService {
       logger.debug(
         `Mirrored ${mirroredRowCount} Dexie auxiliary row(s) and ${deleteMarkerCount} delete marker(s) to Storage v2`
       )
+      this.lastError = null
     } catch (error) {
       this.requeuePending(rowIdsByTable, deletedIdsByTable)
+      this.lastError = error
       this.scheduleFlush(DEFAULT_DEBOUNCE_MS)
       logger.warn('Failed to mirror Dexie auxiliary tables to Storage v2', error as Error)
     }

@@ -190,13 +190,13 @@ window.store = store
 export async function handleSaveData() {
   logger.info('Flushing redux persistor data')
   await persistor.flush()
-  await storageV2MirrorService.flush()
+  await storageV2MirrorService.flushStrict()
   await flushStorageV2LocalStorageMirror()
-  await storageV2ConversationMirrorService.flush()
-  await storageV2FileMirrorService.flush()
-  await storageV2DexieSettingsMirrorService.flush()
-  await storageV2DexieTableMirrorService.flush()
-  await storageV2AgentMirrorService.flush()
+  await storageV2ConversationMirrorService.flushStrict()
+  await storageV2FileMirrorService.flushStrict()
+  await storageV2DexieSettingsMirrorService.flushStrict()
+  await storageV2DexieTableMirrorService.flushStrict()
+  await storageV2AgentMirrorService.flushStrict()
   logger.info('Flushed redux persistor data')
 }
 

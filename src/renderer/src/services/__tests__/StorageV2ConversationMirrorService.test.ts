@@ -222,6 +222,50 @@ describe('StorageV2ConversationMirrorService', () => {
     expect(syncConversation).toHaveBeenCalledTimes(2)
   })
 
+  it('rejects strict flushes when a conversation mirror write is still pending after failure', async () => {
+    const syncConversation = vi.fn().mockRejectedValue(new Error('storage busy'))
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        storageV2: {
+          syncConversation
+        }
+      }
+    })
+
+    mocks.topicsGet.mockResolvedValue({
+      id: 'topic-1',
+      messages: []
+    })
+
+    const state = {
+      assistants: {
+        assistants: [
+          {
+            id: 'assistant-1',
+            topics: [
+              {
+                id: 'topic-1',
+                assistantId: 'assistant-1',
+                name: 'Strict',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z',
+                messages: []
+              }
+            ]
+          }
+        ]
+      }
+    }
+
+    const { storageV2ConversationMirrorService } = await import('../StorageV2ConversationMirrorService')
+
+    storageV2ConversationMirrorService.scheduleTopic('topic-1', () => state, 1000, { destructive: true })
+
+    await expect(storageV2ConversationMirrorService.flushStrict()).rejects.toThrow('storage busy')
+    expect(syncConversation).toHaveBeenCalledTimes(1)
+  })
+
   it('retries destructive mirrors when the Dexie topic snapshot cannot be read', async () => {
     vi.useFakeTimers()
     const syncConversation = vi.fn().mockResolvedValue({ messageCount: 0, blockCount: 0 })

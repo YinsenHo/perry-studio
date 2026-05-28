@@ -23,6 +23,7 @@ class StorageV2DexieSettingsMirrorService {
   private inflight: Promise<void> | null = null
   private needsFollowUp = false
   private suspended = false
+  private lastError: unknown = null
 
   install() {
     if (this.installed) return
@@ -91,11 +92,22 @@ class StorageV2DexieSettingsMirrorService {
     await this.inflight
   }
 
+  async flushStrict() {
+    await this.flush()
+
+    if (this.hasPendingWork() && this.lastError) {
+      throw this.lastError instanceof Error
+        ? this.lastError
+        : new Error('Failed to mirror Dexie settings to Storage v2')
+    }
+  }
+
   suspendUntilReload() {
     this.suspended = true
     this.pendingSettingIds.clear()
     this.pendingDeletedIds.clear()
     this.needsFollowUp = false
+    this.lastError = null
 
     if (this.timer) {
       clearTimeout(this.timer)
@@ -129,6 +141,10 @@ class StorageV2DexieSettingsMirrorService {
     }, debounceMs)
   }
 
+  private hasPendingWork() {
+    return this.pendingSettingIds.size > 0 || this.pendingDeletedIds.size > 0
+  }
+
   private async mirrorPendingNow() {
     const settingIds = Array.from(this.pendingSettingIds)
     const deletedIds = Array.from(this.pendingDeletedIds)
@@ -155,6 +171,7 @@ class StorageV2DexieSettingsMirrorService {
       logger.debug(
         `Mirrored ${settings.length} Dexie setting(s) and ${deletedIds.length} delete marker(s) to Storage v2`
       )
+      this.lastError = null
     } catch (error) {
       for (const settingId of settingIds) {
         this.pendingSettingIds.add(settingId)
@@ -162,6 +179,7 @@ class StorageV2DexieSettingsMirrorService {
       for (const settingId of deletedIds) {
         this.pendingDeletedIds.add(settingId)
       }
+      this.lastError = error
       this.scheduleFlush(RETRY_DEBOUNCE_MS)
       logger.warn('Failed to mirror Dexie settings to Storage v2', error as Error)
     }

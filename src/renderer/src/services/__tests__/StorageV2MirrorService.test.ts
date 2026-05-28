@@ -142,6 +142,16 @@ describe('StorageV2MirrorService', () => {
     })
   })
 
+  it('rejects strict flushes when the Redux mirror is still pending after failure', async () => {
+    importLegacyReduxSnapshot.mockRejectedValueOnce(new Error('ipc unavailable'))
+    const { storageV2MirrorService } = await import('../StorageV2MirrorService')
+
+    storageV2MirrorService.scheduleStartupMirror(createState)
+
+    await expect(storageV2MirrorService.flushStrict()).rejects.toThrow('ipc unavailable')
+    expect(importLegacyReduxSnapshot).toHaveBeenCalledTimes(1)
+  })
+
   it('flushes high-value settings actions without waiting for debounce', async () => {
     const { storageV2MirrorService } = await import('../StorageV2MirrorService')
     const middleware = storageV2MirrorService.createMiddleware()({

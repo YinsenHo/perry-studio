@@ -143,6 +143,41 @@ describe('StorageV2FileMirrorService', () => {
     expect(upsertFile).toHaveBeenLastCalledWith(file)
   })
 
+  it('rejects strict flushes when a file mirror write is still pending after failure', async () => {
+    const file = {
+      id: 'file-strict',
+      name: 'file-strict.txt',
+      origin_name: 'strict.txt',
+      path: '/tmp/cherry-files/file-strict.txt',
+      size: 42,
+      ext: '.txt',
+      type: 'text',
+      created_at: '2026-01-01T00:00:00.000Z',
+      count: 1
+    }
+    const upsertFile = vi.fn().mockRejectedValue(new Error('storage busy'))
+
+    mocks.filesAnyOf.mockReturnValue({
+      toArray: vi.fn().mockResolvedValue([file])
+    })
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        storageV2: {
+          upsertFile,
+          deleteFile: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+    })
+
+    const { storageV2FileMirrorService } = await import('../StorageV2FileMirrorService')
+
+    storageV2FileMirrorService.scheduleFile('file-strict', 1000)
+
+    await expect(storageV2FileMirrorService.flushStrict()).rejects.toThrow('storage busy')
+    expect(upsertFile).toHaveBeenCalledTimes(1)
+  })
+
   it('falls back to the legacy Dexie snapshot import when direct file upsert is unavailable', async () => {
     const file = {
       id: 'file-fallback',

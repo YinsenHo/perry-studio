@@ -1,9 +1,11 @@
 import { loggerService } from '@renderer/services/LoggerService'
 import { flushStorageV2ReduxMirror } from '@renderer/services/StorageV2ReduxMirrorFlush'
+import { persistStorageV2ReduxSlice } from '@renderer/services/StorageV2ReduxSliceService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addDirectory,
   clearDirectories,
+  initialState as initialCodeToolsState,
   removeDirectory,
   resetCodeTools,
   setCurrentDirectory,
@@ -78,10 +80,15 @@ export const useCodeTools = () => {
   // 删除目录
   const removeDir = useCallback(
     async (directory: string) => {
+      await persistStorageV2ReduxSlice('codeTools', {
+        ...codeToolsState,
+        directories: codeToolsState.directories.filter((dir) => dir !== directory),
+        currentDirectory: codeToolsState.currentDirectory === directory ? '' : codeToolsState.currentDirectory
+      })
       dispatch(removeDirectory(directory))
       await flushCodeToolsMirror('code-tools-remove-directory', { strict: true })
     },
-    [dispatch]
+    [codeToolsState, dispatch]
   )
 
   // 设置当前目录
@@ -95,12 +102,18 @@ export const useCodeTools = () => {
 
   // 清空所有目录
   const clearDirs = useCallback(async () => {
+    await persistStorageV2ReduxSlice('codeTools', {
+      ...codeToolsState,
+      directories: [],
+      currentDirectory: ''
+    })
     dispatch(clearDirectories())
     await flushCodeToolsMirror('code-tools-clear-directories', { strict: true })
-  }, [dispatch])
+  }, [codeToolsState, dispatch])
 
   // 重置所有设置
   const resetSettings = useCallback(async () => {
+    await persistStorageV2ReduxSlice('codeTools', initialCodeToolsState)
     dispatch(resetCodeTools())
     await flushCodeToolsMirror('code-tools-reset', { strict: true })
   }, [dispatch])

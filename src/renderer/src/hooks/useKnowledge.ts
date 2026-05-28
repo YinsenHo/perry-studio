@@ -180,16 +180,16 @@ export const useKnowledge = (baseId: string) => {
       await window.api.knowledgeBase.remove(removalParams)
     }
 
-    if (isKnowledgeFileItem(item) && typeof item.content === 'object' && !Array.isArray(item.content)) {
-      const file = item.content
-      await FileManager.deleteFile(file.id)
-    } else if (isKnowledgeVideoItem(item)) {
-      const files = item.content
-      await FileManager.deleteFiles(files)
-    }
+    const filesToDelete =
+      isKnowledgeFileItem(item) && typeof item.content === 'object' && !Array.isArray(item.content)
+        ? [item.content]
+        : isKnowledgeVideoItem(item)
+          ? item.content
+          : []
 
     dispatch(removeItemAction({ baseId, item }))
     await flushStorageV2KnowledgeMirror('remove-item', { strict: true })
+    await FileManager.deleteFiles(filesToDelete)
   }
   // 刷新项目
   const refreshItem = async (item: KnowledgeItem) => {
@@ -399,7 +399,6 @@ export const useKnowledgeBases = () => {
     await window.api.knowledgeBase.delete(baseId)
 
     const files = base.items.filter(isKnowledgeFileItem).map((item) => item.content as FileMetadata)
-    await FileManager.deleteFiles(files)
 
     const noteIds = base.items.filter(isKnowledgeNoteItem).map((item) => item.id)
     if (noteIds.length > 0) {
@@ -440,11 +439,12 @@ export const useKnowledgeBases = () => {
     }
 
     await flushStorageV2KnowledgeMirror('delete-knowledge-base', { strict: true })
+    await FileManager.deleteFiles(files)
   }
 
-  const updateKnowledgeBases = async (bases: KnowledgeBase[]) => {
+  const updateKnowledgeBases = async (bases: KnowledgeBase[], options: { strict?: boolean } = {}) => {
     dispatch(updateBases(bases))
-    await flushStorageV2KnowledgeMirror('update-knowledge-bases')
+    await flushStorageV2KnowledgeMirror('update-knowledge-bases', options)
   }
 
   return {

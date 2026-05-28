@@ -22,8 +22,6 @@ export const useKnowledgeFiles = () => {
   }, [bases])
 
   const removeAllFiles = async () => {
-    await FileManager.deleteFiles(knowledgeFiles)
-
     const newBases = bases.map((kb) => ({
       ...kb,
       items: kb.items.map((item) =>
@@ -38,7 +36,8 @@ export const useKnowledgeFiles = () => {
           : item
       )
     }))
-    updateKnowledgeBases(newBases)
+    await updateKnowledgeBases(newBases, { strict: true })
+    await FileManager.deleteFiles(knowledgeFiles)
   }
 
   const size = knowledgeFiles.reduce((acc, file) => acc + file.size, 0)

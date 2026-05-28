@@ -58,6 +58,7 @@ class StorageV2AgentMirrorService {
       logger.debug('Mirrored agent database to Storage v2')
     } catch (error) {
       this.pending = true
+      this.schedule()
       logger.warn('Failed to mirror agent database to Storage v2', error as Error)
     }
   }

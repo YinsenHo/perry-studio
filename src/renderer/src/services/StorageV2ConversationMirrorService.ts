@@ -365,6 +365,7 @@ class StorageV2ConversationMirrorService {
           this.pendingDestructiveTopicIds.add(topicId)
         }
       }
+      this.scheduleFlush(DEFAULT_DEBOUNCE_MS)
 
       logger.warn('Failed to mirror conversations to Storage v2', error as Error)
     }

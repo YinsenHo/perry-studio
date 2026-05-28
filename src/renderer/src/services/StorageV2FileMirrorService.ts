@@ -107,6 +107,7 @@ class StorageV2FileMirrorService {
       for (const fileId of fileIds) {
         this.pendingFileIds.add(fileId)
       }
+      this.scheduleFlush(DEFAULT_DEBOUNCE_MS)
       logger.warn('Failed to mirror files to Storage v2', error as Error)
     }
   }

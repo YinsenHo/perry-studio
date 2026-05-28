@@ -137,6 +137,28 @@ describe('StorageV2AppDataRuntimeRecoveryService', () => {
     expect(projection).not.toHaveBeenCalled()
   })
 
+  it('does not project stale Storage v2 app data when the legacy seed fails', async () => {
+    const legacyClient = createCountClient(0)
+    const storageClient = createCountClient(1)
+    const projection = mockProjection()
+    const importSnapshot = vi.mocked(storageV2LegacyAppDbImportService.importSnapshot)
+    importSnapshot.mockRejectedValueOnce(new Error('app.db locked'))
+    vi.spyOn(AppDataDatabaseModule, 'getAppDataDatabase').mockResolvedValue({
+      getRawClient: async () => legacyClient
+    } as any)
+    vi.spyOn(storageV2Database, 'getClient').mockResolvedValue(storageClient as any)
+
+    const recovered = await new StorageV2AppDataRuntimeRecoveryService().projectIfLegacyAppRecordListEmpty(
+      undefined,
+      'test'
+    )
+
+    expect(recovered).toBe(false)
+    expect(importSnapshot).toHaveBeenCalledWith({ dryRun: false, createSnapshot: false, pruneMissing: false })
+    expect(storageClient.execute).not.toHaveBeenCalled()
+    expect(projection).not.toHaveBeenCalled()
+  })
+
   it('projects a specific missing app record when Storage v2 has that key', async () => {
     const legacyClient = createCountClient(0)
     const storageClient = createCountClient(1)

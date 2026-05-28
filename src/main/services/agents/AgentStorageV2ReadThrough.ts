@@ -215,7 +215,9 @@ export async function persistAgentMessageExchangeWithStorageV2Recovery(
   payload: AgentMessagePersistExchangePayload
 ): Promise<AgentMessagePersistExchangeResult> {
   try {
-    return await agentMessageRepository.persistExchange(payload)
+    const result = await agentMessageRepository.persistExchange(payload)
+    await flushAgentRuntimeMutationToStorageV2()
+    return result
   } catch (error) {
     if (
       payload.sessionId &&
@@ -225,7 +227,9 @@ export async function persistAgentMessageExchangeWithStorageV2Recovery(
         'agent-message-persist-missing-session'
       ))
     ) {
-      return agentMessageRepository.persistExchange(payload)
+      const result = await agentMessageRepository.persistExchange(payload)
+      await flushAgentRuntimeMutationToStorageV2()
+      return result
     }
 
     throw error

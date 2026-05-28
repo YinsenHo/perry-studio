@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { loggerService } from '@logger'
+import { storageV2AgentDbMirrorService } from '@main/services/storageV2/AgentDbMirrorService'
 import type {
   AgentPersistedMessage,
   AgentSessionMessageEntity,
@@ -20,6 +21,11 @@ import PiAgentService from './pi'
 const agentRuntimeService = new PiAgentService()
 
 const logger = loggerService.withContext('SessionMessageService')
+
+async function flushHeadlessAgentExchangeToStorageV2() {
+  storageV2AgentDbMirrorService.schedule(0)
+  await storageV2AgentDbMirrorService.flush()
+}
 
 type SessionStreamResult = {
   stream: ReadableStream<TextStreamPart<Record<string, any>>>
@@ -440,6 +446,7 @@ export class SessionMessageService extends BaseService {
       user: { payload: userPayload, createdAt: now },
       assistant: { payload: assistantPayload, createdAt: now }
     })
+    await flushHeadlessAgentExchangeToStorageV2()
 
     logger.info('Persisted headless exchange', {
       sessionId: session.id,

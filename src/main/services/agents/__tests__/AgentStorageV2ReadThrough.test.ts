@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   recovery: {
     projectIfAgentMissing: vi.fn(),
     projectIfSessionMissing: vi.fn(),
+    projectIfSessionMissingById: vi.fn(),
     projectIfSessionMessagesEmpty: vi.fn(),
     projectIfTaskMissing: vi.fn(),
     projectIfChannelMissing: vi.fn()
@@ -91,6 +92,7 @@ import {
   deleteTaskByIdWithStorageV2Recovery,
   deleteTaskWithStorageV2Recovery,
   logTaskRunWithStorageV2Recovery,
+  persistAgentMessageExchangeWithStorageV2Recovery,
   reorderAgentsWithStorageV2Recovery,
   reorderSessionsWithStorageV2Recovery,
   updateAgentWithStorageV2Recovery,
@@ -101,6 +103,7 @@ import {
   updateTaskRunLogWithStorageV2Recovery,
   updateTaskWithStorageV2Recovery
 } from '../AgentStorageV2ReadThrough'
+import { agentMessageRepository } from '../database/sessionMessageRepository'
 
 describe('AgentStorageV2ReadThrough mutation wrappers', () => {
   beforeEach(() => {
@@ -108,6 +111,7 @@ describe('AgentStorageV2ReadThrough mutation wrappers', () => {
     mocks.mirror.flush.mockResolvedValue(undefined)
     mocks.recovery.projectIfAgentMissing.mockResolvedValue(false)
     mocks.recovery.projectIfSessionMissing.mockResolvedValue(false)
+    mocks.recovery.projectIfSessionMissingById.mockResolvedValue(false)
     mocks.recovery.projectIfSessionMessagesEmpty.mockResolvedValue(false)
     mocks.recovery.projectIfTaskMissing.mockResolvedValue(false)
     mocks.recovery.projectIfChannelMissing.mockResolvedValue(false)
@@ -207,5 +211,48 @@ describe('AgentStorageV2ReadThrough mutation wrappers', () => {
 
     expect(mocks.mirror.schedule).not.toHaveBeenCalled()
     expect(mocks.mirror.flush).not.toHaveBeenCalled()
+  })
+
+  it('flushes the Storage v2 agent mirror after persisting a message exchange', async () => {
+    const result = { userMessageId: 1, assistantMessageId: 2 }
+    vi.mocked(agentMessageRepository.persistExchange).mockResolvedValue(result as any)
+
+    await expect(
+      persistAgentMessageExchangeWithStorageV2Recovery({
+        sessionId: 'session-1',
+        agentSessionId: 'sdk-session-1',
+        user: { payload: {}, createdAt: '2026-05-28T00:00:00.000Z' },
+        assistant: { payload: {}, createdAt: '2026-05-28T00:00:01.000Z' }
+      } as any)
+    ).resolves.toBe(result)
+
+    expect(agentMessageRepository.persistExchange).toHaveBeenCalledTimes(1)
+    expect(mocks.mirror.schedule).toHaveBeenCalledWith(0)
+    expect(mocks.mirror.flush).toHaveBeenCalledTimes(1)
+  })
+
+  it('flushes the Storage v2 agent mirror after recovering and retrying message persistence', async () => {
+    const result = { userMessageId: 1, assistantMessageId: 2 }
+    vi.mocked(agentMessageRepository.persistExchange)
+      .mockRejectedValueOnce(new Error('foreign key constraint failed for session'))
+      .mockResolvedValueOnce(result as any)
+    mocks.recovery.projectIfSessionMissingById.mockResolvedValueOnce(true)
+
+    await expect(
+      persistAgentMessageExchangeWithStorageV2Recovery({
+        sessionId: 'session-1',
+        agentSessionId: 'sdk-session-1',
+        user: { payload: {}, createdAt: '2026-05-28T00:00:00.000Z' },
+        assistant: { payload: {}, createdAt: '2026-05-28T00:00:01.000Z' }
+      } as any)
+    ).resolves.toBe(result)
+
+    expect(mocks.recovery.projectIfSessionMissingById).toHaveBeenCalledWith(
+      'session-1',
+      'agent-message-persist-missing-session'
+    )
+    expect(agentMessageRepository.persistExchange).toHaveBeenCalledTimes(2)
+    expect(mocks.mirror.schedule).toHaveBeenCalledWith(0)
+    expect(mocks.mirror.flush).toHaveBeenCalledTimes(1)
   })
 })

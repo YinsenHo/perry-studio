@@ -798,12 +798,20 @@ export class StorageV2Service {
     return storageV2ProviderRepository.upsert(provider, sortOrder, nextCredentialRef)
   }
 
+  async deleteProvider(providerId: string) {
+    return storageV2ProviderRepository.delete(providerId)
+  }
+
   async listAssistants() {
     return storageV2AssistantRepository.list()
   }
 
   async upsertAssistant(assistant: Assistant, sortOrder?: number) {
     return storageV2AssistantRepository.upsert(assistant, sortOrder)
+  }
+
+  async deleteAssistant(assistantId: string) {
+    return storageV2AssistantRepository.delete(assistantId)
   }
 
   async listConversations(filter?: { ownerType?: string; ownerId?: string }) {

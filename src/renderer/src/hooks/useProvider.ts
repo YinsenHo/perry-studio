@@ -2,6 +2,7 @@ import { createSelector } from '@reduxjs/toolkit'
 import { isNotSupportTextDeltaModel } from '@renderer/config/models'
 import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
 import { getDefaultProvider } from '@renderer/services/AssistantService'
+import { deleteStorageV2Provider } from '@renderer/services/StorageV2EntityDeleteService'
 import { flushStorageV2ReduxMirror } from '@renderer/services/StorageV2ReduxMirrorFlush'
 import { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import {
@@ -75,6 +76,7 @@ export function useProviders() {
       flushProviderMirror('llm-add-provider')
     },
     removeProvider: async (provider: Provider) => {
+      await deleteStorageV2Provider(provider.id)
       dispatch(removeProvider(provider))
       await flushProviderMirror('llm-remove-provider', { strict: true })
     },

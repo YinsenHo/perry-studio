@@ -42,9 +42,15 @@ export function registerStorageV2IpcHandlers() {
   ipcMain.handle(IpcChannel.StorageV2_ProviderUpsert, (_event, provider, sortOrder?: number, credentialRef?: string) =>
     storageV2Service.upsertProvider(provider, sortOrder, credentialRef)
   )
+  ipcMain.handle(IpcChannel.StorageV2_ProviderDelete, (_event, providerId: string) =>
+    storageV2Service.deleteProvider(providerId)
+  )
   ipcMain.handle(IpcChannel.StorageV2_AssistantsList, () => storageV2Service.listAssistants())
   ipcMain.handle(IpcChannel.StorageV2_AssistantUpsert, (_event, assistant, sortOrder?: number) =>
     storageV2Service.upsertAssistant(assistant, sortOrder)
+  )
+  ipcMain.handle(IpcChannel.StorageV2_AssistantDelete, (_event, assistantId: string) =>
+    storageV2Service.deleteAssistant(assistantId)
   )
   ipcMain.handle(IpcChannel.StorageV2_ConversationsList, (_event, filter?: unknown) =>
     storageV2Service.listConversations(filter as any)

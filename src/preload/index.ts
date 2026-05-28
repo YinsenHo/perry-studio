@@ -278,9 +278,11 @@ const api = {
     listProviders: () => ipcRenderer.invoke(IpcChannel.StorageV2_ProvidersList),
     upsertProvider: (provider: Provider, sortOrder?: number, credentialRef?: string) =>
       ipcRenderer.invoke(IpcChannel.StorageV2_ProviderUpsert, provider, sortOrder, credentialRef),
+    deleteProvider: (providerId: string) => ipcRenderer.invoke(IpcChannel.StorageV2_ProviderDelete, providerId),
     listAssistants: () => ipcRenderer.invoke(IpcChannel.StorageV2_AssistantsList),
     upsertAssistant: (assistant: Assistant, sortOrder?: number) =>
       ipcRenderer.invoke(IpcChannel.StorageV2_AssistantUpsert, assistant, sortOrder),
+    deleteAssistant: (assistantId: string) => ipcRenderer.invoke(IpcChannel.StorageV2_AssistantDelete, assistantId),
     listConversations: (filter?: { ownerType?: string; ownerId?: string }) =>
       ipcRenderer.invoke(IpcChannel.StorageV2_ConversationsList, filter),
     listMessages: (conversationId: string, options?: { limit?: number; offset?: number }) =>

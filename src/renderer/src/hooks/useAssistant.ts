@@ -9,6 +9,7 @@ import {
 import { db } from '@renderer/databases'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { storageV2ConversationMirrorService } from '@renderer/services/StorageV2ConversationMirrorService'
+import { deleteStorageV2Assistant } from '@renderer/services/StorageV2EntityDeleteService'
 import { flushStorageV2ReduxMirror } from '@renderer/services/StorageV2ReduxMirrorFlush'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
@@ -131,6 +132,7 @@ export function useAssistants() {
         topics.map((topic) => topic.id),
         'assistant removal'
       )
+      await deleteStorageV2Assistant(id)
       dispatch(removeAssistant({ id }))
       await flushAssistantMirror('assistants-remove', { strict: true })
     }

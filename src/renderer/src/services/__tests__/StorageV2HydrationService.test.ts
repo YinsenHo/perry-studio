@@ -149,6 +149,7 @@ describe('StorageV2HydrationService', () => {
       configurable: true,
       value: {
         storageV2: {
+          getCoreSnapshot: vi.fn(),
           getSetting: vi.fn().mockResolvedValue({ enabled: true })
         }
       }

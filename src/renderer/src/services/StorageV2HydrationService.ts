@@ -325,7 +325,11 @@ async function applyRuntimeSnapshot(snapshot: StorageV2CoreSnapshot, target: Run
 }
 
 export async function getStorageV2AutoHydrateEnabled(): Promise<boolean> {
-  if (typeof window === 'undefined' || typeof window.api?.storageV2?.getSetting !== 'function') {
+  if (
+    typeof window === 'undefined' ||
+    typeof window.api?.storageV2?.getSetting !== 'function' ||
+    typeof window.api.storageV2.getCoreSnapshot !== 'function'
+  ) {
     return false
   }
 

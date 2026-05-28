@@ -150,6 +150,46 @@ describe('StorageV2AppDataRuntimeRecoveryService', () => {
     expect(projection).toHaveBeenCalledTimes(1)
   })
 
+  it('projects workbench shortcuts when the legacy shortcut table is empty', async () => {
+    const legacyClient = createCountClient(0)
+    const storageClient = createCountClient(1)
+    const projection = mockProjection()
+    vi.spyOn(AppDataDatabaseModule, 'getAppDataDatabase').mockResolvedValue({
+      getRawClient: async () => legacyClient
+    } as any)
+    vi.spyOn(storageV2Database, 'getClient').mockResolvedValue(storageClient as any)
+
+    const recovered = await new StorageV2AppDataRuntimeRecoveryService().projectIfLegacyWorkbenchShortcutListEmpty(
+      'test'
+    )
+
+    expect(recovered).toBe(true)
+    expect(storageClient.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining("scope = 'workbench.shortcuts'")
+      })
+    )
+    expect(projection).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not project workbench shortcuts when the legacy shortcut table already has rows', async () => {
+    const legacyClient = createCountClient(1)
+    const storageClient = createCountClient(1)
+    const projection = mockProjection()
+    vi.spyOn(AppDataDatabaseModule, 'getAppDataDatabase').mockResolvedValue({
+      getRawClient: async () => legacyClient
+    } as any)
+    vi.spyOn(storageV2Database, 'getClient').mockResolvedValue(storageClient as any)
+
+    const recovered = await new StorageV2AppDataRuntimeRecoveryService().projectIfLegacyWorkbenchShortcutListEmpty(
+      'test'
+    )
+
+    expect(recovered).toBe(false)
+    expect(storageClient.execute).not.toHaveBeenCalled()
+    expect(projection).not.toHaveBeenCalled()
+  })
+
   it('rechecks a specific app record after an unrelated inflight projection found no rows', async () => {
     const legacyClient = createCountClient(0)
     const storageClient = createCountClient(1)

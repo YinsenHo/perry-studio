@@ -37,6 +37,13 @@ export class StorageV2AppDataRuntimeRecoveryService {
     })
   }
 
+  async projectIfLegacyWorkbenchShortcutListEmpty(reason: string): Promise<boolean> {
+    return this.projectIfStorageHasRows(reason, async () => {
+      if ((await this.countLegacyWorkbenchShortcutRows()) > 0) return false
+      return (await this.countStorageWorkbenchShortcuts()) > 0
+    })
+  }
+
   private async projectIfStorageHasRows(reason: string, hasRows: () => Promise<boolean>): Promise<boolean> {
     while (this.projection) {
       if (await this.projection) {
@@ -150,6 +157,27 @@ export class StorageV2AppDataRuntimeRecoveryService {
           ${filters.length ? `AND ${filters.join(' AND ')}` : ''}
       `,
       args
+    })
+    return countFromRow(result.rows[0] as Record<string, unknown> | undefined)
+  }
+
+  private async countLegacyWorkbenchShortcutRows() {
+    const appDataDb = await getAppDataDatabase()
+    const client = await appDataDb.getRawClient()
+    const result = await client.execute('SELECT COUNT(*) AS count FROM workbench_shortcuts')
+    return countFromRow(result.rows[0] as Record<string, unknown> | undefined)
+  }
+
+  private async countStorageWorkbenchShortcuts() {
+    const client = await storageV2Database.getClient()
+    const result = await client.execute({
+      sql: `
+        SELECT COUNT(*) AS count
+        FROM kv_records
+        WHERE scope = 'workbench.shortcuts'
+          AND source IN ('legacy-workbench-shortcut', 'workbench-shortcut')
+      `,
+      args: []
     })
     return countFromRow(result.rows[0] as Record<string, unknown> | undefined)
   }

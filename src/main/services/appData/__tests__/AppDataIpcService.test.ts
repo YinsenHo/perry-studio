@@ -21,7 +21,8 @@ const mocks = vi.hoisted(() => ({
   handlers: new Map<string, IpcHandler>(),
   recovery: {
     projectIfAppRecordMissing: vi.fn(),
-    projectIfLegacyAppRecordListEmpty: vi.fn()
+    projectIfLegacyAppRecordListEmpty: vi.fn(),
+    projectIfLegacyWorkbenchShortcutListEmpty: vi.fn()
   },
   storageV2: {
     getRecord: vi.fn(),
@@ -120,6 +121,9 @@ describe('AppDataIpcService', () => {
     mocks.storageV2.deleteCache.mockResolvedValue(undefined)
     mocks.storageV2.upsertWorkbenchShortcut.mockResolvedValue(undefined)
     mocks.storageV2.getRecordEntry.mockResolvedValue({ found: false, value: null, deletedAt: null })
+    mocks.recovery.projectIfAppRecordMissing.mockResolvedValue(false)
+    mocks.recovery.projectIfLegacyAppRecordListEmpty.mockResolvedValue(false)
+    mocks.recovery.projectIfLegacyWorkbenchShortcutListEmpty.mockResolvedValue(false)
     registerAppDataIpcHandlers()
   })
 
@@ -314,9 +318,25 @@ describe('AppDataIpcService', () => {
 
     await expect(getHandler(IpcChannel.WorkbenchShortcut_List)(null)).resolves.toEqual([])
     expect(mocks.storageV2.listWorkbenchShortcuts).not.toHaveBeenCalled()
+    expect(mocks.recovery.projectIfLegacyWorkbenchShortcutListEmpty).not.toHaveBeenCalled()
+  })
 
+  it('projects Storage v2 workbench shortcuts before returning an empty legacy list', async () => {
+    mocks.db.listWorkbenchShortcuts.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'restored' }])
+    mocks.db.hasWorkbenchShortcutRows.mockResolvedValueOnce(false)
+    mocks.recovery.projectIfLegacyWorkbenchShortcutListEmpty.mockResolvedValueOnce(true)
+
+    await expect(getHandler(IpcChannel.WorkbenchShortcut_List)(null)).resolves.toEqual([{ id: 'restored' }])
+    expect(mocks.recovery.projectIfLegacyWorkbenchShortcutListEmpty).toHaveBeenCalledWith('workbench-list-empty')
+    expect(mocks.db.listWorkbenchShortcuts).toHaveBeenCalledTimes(2)
+    expect(mocks.storageV2.listWorkbenchShortcuts).not.toHaveBeenCalled()
+  })
+
+  it('falls back to direct Storage v2 workbench shortcut reads when runtime projection is unavailable', async () => {
     mocks.db.listWorkbenchShortcuts.mockResolvedValueOnce([])
     mocks.db.hasWorkbenchShortcutRows.mockResolvedValueOnce(false)
+    mocks.recovery.projectIfLegacyWorkbenchShortcutListEmpty.mockResolvedValueOnce(false)
+
     mocks.storageV2.listWorkbenchShortcuts.mockResolvedValueOnce([{ id: 'restored' }])
 
     await expect(getHandler(IpcChannel.WorkbenchShortcut_List)(null)).resolves.toEqual([{ id: 'restored' }])

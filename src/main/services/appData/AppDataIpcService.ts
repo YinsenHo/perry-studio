@@ -79,13 +79,24 @@ export function registerAppDataIpcHandlers() {
   })
 
   ipcMain.handle(IpcChannel.WorkbenchShortcut_List, async () => {
-    const db = await getAppDataDatabase()
+    let db = await getAppDataDatabase()
     const shortcuts = await db.listWorkbenchShortcuts()
     if (shortcuts.length > 0) {
       return shortcuts
     }
 
-    return (await db.hasWorkbenchShortcutRows()) ? shortcuts : storageV2AppDataKvMirrorService.listWorkbenchShortcuts()
+    if (await db.hasWorkbenchShortcutRows()) {
+      return shortcuts
+    }
+
+    if (
+      await storageV2AppDataRuntimeRecoveryService.projectIfLegacyWorkbenchShortcutListEmpty('workbench-list-empty')
+    ) {
+      db = await getAppDataDatabase()
+      return db.listWorkbenchShortcuts()
+    }
+
+    return storageV2AppDataKvMirrorService.listWorkbenchShortcuts()
   })
 
   ipcMain.handle(IpcChannel.WorkbenchShortcut_Upsert, async (_, shortcut) => {

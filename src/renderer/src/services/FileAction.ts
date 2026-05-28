@@ -58,8 +58,6 @@ export async function handleDelete(fileId: string, t: (key: string) => string) {
     return
   }
 
-  await FileManager.deleteFile(fileId, true)
-
   const relatedBlocks = await db.message_blocks.where('file.id').equals(fileId).toArray()
   const blockIdsToDelete = relatedBlocks.map((b) => b.id)
   const affectedMessageIds = [...new Set(relatedBlocks.map((b) => b.messageId))]
@@ -92,6 +90,7 @@ export async function handleDelete(fileId: string, t: (key: string) => string) {
     await storageV2ConversationMirrorService.flushTopics(affectedTopicIds, () => store.getState(), {
       destructive: true
     })
+    await FileManager.deleteFile(fileId, true)
     logger.info(`Deleted ${blockIdsToDelete.length} blocks for file ${fileId}`)
   } catch (err) {
     logger.error(`Error removing file blocks for ${fileId}:`, err as Error)

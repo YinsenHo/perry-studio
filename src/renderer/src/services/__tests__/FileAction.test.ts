@@ -111,5 +111,8 @@ describe('FileAction', () => {
     expect(mocks.flushTopics).toHaveBeenCalledWith(['topic-1'], expect.any(Function), {
       destructive: true
     })
+    expect(mocks.flushTopics.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.fileManagerDeleteFile.mock.invocationCallOrder[0]
+    )
   })
 })

@@ -1,44 +1,28 @@
 import FileManager from '@renderer/services/FileManager'
 import { storageV2MirrorService } from '@renderer/services/StorageV2MirrorService'
+import { persistStorageV2ReduxSlice } from '@renderer/services/StorageV2ReduxSliceService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { addPainting, removePainting, updatePainting, updatePaintings } from '@renderer/store/paintings'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 
 export function usePaintings() {
-  const siliconflow_paintings = useAppSelector((state) => state.paintings.siliconflow_paintings)
-  const dmxapi_paintings = useAppSelector((state) => state.paintings.dmxapi_paintings)
-  const tokenflux_paintings = useAppSelector((state) => state.paintings.tokenflux_paintings)
-  const zhipu_paintings = useAppSelector((state) => state.paintings.zhipu_paintings)
-  const aihubmix_image_generate = useAppSelector((state) => state.paintings.aihubmix_image_generate)
-  const aihubmix_image_remix = useAppSelector((state) => state.paintings.aihubmix_image_remix)
-  const aihubmix_image_edit = useAppSelector((state) => state.paintings.aihubmix_image_edit)
-  const aihubmix_image_upscale = useAppSelector((state) => state.paintings.aihubmix_image_upscale)
-  const openai_image_generate = useAppSelector((state) => state.paintings.openai_image_generate)
-  const openai_image_edit = useAppSelector((state) => state.paintings.openai_image_edit)
-  const ovms_paintings = useAppSelector((state) => state.paintings.ovms_paintings)
-  const ppio_draw = useAppSelector((state) => state.paintings.ppio_draw)
-  const ppio_edit = useAppSelector((state) => state.paintings.ppio_edit)
+  const paintings = useAppSelector((state) => state.paintings)
   const dispatch = useAppDispatch()
 
   return {
-    siliconflow_paintings,
-    dmxapi_paintings,
-    tokenflux_paintings,
-    zhipu_paintings,
-    aihubmix_image_generate,
-    aihubmix_image_remix,
-    aihubmix_image_edit,
-    aihubmix_image_upscale,
-    openai_image_generate,
-    openai_image_edit,
-    ovms_paintings,
-    ppio_draw,
-    ppio_edit,
+    ...paintings,
     addPainting: (namespace: keyof PaintingsState, painting: PaintingAction) => {
       dispatch(addPainting({ namespace, painting }))
       return painting
     },
     removePainting: async (namespace: keyof PaintingsState, painting: PaintingAction) => {
+      const currentPaintings = (paintings[namespace] ?? []) as PaintingAction[]
+      const nextPaintings = {
+        ...paintings,
+        [namespace]: currentPaintings.filter((candidate) => candidate.id !== painting.id)
+      } as PaintingsState
+
+      await persistStorageV2ReduxSlice('paintings', nextPaintings)
       dispatch(removePainting({ namespace, painting }))
       await storageV2MirrorService.flushStrict()
       await FileManager.deleteFiles(painting.files)

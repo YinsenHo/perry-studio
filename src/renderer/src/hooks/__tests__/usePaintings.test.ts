@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   dispatch: vi.fn(),
   flush: vi.fn(),
   flushStrict: vi.fn(),
+  persistReduxSlice: vi.fn(),
   paintingsState: {
     aihubmix_image_edit: [],
     aihubmix_image_generate: [],
@@ -37,6 +38,10 @@ vi.mock('@renderer/services/StorageV2MirrorService', () => ({
   }
 }))
 
+vi.mock('@renderer/services/StorageV2ReduxSliceService', () => ({
+  persistStorageV2ReduxSlice: mocks.persistReduxSlice
+}))
+
 vi.mock('@renderer/store', () => ({
   useAppDispatch: () => mocks.dispatch,
   useAppSelector: (selector: (state: any) => unknown) => selector({ paintings: mocks.paintingsState })
@@ -47,18 +52,24 @@ describe('usePaintings', () => {
     vi.clearAllMocks()
     mocks.deleteFiles.mockResolvedValue(undefined)
     mocks.flushStrict.mockResolvedValue(undefined)
+    mocks.persistReduxSlice.mockResolvedValue(undefined)
   })
 
-  it('strictly flushes Storage v2 before deleting painting files', async () => {
+  it('persists the next Storage v2 painting slice before updating redux and deleting files', async () => {
     const { usePaintings } = await import('../usePaintings')
     const files = [{ id: 'file-1', ext: '.png' }] as PaintingAction['files']
     const painting = { id: 'painting-1', files, urls: [] } satisfies PaintingAction
+    ;(mocks.paintingsState as any).siliconflow_paintings = [painting, { id: 'painting-2', files: [], urls: [] }]
     const { result } = renderHook(() => usePaintings())
 
     await act(async () => {
       await result.current.removePainting('siliconflow_paintings', painting)
     })
 
+    expect(mocks.persistReduxSlice).toHaveBeenCalledWith('paintings', {
+      ...mocks.paintingsState,
+      siliconflow_paintings: [{ id: 'painting-2', files: [], urls: [] }]
+    })
     expect(mocks.deleteFiles).toHaveBeenCalledWith(files)
     expect(mocks.dispatch).toHaveBeenCalledWith({
       type: 'paintings/removePainting',
@@ -66,6 +77,7 @@ describe('usePaintings', () => {
     })
     expect(mocks.flushStrict).toHaveBeenCalledTimes(1)
     expect(mocks.flush).not.toHaveBeenCalled()
+    expect(mocks.persistReduxSlice.mock.invocationCallOrder[0]).toBeLessThan(mocks.dispatch.mock.invocationCallOrder[0])
     expect(mocks.dispatch.mock.invocationCallOrder[0]).toBeLessThan(mocks.flushStrict.mock.invocationCallOrder[0])
     expect(mocks.flushStrict.mock.invocationCallOrder[0]).toBeLessThan(mocks.deleteFiles.mock.invocationCallOrder[0])
   })

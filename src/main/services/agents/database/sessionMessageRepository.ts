@@ -1,4 +1,7 @@
+import { createHash } from 'node:crypto'
+
 import { loggerService } from '@logger'
+import { storageV2ConversationRepository } from '@main/services/storageV2/StorageV2Repositories'
 import type {
   AgentMessageAssistantPersistPayload,
   AgentMessagePersistExchangePayload,
@@ -11,9 +14,10 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import type { InsertSessionMessageRow, SessionMessageRow } from './schema'
-import { sessionMessagesTable } from './schema'
+import { sessionMessagesTable, sessionsTable } from './schema'
 
 const logger = loggerService.withContext('AgentMessageRepository')
+const GENERATED_MESSAGE_ID_PREFIX = 4_000_000_000_000_000
 
 export type PersistUserMessageParams = AgentMessageUserPersistPayload & {
   sessionId: string
@@ -75,6 +79,105 @@ class AgentMessageRepository extends BaseService {
     }
 
     return deserialized
+  }
+
+  private generateMessageRowId(sessionId: string, role: string, messageId: string): number {
+    const digest = createHash('sha256').update(`${sessionId}:${role}:${messageId}`).digest('hex')
+    return GENERATED_MESSAGE_ID_PREFIX + Number.parseInt(digest.slice(0, 12), 16)
+  }
+
+  private extractMessageText(payload: AgentPersistedMessage): string | null {
+    const parts: string[] = []
+    const messageContent = (payload.message as { content?: unknown }).content
+
+    if (typeof messageContent === 'string') {
+      parts.push(messageContent)
+    } else if (Array.isArray(messageContent)) {
+      for (const entry of messageContent) {
+        if (typeof entry === 'string') {
+          parts.push(entry)
+        } else if (entry && typeof entry === 'object') {
+          const text = (entry as { text?: unknown; content?: unknown }).text ?? (entry as { content?: unknown }).content
+          if (typeof text === 'string') parts.push(text)
+        }
+      }
+    }
+
+    for (const block of payload.blocks ?? []) {
+      const text = (block as { text?: unknown; content?: unknown }).text ?? (block as { content?: unknown }).content
+      if (typeof text === 'string') parts.push(text)
+    }
+
+    const uniqueParts = Array.from(new Set(parts.map((part) => part.trim()).filter(Boolean)))
+    return uniqueParts.length > 0 ? uniqueParts.join('\n') : null
+  }
+
+  private async upsertStorageV2Message(
+    database: Awaited<ReturnType<typeof this.getDatabase>>,
+    input: {
+      legacyRowId: number
+      sessionId: string
+      agentSessionId: string
+      payload: AgentPersistedMessage
+      metadata?: Record<string, unknown>
+      createdAt: string
+    }
+  ): Promise<void> {
+    const sessionRows = await database
+      .select()
+      .from(sessionsTable)
+      .where(eq(sessionsTable.id, input.sessionId))
+      .limit(1)
+    const session = sessionRows[0]
+    const conversationId = `agent-session:${input.sessionId}`
+    const messageId = `agent-message:${input.legacyRowId}`
+    const blockId = `agent-message-block:${input.legacyRowId}`
+    const payloadMessage = input.payload.message as Record<string, unknown>
+
+    await storageV2ConversationRepository.upsertConversation({
+      id: conversationId,
+      kind: 'agent_session',
+      ownerType: 'agent',
+      ownerId: session?.agent_id ?? 'unknown',
+      sessionId: input.sessionId,
+      title: session?.name ?? input.sessionId,
+      sortOrder: session?.sort_order ?? 0,
+      createdAt: session?.created_at ?? input.createdAt,
+      updatedAt: input.createdAt
+    })
+
+    await storageV2ConversationRepository.upsertMessage(conversationId, {
+      ...payloadMessage,
+      id: messageId,
+      role: input.payload.message.role,
+      requestId: input.payload.message.id,
+      createdAt: input.createdAt,
+      updatedAt: input.createdAt,
+      metadata: {
+        legacyId: input.legacyRowId,
+        agentSessionId: input.agentSessionId,
+        metadata: input.metadata
+      },
+      blocks: [blockId]
+    })
+
+    await storageV2ConversationRepository.upsertMessageBlocks(
+      messageId,
+      [
+        {
+          id: blockId,
+          type: 'agent_session_entry',
+          content: this.extractMessageText(input.payload),
+          payload: {
+            content: input.payload,
+            metadata: input.metadata
+          },
+          createdAt: input.createdAt,
+          updatedAt: input.createdAt
+        }
+      ],
+      { pruneMissing: true }
+    )
   }
 
   private async findExistingMessageRow(
@@ -139,6 +242,15 @@ class AgentMessageRepository extends BaseService {
       const metadataToPersist = serializedMetadata ?? existingRow.metadata ?? undefined
       const agentSessionToPersist = agentSessionId || existingRow.agent_session_id || ''
 
+      await this.upsertStorageV2Message(database, {
+        legacyRowId: existingRow.id,
+        sessionId,
+        agentSessionId: agentSessionToPersist,
+        payload,
+        metadata,
+        createdAt: now
+      })
+
       await database
         .update(sessionMessagesTable)
         .set({
@@ -158,7 +270,9 @@ class AgentMessageRepository extends BaseService {
       })
     }
 
+    const legacyRowId = this.generateMessageRowId(sessionId, payload.message.role, payload.message.id)
     const insertData: InsertSessionMessageRow = {
+      id: legacyRowId,
       session_id: sessionId,
       role: payload.message.role,
       content: serializedPayload,
@@ -167,6 +281,15 @@ class AgentMessageRepository extends BaseService {
       created_at: now,
       updated_at: now
     }
+
+    await this.upsertStorageV2Message(database, {
+      legacyRowId,
+      sessionId,
+      agentSessionId,
+      payload,
+      metadata,
+      createdAt: now
+    })
 
     const [saved] = await database.insert(sessionMessagesTable).values(insertData).returning()
 

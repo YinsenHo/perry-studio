@@ -4615,13 +4615,18 @@
           "ovms_config": "OVMS 模型配置",
           "redux_local_storage_leveldb": "Chromium Local Storage LevelDB",
           "skills": "全局 Skills",
+          "storage_v2_backups": "Storage v2 备份历史",
+          "storage_v2_legacy_archives": "Storage v2 旧数据归档",
           "storage_v2_main_db": "Storage v2 主数据库",
           "storage_v2_manifest": "Storage v2 Manifest",
+          "storage_v2_snapshots": "Storage v2 快照",
+          "storage_v2_temp": "Storage v2 临时目录",
           "tesseract_cache": "Tesseract 缓存",
           "trace_cache": "Trace 缓存",
           "user_data_cache": "Chromium 运行时缓存",
           "version_log": "版本历史日志",
-          "workbench": "Workbench 产物"
+          "workbench": "Workbench 产物",
+          "workspace": "默认 Agent 工作区"
         },
         "auto_hydrate": {
           "help": "开启后，应用启动时会优先用 Storage v2 中的设置、模型服务商和助手配置恢复运行时缓存。迁移验证完成前建议保持关闭。",

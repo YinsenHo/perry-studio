@@ -176,6 +176,30 @@ describe('getDataPath', () => {
     expect(getDataPath()).toBe(legacyRoot)
   })
 
+  it('detects a legacy root that only contains default Notes or Workspace assets', async () => {
+    const legacyRoot = '/mock/appData/Perry Studio/Data'
+    mocks.fs.existsSync.mockImplementation((candidate) =>
+      [legacyRoot, `${legacyRoot}/Notes`, `${legacyRoot}/Workspace`].includes(String(candidate))
+    )
+    mocks.fs.statSync.mockImplementation(
+      (candidate) =>
+        ({
+          isDirectory: () => String(candidate).endsWith('/Notes') || String(candidate).endsWith('/Workspace'),
+          isFile: () => false,
+          size: 0
+        }) as never
+    )
+    mocks.fs.readdirSync.mockImplementation((candidate) => {
+      if (String(candidate).endsWith('/Notes')) return ['note.md'] as never
+      if (String(candidate).endsWith('/Workspace')) return ['README.md'] as never
+      return [] as never
+    })
+
+    const { getDataPath } = await import('../index')
+
+    expect(getDataPath()).toBe(legacyRoot)
+  })
+
   it('keeps getDefaultDataPath pinned to the Electron userData root', async () => {
     const legacyRoot = '/mock/appData/Perry Studio/Data'
     mocks.fs.existsSync.mockImplementation((candidate) =>

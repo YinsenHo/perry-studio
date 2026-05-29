@@ -101,7 +101,11 @@ function hasLegacyRuntimeData(dataRoot: string) {
     'KnowledgeBase',
     'Memory',
     'Skills',
-    'Agents'
+    'Agents',
+    'Channels',
+    'Workbench',
+    'Notes',
+    'Workspace'
   ].some((entry) => hasDataEntry(path.join(dataRoot, entry)))
 }
 

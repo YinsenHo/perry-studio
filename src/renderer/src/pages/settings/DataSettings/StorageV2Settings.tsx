@@ -164,13 +164,18 @@ const AUDIT_ITEM_LABEL_KEYS: Record<string, string> = {
   'ovms-config': 'settings.data.storage_v2.audit_items.ovms_config',
   'redux-local-storage-leveldb': 'settings.data.storage_v2.audit_items.redux_local_storage_leveldb',
   skills: 'settings.data.storage_v2.audit_items.skills',
+  'storage-v2-backups': 'settings.data.storage_v2.audit_items.storage_v2_backups',
+  'storage-v2-legacy-archives': 'settings.data.storage_v2.audit_items.storage_v2_legacy_archives',
   'storage-v2-main-db': 'settings.data.storage_v2.audit_items.storage_v2_main_db',
   'storage-v2-manifest': 'settings.data.storage_v2.audit_items.storage_v2_manifest',
+  'storage-v2-snapshots': 'settings.data.storage_v2.audit_items.storage_v2_snapshots',
+  'storage-v2-temp': 'settings.data.storage_v2.audit_items.storage_v2_temp',
   'tesseract-cache': 'settings.data.storage_v2.audit_items.tesseract_cache',
   'trace-cache': 'settings.data.storage_v2.audit_items.trace_cache',
   'user-data-cache': 'settings.data.storage_v2.audit_items.user_data_cache',
   'version-log': 'settings.data.storage_v2.audit_items.version_log',
-  workbench: 'settings.data.storage_v2.audit_items.workbench'
+  workbench: 'settings.data.storage_v2.audit_items.workbench',
+  workspace: 'settings.data.storage_v2.audit_items.workspace'
 }
 
 const REPORT_KEYS = ['redux', 'dexie', 'agentDb', 'appDb'] as const

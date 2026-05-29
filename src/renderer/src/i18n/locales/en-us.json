@@ -4615,13 +4615,18 @@
           "ovms_config": "OVMS model config",
           "redux_local_storage_leveldb": "Chromium Local Storage LevelDB",
           "skills": "Global skills",
+          "storage_v2_backups": "Storage v2 backup history",
+          "storage_v2_legacy_archives": "Storage v2 legacy archives",
           "storage_v2_main_db": "Storage v2 main database",
           "storage_v2_manifest": "Storage v2 manifest",
+          "storage_v2_snapshots": "Storage v2 snapshots",
+          "storage_v2_temp": "Storage v2 temp directory",
           "tesseract_cache": "Tesseract cache",
           "trace_cache": "Trace cache",
           "user_data_cache": "Chromium runtime cache",
           "version_log": "Version history log",
-          "workbench": "Workbench artifacts"
+          "workbench": "Workbench artifacts",
+          "workspace": "Default agent workspace"
         },
         "auto_hydrate": {
           "help": "When enabled, app startup restores the runtime cache from Storage v2 settings, model providers, and assistant configuration first. Keep this off until migration checks look good.",

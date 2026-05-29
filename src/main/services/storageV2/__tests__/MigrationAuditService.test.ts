@@ -49,6 +49,7 @@ describe('StorageV2MigrationAuditService', () => {
     expect(itemPath('files')).toBe('/mock/stable-data-root/Files')
     expect(itemPath('knowledge-base')).toBe('/mock/stable-data-root/KnowledgeBase')
     expect(itemPath('notes')).toBe('/mock/stable-data-root/Notes')
+    expect(itemPath('workspace')).toBe('/mock/stable-data-root/Workspace')
     expect(itemPath('channels')).toBe('/mock/stable-data-root/Channels')
     expect(itemPath('workbench')).toBe('/mock/stable-data-root/Workbench')
     expect(itemPath('agents-db')).toBe('/mock/stable-data-root/agents.db')
@@ -64,6 +65,52 @@ describe('StorageV2MigrationAuditService', () => {
     expect(itemPath('user-data-cache')).toBe('/mock/current-user-data/Cache')
     expect(itemPath('version-log')).toBe('/mock/current-user-data/version.log')
     expect(itemPath('tesseract-cache')).toBe('/mock/current-user-data/tesseract')
+    expect(itemPath('storage-v2-backups')).toBe('/mock/stable-data-root/backups')
+    expect(itemPath('storage-v2-snapshots')).toBe('/mock/stable-data-root/snapshots')
+    expect(itemPath('storage-v2-legacy-archives')).toBe('/mock/stable-data-root/legacy')
+    expect(itemPath('storage-v2-temp')).toBe('/mock/stable-data-root/temp')
+  })
+
+  it('surfaces unclassified top-level Data entries as action-required audit items', async () => {
+    vi.mocked(fs.readdir).mockImplementation(async (targetPath) => {
+      if (String(targetPath) === '/mock/stable-data-root') {
+        return [
+          {
+            name: 'MysteryStore',
+            isDirectory: () => true,
+            isFile: () => false
+          }
+        ] as any
+      }
+      if (String(targetPath) === '/mock/stable-data-root/MysteryStore') {
+        return [] as any
+      }
+      return [] as any
+    })
+    vi.mocked(fs.stat).mockImplementation(async (targetPath) => {
+      if (String(targetPath) === '/mock/stable-data-root/MysteryStore') {
+        return {
+          isDirectory: () => true,
+          isFile: () => false,
+          size: 0
+        } as any
+      }
+      throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+    })
+
+    const { StorageV2MigrationAuditService } = await import('../MigrationAuditService')
+    const audit = await new StorageV2MigrationAuditService().runAudit()
+    const item = audit.items.find((entry) => entry.id === 'data-root-unclassified-mysterystore-1')
+
+    expect(item).toMatchObject({
+      actionRequired: true,
+      category: 'user-asset',
+      coverage: 'legacy-only',
+      exists: true,
+      path: '/mock/stable-data-root/MysteryStore',
+      risk: 'medium'
+    })
+    expect(audit.warnings.some((warning) => warning.includes('Unclassified Data entry'))).toBe(true)
   })
 
   it('warns when legacy-only action-required paths still exist', async () => {

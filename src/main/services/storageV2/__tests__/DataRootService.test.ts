@@ -102,6 +102,35 @@ describe('StorageV2DataRootService', () => {
     expect(info.source).toBe('legacy-user-data')
   })
 
+  it('treats default Notes and Workspace directories as real data root assets', async () => {
+    vi.mocked(fs.existsSync).mockImplementation((candidate) =>
+      [
+        '/mock/appData/Perry Studio/Data/Notes',
+        '/mock/appData/Perry Studio/Data/Workspace',
+        '/mock/appData/Perry Studio/Data'
+      ].includes(String(candidate))
+    )
+    vi.mocked(fs.statSync).mockImplementation(
+      (candidate) =>
+        ({
+          isDirectory: () => String(candidate).endsWith('/Notes') || String(candidate).endsWith('/Workspace'),
+          isFile: () => false,
+          size: 0
+        }) as never
+    )
+    vi.mocked(fs.readdirSync).mockImplementation((candidate) => {
+      if (String(candidate).endsWith('/Notes')) return ['note.md'] as never
+      if (String(candidate).endsWith('/Workspace')) return ['README.md'] as never
+      return [] as never
+    })
+
+    const { StorageV2DataRootService } = await import('../DataRootService')
+    const info = new StorageV2DataRootService().resolveDataRoot()
+
+    expect(info.dataRoot).toBe('/mock/appData/Perry Studio/Data')
+    expect(info.source).toBe('legacy-user-data')
+  })
+
   it('prefers an existing Storage v2 manifest over legacy data candidates', async () => {
     vi.mocked(fs.existsSync).mockImplementation((candidate) =>
       ['/mock/appData/Cherry Studio Pi/Data/manifest.json', '/mock/appData/Perry Studio/Data/agents.db'].includes(

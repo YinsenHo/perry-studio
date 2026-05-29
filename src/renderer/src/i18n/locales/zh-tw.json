@@ -4615,13 +4615,18 @@
           "ovms_config": "OVMS 模型設定",
           "redux_local_storage_leveldb": "Chromium Local Storage LevelDB",
           "skills": "全域 Skills",
+          "storage_v2_backups": "Storage v2 備份歷史",
+          "storage_v2_legacy_archives": "Storage v2 舊資料歸檔",
           "storage_v2_main_db": "Storage v2 主資料庫",
           "storage_v2_manifest": "Storage v2 Manifest",
+          "storage_v2_snapshots": "Storage v2 快照",
+          "storage_v2_temp": "Storage v2 暫存目錄",
           "tesseract_cache": "Tesseract 快取",
           "trace_cache": "Trace 快取",
           "user_data_cache": "Chromium 執行階段快取",
           "version_log": "版本歷史日誌",
-          "workbench": "Workbench 產物"
+          "workbench": "Workbench 產物",
+          "workspace": "預設 Agent 工作區"
         },
         "auto_hydrate": {
           "help": "開啟後，應用程式啟動時會優先用 Storage v2 中的設定、模型服務商和助手配置還原執行階段快取。遷移驗證完成前建議保持關閉。",

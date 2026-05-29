@@ -73,7 +73,11 @@ function hasLegacyData(dataRoot: string): boolean {
     'KnowledgeBase',
     'Memory',
     'Skills',
-    'Agents'
+    'Agents',
+    'Channels',
+    'Workbench',
+    'Notes',
+    'Workspace'
   ].some((entry) => hasDataEntry(path.join(dataRoot, entry)))
 }
 

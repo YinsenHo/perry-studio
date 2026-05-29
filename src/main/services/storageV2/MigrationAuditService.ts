@@ -16,6 +16,43 @@ type PathStats = {
 
 type AuditPathOptions = Pick<StorageV2AuditItem, 'actionRequired' | 'category' | 'coverage' | 'notes' | 'risk'>
 
+const KNOWN_DATA_ROOT_ENTRIES = new Set([
+  'main.db',
+  'main.db-wal',
+  'main.db-shm',
+  'manifest.json',
+  'agents.db',
+  'agents.db-wal',
+  'agents.db-shm',
+  'app.db',
+  'app.db-wal',
+  'app.db-shm',
+  'blobs',
+  'secrets',
+  'Files',
+  'KnowledgeBase',
+  'Memory',
+  'Skills',
+  'Agents',
+  'Channels',
+  'Workbench',
+  'Notes',
+  'Workspace',
+  'backups',
+  'snapshots',
+  'legacy',
+  'temp'
+])
+
+function safeAuditIdSegment(value: string) {
+  return (
+    value
+      .replace(/[^a-z0-9]+/gi, '-')
+      .replace(/^-|-$/g, '')
+      .toLowerCase() || 'entry'
+  )
+}
+
 async function collectStats(targetPath: string): Promise<PathStats> {
   const stats = await fs.stat(targetPath)
 
@@ -87,6 +124,33 @@ async function auditPath(
   }
 }
 
+async function auditUnclassifiedDataRootEntries(dataRoot: string): Promise<StorageV2AuditItem[]> {
+  try {
+    const entries = await fs.readdir(dataRoot, { withFileTypes: true })
+    const unknownEntries = entries.filter((entry) => !KNOWN_DATA_ROOT_ENTRIES.has(entry.name))
+
+    return Promise.all(
+      unknownEntries.map((entry, index) =>
+        auditPath(
+          `data-root-unclassified-${safeAuditIdSegment(entry.name)}-${index + 1}`,
+          `Unclassified Data entry: ${entry.name}`,
+          path.join(dataRoot, entry.name),
+          {
+            actionRequired: true,
+            category: 'user-asset',
+            coverage: 'legacy-only',
+            risk: 'medium',
+            notes:
+              'Top-level Data entry is not part of the known Storage v2 inventory yet. Classify it before final cutover.'
+          }
+        )
+      )
+    )
+  } catch {
+    return []
+  }
+}
+
 export class StorageV2MigrationAuditService {
   async runAudit(): Promise<StorageV2MigrationAudit> {
     const userDataPath = app.getPath('userData')
@@ -95,7 +159,7 @@ export class StorageV2MigrationAuditService {
     const dataPath = dataRootInfo.dataRoot
     const homeCherryPath = path.join(homePath, HOME_CHERRY_DIR)
 
-    const items = await Promise.all([
+    const knownItems = await Promise.all([
       auditPath('indexeddb', 'Chromium IndexedDB', path.join(userDataPath, 'IndexedDB'), {
         category: 'user-asset',
         coverage: 'covered',
@@ -164,6 +228,12 @@ export class StorageV2MigrationAuditService {
         risk: 'high',
         notes:
           'Default notes live under the active Storage v2 data root and are copied by Storage v2 backups; custom external notes paths still need separate authority metadata.'
+      }),
+      auditPath('workspace', 'Default agent workspace', path.join(dataPath, 'Workspace'), {
+        category: 'user-asset',
+        coverage: 'covered',
+        risk: 'high',
+        notes: 'Default filesystem MCP workspace is copied by Storage v2 backups.'
       }),
       auditPath('agents-workspaces', 'Agent workspaces', path.join(dataPath, 'Agents'), {
         category: 'user-asset',
@@ -301,6 +371,30 @@ export class StorageV2MigrationAuditService {
         risk: 'low',
         notes: 'OCR language cache; it is rebuildable and should remain outside backup guarantees.'
       }),
+      auditPath('storage-v2-backups', 'Storage v2 backup history', path.join(dataPath, 'backups'), {
+        category: 'bootstrap',
+        coverage: 'covered',
+        risk: 'medium',
+        notes: 'Backup history is tracked but not recursively copied into new backups.'
+      }),
+      auditPath('storage-v2-snapshots', 'Storage v2 snapshots', path.join(dataPath, 'snapshots'), {
+        category: 'runtime-cache',
+        coverage: 'cache',
+        risk: 'low',
+        notes: 'Database snapshots are generated safety artifacts and are not part of normal restore projection.'
+      }),
+      auditPath('storage-v2-legacy-archives', 'Storage v2 legacy archives', path.join(dataPath, 'legacy'), {
+        category: 'runtime-cache',
+        coverage: 'cache',
+        risk: 'low',
+        notes: 'Pre-migration and pre-restore archives are safety artifacts; fresh backups should be used for recovery.'
+      }),
+      auditPath('storage-v2-temp', 'Storage v2 temp directory', path.join(dataPath, 'temp'), {
+        category: 'runtime-cache',
+        coverage: 'cache',
+        risk: 'low',
+        notes: 'Temporary restore and migration staging files; safe to rebuild.'
+      }),
       auditPath('storage-v2-main-db', 'Storage v2 main database', path.join(dataRootInfo.dataRoot, 'main.db'), {
         category: 'user-asset',
         coverage: 'storage-v2-authoritative',
@@ -312,6 +406,7 @@ export class StorageV2MigrationAuditService {
         risk: 'medium'
       })
     ])
+    const items = [...knownItems, ...(await auditUnclassifiedDataRootEntries(dataPath))]
 
     const warnings: string[] = []
     const manifestCandidates = dataRootInfo.candidates.filter((candidate) => candidate.hasManifest)

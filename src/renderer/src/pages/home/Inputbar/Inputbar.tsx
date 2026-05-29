@@ -335,7 +335,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       setModel(assistant.defaultModel)
     }
 
-    addTopic(newTopic)
+    await addTopic(newTopic)
     setActiveTopic(newTopic)
   }, [addTopic, assistant.defaultModel, assistant.id, setActiveTopic, setModel])
 

@@ -155,7 +155,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
       if (assistant.topics.length === 1) {
         const newTopic = getDefaultTopic(assistant.id)
         await db.topics.add({ id: newTopic.id, messages: [] })
-        addTopic(newTopic)
+        await addTopic(newTopic)
         setActiveTopic(newTopic)
       } else {
         const index = findIndex(assistant.topics, (t) => t.id === topic.id)

@@ -56,8 +56,8 @@ async function removeTopicsFromRuntime(topicIds: Iterable<string>, reason: strin
 }
 
 const flushStorageV2TopicMirror = (topicId: string | undefined) => {
-  if (!topicId) return
-  void storageV2ConversationMirrorService.flushTopic(topicId, () => store.getState())
+  if (!topicId) return Promise.resolve()
+  return storageV2ConversationMirrorService.flushTopic(topicId, () => store.getState())
 }
 
 const flushStorageV2TopicMirrors = (topicIds: Iterable<string | undefined>) => {
@@ -279,9 +279,9 @@ export function useAssistant(id: string) {
   return {
     assistant: assistantWithModel,
     model,
-    addTopic: (topic: Topic) => {
+    addTopic: async (topic: Topic) => {
       dispatch(addTopic({ assistantId: assistant.id, topic }))
-      flushStorageV2TopicMirror(topic.id)
+      await flushStorageV2TopicMirror(topic.id)
     },
     removeTopic: async (topic: Topic) => {
       await removeTopicsFromRuntime([topic.id], 'topic removal')
@@ -341,11 +341,11 @@ export function useAssistant(id: string) {
       dispatch(updateTopics({ assistantId: toAssistant.id, topics: targetTopics }))
       dispatch(updateTopics({ assistantId: assistant.id, topics: sourceTopics }))
       await flushAssistantMirror('assistant-topic-move', { strict: true })
-      flushStorageV2TopicMirror(topic.id)
+      void flushStorageV2TopicMirror(topic.id)
     },
     updateTopic: (topic: Topic) => {
       dispatch(updateTopic({ assistantId: assistant.id, topic }))
-      flushStorageV2TopicMirror(topic.id)
+      void flushStorageV2TopicMirror(topic.id)
     },
     updateTopics: (topics: Topic[]) => {
       dispatch(updateTopics({ assistantId: assistant.id, topics }))
@@ -361,7 +361,7 @@ export function useAssistant(id: string) {
       await persistAssistantTopicsBeforeRuntimeUpdate([{ assistantId: assistant.id, topics: [replacementTopic] }])
       dispatch(removeAllTopics({ assistantId: assistant.id, replacementTopic }))
       await flushAssistantMirror('assistant-topics-reset', { strict: true })
-      flushStorageV2TopicMirror(replacementTopic.id)
+      await flushStorageV2TopicMirror(replacementTopic.id)
     },
     setModel: useCallback(
       (model: Model) => {

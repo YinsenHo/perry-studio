@@ -180,7 +180,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
         }
 
         // 1. Add the new topic to Redux store FIRST
-        addTopic(newTopic)
+        await addTopic(newTopic)
 
         // 2. Call the thunk to clone messages and update DB
         const success = await createTopicBranch(topic.id, currentMessages.length - index, newTopic)

@@ -1,5 +1,12 @@
 import type { Client } from '@libsql/client'
-import type { ChannelRow, InsertChannelRow, InsertTaskRow, TaskRow } from '@main/services/agents/database/schema'
+import type {
+  ChannelRow,
+  InsertChannelRow,
+  InsertSessionRow,
+  InsertTaskRow,
+  SessionRow,
+  TaskRow
+} from '@main/services/agents/database/schema'
 
 import { storageV2SecretVaultService } from './SecretVaultService'
 import { storageV2Database } from './StorageV2Database'
@@ -62,6 +69,34 @@ type AgentRuntimeRow = {
   deleted_at?: string | null
 }
 
+type AgentSessionRuntimeRow = Pick<
+  SessionRow | InsertSessionRow,
+  | 'id'
+  | 'agent_id'
+  | 'agent_type'
+  | 'name'
+  | 'description'
+  | 'accessible_paths'
+  | 'instructions'
+  | 'model'
+  | 'plan_model'
+  | 'small_model'
+  | 'mcps'
+  | 'allowed_tools'
+  | 'slash_commands'
+  | 'configuration'
+  | 'sort_order'
+  | 'created_at'
+  | 'updated_at'
+> & {
+  id: string
+  deleted_at?: string | null
+}
+
+type AgentSessionUpsertOptions = {
+  shiftExistingForAgent?: boolean
+}
+
 function now() {
   return new Date().toISOString()
 }
@@ -112,6 +147,26 @@ function parseJson(value: unknown): unknown {
 function normalizeJson(value: unknown, fallback: unknown) {
   const parsed = parseJson(value)
   return toJson(parsed ?? fallback)
+}
+
+function normalizeValue<T>(value: unknown, fallback: T): T | unknown {
+  return parseJson(value) ?? fallback
+}
+
+function buildAgentSessionCurrentConfig(session: AgentSessionRuntimeRow): Record<string, unknown> {
+  return {
+    agentType: session.agent_type,
+    description: session.description ?? null,
+    accessiblePaths: normalizeValue(session.accessible_paths, []),
+    instructions: session.instructions ?? null,
+    model: session.model ?? '',
+    planModel: session.plan_model ?? null,
+    smallModel: session.small_model ?? null,
+    mcps: normalizeValue(session.mcps, []),
+    allowedTools: normalizeValue(session.allowed_tools, []),
+    slashCommands: normalizeValue(session.slash_commands, []),
+    configuration: normalizeValue(session.configuration, {})
+  }
 }
 
 export class StorageV2AgentRuntimeWriteService {
@@ -180,6 +235,198 @@ export class StorageV2AgentRuntimeWriteService {
         version: await getVersion(client, 'agents', agent.id)
       })
     })
+  }
+
+  async upsertAgentSession(session: AgentSessionRuntimeRow, options: AgentSessionUpsertOptions = {}): Promise<void> {
+    const client = await storageV2Database.getClient()
+    const updatedAt = toIsoTimestamp(session.updated_at, now())
+    const createdAt = toIsoTimestamp(session.created_at, updatedAt)
+    const sessionName = session.name ?? session.id
+    const sortOrder = session.sort_order ?? 0
+
+    await storageV2Database.withTransaction(client, async () => {
+      if (options.shiftExistingForAgent) {
+        await this.shiftExistingAgentSessions(client, session.agent_id, session.id, updatedAt)
+      }
+
+      await client.execute({
+        sql: `
+          INSERT INTO agent_sessions (
+            id, agent_id, name, inherited_config_json, current_config_json,
+            sort_order, created_at, updated_at, deleted_at, version
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+          ON CONFLICT(id) DO UPDATE SET
+            agent_id = excluded.agent_id,
+            name = excluded.name,
+            inherited_config_json = excluded.inherited_config_json,
+            current_config_json = excluded.current_config_json,
+            sort_order = excluded.sort_order,
+            updated_at = excluded.updated_at,
+            deleted_at = excluded.deleted_at,
+            version = agent_sessions.version + 1
+        `,
+        args: [
+          session.id,
+          session.agent_id,
+          sessionName,
+          normalizeJson(session.configuration, {}),
+          toJson(buildAgentSessionCurrentConfig(session)),
+          sortOrder,
+          createdAt,
+          updatedAt,
+          session.deleted_at ?? null
+        ]
+      })
+
+      await client.execute({
+        sql: `
+          INSERT INTO conversations (
+            id, kind, owner_type, owner_id, session_id, title, pinned, archived, sort_order,
+            created_at, updated_at, deleted_at, version
+          )
+          VALUES (?, 'agent_session', 'agent', ?, ?, ?, 0, 0, ?, ?, ?, ?, 1)
+          ON CONFLICT(id) DO UPDATE SET
+            kind = excluded.kind,
+            owner_type = excluded.owner_type,
+            owner_id = excluded.owner_id,
+            session_id = excluded.session_id,
+            title = excluded.title,
+            sort_order = excluded.sort_order,
+            updated_at = excluded.updated_at,
+            deleted_at = excluded.deleted_at,
+            version = conversations.version + 1
+        `,
+        args: [
+          `agent-session:${session.id}`,
+          session.agent_id,
+          session.id,
+          sessionName,
+          sortOrder,
+          createdAt,
+          updatedAt,
+          session.deleted_at ?? null
+        ]
+      })
+
+      await storageV2SyncLogService.recordChange({
+        client,
+        entityType: 'agent_session',
+        entityId: session.id,
+        operation: session.deleted_at ? 'delete' : 'upsert',
+        payload: {
+          id: session.id,
+          agentId: session.agent_id,
+          name: sessionName,
+          deletedAt: session.deleted_at ?? null
+        },
+        version: await getVersion(client, 'agent_sessions', session.id)
+      })
+
+      await storageV2SyncLogService.recordChange({
+        client,
+        entityType: 'conversation',
+        entityId: `agent-session:${session.id}`,
+        operation: session.deleted_at ? 'delete' : 'upsert',
+        payload: {
+          kind: 'agent_session',
+          ownerType: 'agent',
+          ownerId: session.agent_id,
+          sessionId: session.id,
+          title: sessionName,
+          deletedAt: session.deleted_at ?? null
+        },
+        version: await getVersion(client, 'conversations', `agent-session:${session.id}`)
+      })
+    })
+  }
+
+  private async shiftExistingAgentSessions(
+    client: Client,
+    agentId: string,
+    insertedSessionId: string,
+    updatedAt: string
+  ): Promise<void> {
+    const shiftedResult = await client.execute({
+      sql: `
+        SELECT id
+        FROM agent_sessions
+        WHERE agent_id = ? AND id != ? AND deleted_at IS NULL
+      `,
+      args: [agentId, insertedSessionId]
+    })
+    const shiftedSessionIds = shiftedResult.rows
+      .map((row) => (typeof row.id === 'string' ? row.id : null))
+      .filter((id): id is string => Boolean(id))
+
+    if (shiftedSessionIds.length === 0) return
+
+    const shiftedConversationResult = await client.execute({
+      sql: `
+        SELECT id
+        FROM conversations
+        WHERE kind = 'agent_session'
+          AND session_id IN (${shiftedSessionIds.map(() => '?').join(', ')})
+          AND deleted_at IS NULL
+      `,
+      args: shiftedSessionIds
+    })
+    const shiftedConversationIds = new Set(
+      shiftedConversationResult.rows
+        .map((row) => (typeof row.id === 'string' ? row.id : null))
+        .filter((id): id is string => Boolean(id))
+    )
+
+    await client.execute({
+      sql: `
+        UPDATE agent_sessions
+        SET sort_order = sort_order + 1, updated_at = ?, version = version + 1
+        WHERE agent_id = ? AND id != ? AND deleted_at IS NULL
+      `,
+      args: [updatedAt, agentId, insertedSessionId]
+    })
+
+    await client.execute({
+      sql: `
+        UPDATE conversations
+        SET sort_order = sort_order + 1, updated_at = ?, version = version + 1
+        WHERE kind = 'agent_session'
+          AND session_id IN (${shiftedSessionIds.map(() => '?').join(', ')})
+          AND deleted_at IS NULL
+      `,
+      args: [updatedAt, ...shiftedSessionIds]
+    })
+
+    for (const sessionId of shiftedSessionIds) {
+      await storageV2SyncLogService.recordChange({
+        client,
+        entityType: 'agent_session',
+        entityId: sessionId,
+        payload: {
+          id: sessionId,
+          agentId,
+          sortOrderShifted: true
+        },
+        version: await getVersion(client, 'agent_sessions', sessionId)
+      })
+
+      const conversationId = `agent-session:${sessionId}`
+      if (shiftedConversationIds.has(conversationId)) {
+        await storageV2SyncLogService.recordChange({
+          client,
+          entityType: 'conversation',
+          entityId: conversationId,
+          payload: {
+            kind: 'agent_session',
+            ownerType: 'agent',
+            ownerId: agentId,
+            sessionId,
+            sortOrderShifted: true
+          },
+          version: await getVersion(client, 'conversations', conversationId)
+        })
+      }
+    }
   }
 
   async upsertScheduledTask(task: ScheduledTaskRuntimeRow, channelIds?: string[]): Promise<void> {

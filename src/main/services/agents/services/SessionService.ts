@@ -2,6 +2,8 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import { loggerService } from '@logger'
+import { storageV2AgentRuntimeTombstoneService } from '@main/services/storageV2/AgentRuntimeTombstoneService'
+import { storageV2AgentRuntimeWriteService } from '@main/services/storageV2/AgentRuntimeWriteService'
 import { parsePluginMetadata } from '@main/utils/markdownParser'
 import type { SlashCommand, UpdateSessionResponse } from '@types'
 import {
@@ -165,6 +167,8 @@ export class SessionService extends BaseService {
     }
 
     const db = await this.getDatabase()
+    await storageV2AgentRuntimeWriteService.upsertAgentSession(insertData, { shiftExistingForAgent: true })
+
     // Shift all existing sessions' sort_order up by 1 and insert new session at position 0 atomically
     await db.transaction(async (tx) => {
       await tx
@@ -309,13 +313,32 @@ export class SessionService extends BaseService {
     }
 
     const database = await this.getDatabase()
+    const rawRows = await database
+      .select()
+      .from(sessionsTable)
+      .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
+      .limit(1)
+    const rawExisting = rawRows[0]
+    if (!rawExisting) {
+      return null
+    }
+
+    await storageV2AgentRuntimeWriteService.upsertAgentSession({
+      ...rawExisting,
+      ...updateData
+    })
+
     await database.update(sessionsTable).set(updateData).where(eq(sessionsTable.id, id))
 
     return await this.getSession(agentId, id)
   }
 
-  async deleteSession(agentId: string, id: string): Promise<boolean> {
+  async deleteSession(agentId: string, id: string, options: { storageV2Tombstoned?: boolean } = {}): Promise<boolean> {
     const database = await this.getDatabase()
+    if (!options.storageV2Tombstoned) {
+      await storageV2AgentRuntimeTombstoneService.tombstoneSession(id)
+    }
+
     const result = await database
       .delete(sessionsTable)
       .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))

@@ -92,6 +92,76 @@ describe('StorageV2AgentRuntimeWriteService', () => {
     )
   })
 
+  it('upserts agent sessions and their Storage v2 conversation metadata', async () => {
+    await new StorageV2AgentRuntimeWriteService().upsertAgentSession({
+      id: 'session-1',
+      agent_id: 'agent-1',
+      agent_type: 'claude-code',
+      name: 'Session',
+      description: 'Working session',
+      accessible_paths: JSON.stringify(['/tmp/session-1']),
+      instructions: 'Keep going',
+      model: 'openai:gpt-4o',
+      plan_model: null,
+      small_model: null,
+      mcps: JSON.stringify(['filesystem']),
+      allowed_tools: JSON.stringify(['Read']),
+      slash_commands: JSON.stringify([{ command: '/test', description: 'Test' }]),
+      configuration: JSON.stringify({ permission_mode: 'plan' }),
+      sort_order: 0,
+      created_at: '2026-05-29T00:00:00.000Z',
+      updated_at: '2026-05-29T00:00:01.000Z'
+    })
+
+    const sessionUpsertCall = mocks.client.execute.mock.calls.find(([arg]) => {
+      return typeof arg === 'object' && String(arg.sql).includes('INSERT INTO agent_sessions')
+    })
+    expect(sessionUpsertCall).toBeTruthy()
+
+    const sessionArgs = sessionUpsertCall?.[0].args as unknown[]
+    expect(sessionArgs).toEqual(
+      expect.arrayContaining([
+        'session-1',
+        'agent-1',
+        'Session',
+        JSON.stringify({ permission_mode: 'plan' }),
+        0,
+        '2026-05-29T00:00:00.000Z',
+        '2026-05-29T00:00:01.000Z'
+      ])
+    )
+    expect(JSON.parse(sessionArgs[4] as string)).toEqual(
+      expect.objectContaining({
+        agentType: 'claude-code',
+        accessiblePaths: ['/tmp/session-1'],
+        mcps: ['filesystem'],
+        allowedTools: ['Read'],
+        slashCommands: [{ command: '/test', description: 'Test' }],
+        configuration: { permission_mode: 'plan' }
+      })
+    )
+    expect(mocks.client.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining('INSERT INTO conversations'),
+        args: expect.arrayContaining(['agent-session:session-1', 'agent-1', 'session-1', 'Session'])
+      })
+    )
+    expect(mocks.recordChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'agent_session',
+        entityId: 'session-1',
+        version: 3
+      })
+    )
+    expect(mocks.recordChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'conversation',
+        entityId: 'agent-session:session-1',
+        version: 3
+      })
+    )
+  })
+
   it('upserts channels through Storage v2 and moves credentials into the secret vault first', async () => {
     await new StorageV2AgentRuntimeWriteService().upsertChannel({
       id: 'channel-1',

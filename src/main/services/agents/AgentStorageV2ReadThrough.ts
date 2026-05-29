@@ -209,7 +209,7 @@ export async function deleteSessionWithStorageV2Recovery(agentId: string, sessio
   if (!session) return false
 
   await storageV2AgentRuntimeTombstoneService.tombstoneSession(sessionId)
-  const deleted = await sessionService.deleteSession(agentId, sessionId)
+  const deleted = await sessionService.deleteSession(agentId, sessionId, { storageV2Tombstoned: true })
   if (deleted) {
     await flushAgentRuntimeMutationToStorageV2({ strict: true })
   }

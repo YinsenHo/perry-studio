@@ -1,6 +1,7 @@
 import type { AppCapabilityRegistry } from '../registry'
 import { createAgentCapabilities } from './agents'
 import { createKnowledgeCapabilities } from './knowledge'
+import { createMcpCapabilities } from './mcp'
 import { createNavigationCapabilities } from './navigation'
 import { createNotesCapabilities } from './notes'
 import { createPaintingCapabilities } from './paintings'
@@ -13,6 +14,7 @@ export function registerAppCapabilities(registry: AppCapabilityRegistry): void {
     ...createSettingsCapabilities(),
     ...createStorageCapabilities(),
     ...createKnowledgeCapabilities(),
+    ...createMcpCapabilities(),
     ...createNotesCapabilities(),
     ...createPaintingCapabilities(),
     ...createAgentCapabilities()

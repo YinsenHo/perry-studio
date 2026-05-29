@@ -23,6 +23,7 @@ const QUERY_EXPANSIONS: Array<[RegExp, string[]]> = [
   [/笔记|文档|markdown/i, ['notes', 'markdown']],
   [/绘图|画图|生图|图片生成|图像生成/, ['paintings', 'image', 'generate', 'drawing']],
   [/智能体|agent/i, ['agents', 'agent']],
+  [/mcp|工具|tool/i, ['mcp', 'tools']],
   [/任务|定时|计划/, ['tasks', 'schedule']],
   [/会话|对话/, ['sessions', 'conversations', 'chat']],
   [/模型|model/i, ['models', 'llm']],

@@ -191,6 +191,34 @@ export function createStorageCapabilities(): AppCapabilityDefinition[] {
         )
     },
     {
+      id: 'storage.messages.list',
+      domain: 'storage',
+      kind: 'query',
+      title: 'List conversation messages',
+      description: 'List messages for a Storage v2 conversation.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          conversationId: { type: 'string' },
+          limit: { type: 'number' },
+          offset: { type: 'number' }
+        },
+        required: ['conversationId']
+      },
+      risk: 'read',
+      tags: ['storage', 'messages', 'conversations', 'chat'],
+      execute: async (input: any) =>
+        okResult(
+          'Conversation messages listed',
+          sanitizeForAgent(
+            await storageV2Service.listMessages(String(input?.conversationId), {
+              limit: input?.limit,
+              offset: input?.offset
+            })
+          )
+        )
+    },
+    {
       id: 'storage.files.list',
       domain: 'storage',
       kind: 'query',
@@ -200,6 +228,24 @@ export function createStorageCapabilities(): AppCapabilityDefinition[] {
       risk: 'read',
       tags: ['storage', 'files'],
       execute: async () => okResult('Files listed', sanitizeForAgent(await storageV2Service.listFiles()))
+    },
+    {
+      id: 'storage.file.get',
+      domain: 'storage',
+      kind: 'query',
+      title: 'Get file record',
+      description: 'Read one file record from Storage v2 by file id.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          fileId: { type: 'string' }
+        },
+        required: ['fileId']
+      },
+      risk: 'read',
+      tags: ['storage', 'files', 'read'],
+      execute: async (input: any) =>
+        okResult('File record read', sanitizeForAgent(await storageV2Service.getFile(String(input?.fileId))))
     }
   ]
 }

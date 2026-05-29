@@ -48,7 +48,7 @@ const calculateModelGroups = (models: Model[], searchText: string): ModelGroups 
  */
 const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const { t } = useTranslation()
-  const { provider, models, removeModel } = useProvider(providerId)
+  const { provider, models, removeModel, removeModels } = useProvider(providerId)
 
   // 稳定的编辑模型回调，避免内联函数导致子组件 memo 失效
   const handleEditModel = useCallback((model: Model) => EditModelPopup.show({ provider, model }), [provider])
@@ -108,6 +108,20 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const onDownloadModel = useCallback(
     () => DownloadOVMSModelPopup.show({ title: t('ovms.download.title'), provider }),
     [provider, t]
+  )
+
+  const handleRemoveModel = useCallback(
+    (model: Model) => {
+      void removeModel(model)
+    },
+    [removeModel]
+  )
+
+  const handleRemoveGroup = useCallback(
+    (models: Model[]) => {
+      void removeModels(models)
+    },
+    [removeModels]
   )
 
   const isLoading = useMemo(() => displayedModelGroups === null, [displayedModelGroups])
@@ -177,8 +191,8 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                 modelStatusMap={modelStatusMap}
                 defaultOpen={i <= 5}
                 onEditModel={handleEditModel}
-                onRemoveModel={removeModel}
-                onRemoveGroup={() => displayedModelGroups[group].forEach((model) => removeModel(model))}
+                onRemoveModel={handleRemoveModel}
+                onRemoveGroup={() => handleRemoveGroup(displayedModelGroups[group])}
               />
             ))}
           </Flex>

@@ -44,7 +44,7 @@ interface Props extends ShowParams {
 
 const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   const [open, setOpen] = useState(true)
-  const { provider, models, addModel, removeModel } = useProvider(providerId)
+  const { provider, models, addModel, removeModel, removeModels } = useProvider(providerId)
   const [listModels, setListModels] = useState<Model[]>([])
   const [loadingModels, setLoadingModels] = useState(false)
   const [searchText, setSearchText] = useState('')
@@ -146,11 +146,23 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
     [addModel, provider, t]
   )
 
-  const onRemoveModel = useCallback((model: Model) => removeModel(model), [removeModel])
+  const onRemoveModel = useCallback(
+    (model: Model) => {
+      void removeModel(model)
+    },
+    [removeModel]
+  )
+
+  const onRemoveModels = useCallback(
+    (models: Model[]) => {
+      void removeModels(models)
+    },
+    [removeModels]
+  )
 
   const onRemoveAll = useCallback(() => {
-    list.filter((model) => isModelInProvider(provider, model.id)).forEach(onRemoveModel)
-  }, [list, onRemoveModel, provider])
+    onRemoveModels(list.filter((model) => isModelInProvider(provider, model.id)))
+  }, [list, onRemoveModels, provider])
 
   const onAddAll = useCallback(() => {
     const wouldAddModel = list.filter((model) => !isModelInProvider(provider, model.id))
@@ -335,6 +347,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
               provider={provider}
               onAddModel={onAddModel}
               onRemoveModel={onRemoveModel}
+              onRemoveModels={onRemoveModels}
             />
           )}
         </ListContainer>

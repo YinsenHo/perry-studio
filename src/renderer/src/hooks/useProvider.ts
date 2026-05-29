@@ -4,7 +4,8 @@ import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
 import { getDefaultProvider } from '@renderer/services/AssistantService'
 import { deleteStorageV2Provider } from '@renderer/services/StorageV2EntityDeleteService'
 import { flushStorageV2ReduxMirror } from '@renderer/services/StorageV2ReduxMirrorFlush'
-import { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
+import { persistStorageV2PartialReduxSnapshot } from '@renderer/services/StorageV2ReduxSliceService'
+import { type RootState, useAppDispatch, useAppSelector, useAppStore } from '@renderer/store'
 import {
   addModel,
   addProvider,
@@ -65,6 +66,20 @@ const selectAllProvidersWithCherryAI = createSelector(selectProviders, (provider
   [...providers, CHERRYAI_PROVIDER].map(normalizeProvider)
 )
 
+function removeModelsFromLlmState(llmState: RootState['llm'], providerId: string, modelIds: Set<string>) {
+  return {
+    ...llmState,
+    providers: llmState.providers.map((provider) =>
+      provider.id === providerId
+        ? {
+            ...provider,
+            models: provider.models.filter((model) => !modelIds.has(model.id))
+          }
+        : provider
+    )
+  }
+}
+
 export function useProviders() {
   const providers: Provider[] = useAppSelector(selectEnabledProviders)
   const dispatch = useAppDispatch()
@@ -107,6 +122,7 @@ export function useProvider(id: string) {
   const allProviders = useAppSelector(selectAllProvidersWithCherryAI)
   const provider = useMemo(() => allProviders.find((p) => p.id === id) || getDefaultProvider(), [allProviders, id])
   const dispatch = useAppDispatch()
+  const reduxStore = useAppStore()
 
   const handleAddModel = useCallback(
     (model: Model) => {
@@ -128,6 +144,44 @@ export function useProvider(id: string) {
     [dispatch, id, provider]
   )
 
+  const persistModelDeletes = useCallback(
+    async (models: Model[]) => {
+      const modelIds = new Set(models.map((model) => model.id))
+      if (modelIds.size === 0) return
+
+      const llmState = reduxStore.getState().llm
+      const providerInState = llmState.providers.find((provider) => provider.id === id)
+      if (!providerInState) return
+
+      await persistStorageV2PartialReduxSnapshot({
+        llm: removeModelsFromLlmState(llmState, id, modelIds)
+      })
+    },
+    [id, reduxStore]
+  )
+
+  const handleRemoveModel = useCallback(
+    async (model: Model) => {
+      await persistModelDeletes([model])
+      dispatch(removeModel({ providerId: id, model }))
+      await flushProviderMirror('llm-remove-model', { strict: true })
+    },
+    [dispatch, id, persistModelDeletes]
+  )
+
+  const handleRemoveModels = useCallback(
+    async (models: Model[]) => {
+      await persistModelDeletes(models)
+
+      models.forEach((model) => {
+        dispatch(removeModel({ providerId: id, model }))
+      })
+
+      await flushProviderMirror('llm-remove-models', { strict: true })
+    },
+    [dispatch, id, persistModelDeletes]
+  )
+
   return {
     provider,
     models: provider?.models ?? [],
@@ -136,10 +190,8 @@ export function useProvider(id: string) {
       flushProviderMirror('llm-update-provider')
     },
     addModel: handleAddModel,
-    removeModel: (model: Model) => {
-      dispatch(removeModel({ providerId: id, model }))
-      flushProviderMirror('llm-remove-model')
-    },
+    removeModel: handleRemoveModel,
+    removeModels: handleRemoveModels,
     updateModel: (model: Model) => {
       dispatch(updateModel({ providerId: id, model }))
       flushProviderMirror('llm-update-model')

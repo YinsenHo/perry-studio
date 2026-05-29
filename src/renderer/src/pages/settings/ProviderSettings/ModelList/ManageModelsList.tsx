@@ -37,6 +37,7 @@ interface ManageModelsListProps {
   provider: Provider
   onAddModel: (model: Model) => void
   onRemoveModel: (model: Model) => void
+  onRemoveModels: (models: Model[]) => void
 }
 
 const ManageModelsList: React.FC<ManageModelsListProps> = ({
@@ -44,7 +45,8 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
   duplicateModelNames,
   provider,
   onAddModel,
-  onRemoveModel
+  onRemoveModel,
+  onRemoveModels
 }) => {
   const { t } = useTranslation()
   const [collapsedGroups, setCollapsedGroups] = useState(new Set<string>())
@@ -93,8 +95,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
 
       const handleGroupAction = () => {
         if (isAllInProvider) {
-          // 移除整组
-          models.filter((model) => isModelInProvider(provider, model.id)).forEach(onRemoveModel)
+          onRemoveModels(models.filter((model) => isModelInProvider(provider, model.id)))
         } else {
           // 添加整组
           const wouldAddModels = models.filter((model) => !isModelInProvider(provider, model.id))
@@ -136,7 +137,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
         </Tooltip>
       )
     },
-    [provider, onRemoveModel, onAddModel, t]
+    [provider, onRemoveModels, onAddModel, t]
   )
 
   return (

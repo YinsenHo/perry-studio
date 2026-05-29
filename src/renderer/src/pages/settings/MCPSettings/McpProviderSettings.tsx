@@ -5,6 +5,7 @@ import db from '@renderer/databases'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { storageV2DexieSettingsMirrorService } from '@renderer/services/StorageV2DexieSettingsMirrorService'
 import { storageV2DexieSettingsRecoveryService } from '@renderer/services/StorageV2DexieSettingsRecoveryService'
+import { flushStorageV2LocalStorageMirrorStrict } from '@renderer/services/StorageV2LocalStorageSnapshot'
 import type { MCPServer } from '@renderer/types'
 import { Button, Divider, Flex, Input, Space } from 'antd'
 import Link from 'antd/es/typography/Link'
@@ -100,6 +101,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
 
     try {
       provider.saveToken(token)
+      await flushStorageV2LocalStorageMirrorStrict()
       const result = await provider.syncServers(token, existingServers)
 
       if (result.success) {

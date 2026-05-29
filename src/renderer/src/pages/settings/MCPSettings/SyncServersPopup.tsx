@@ -1,5 +1,6 @@
 import { TopView } from '@renderer/components/TopView'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { flushStorageV2LocalStorageMirrorStrict } from '@renderer/services/StorageV2LocalStorageSnapshot'
 import type { MCPServer } from '@renderer/types'
 import { Button, Form, Input, Modal, Select } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
@@ -141,6 +142,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
       // Save token if present
       if (token) {
         selectedProvider.saveToken(token)
+        await flushStorageV2LocalStorageMirrorStrict()
         setTokens((prev) => ({
           ...prev,
           [selectedProvider.tokenFieldName]: token

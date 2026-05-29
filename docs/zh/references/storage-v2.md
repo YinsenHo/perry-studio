@@ -1,6 +1,6 @@
 # Cherry Studio Pi Storage v2 架构设计
 
-状态：实施中
+状态：代码收尾完成，发布待触发
 目标版本：Storage v2
 适用范围：本地数据、同步迁移、账号体系、跨设备恢复、备份恢复
 
@@ -857,5 +857,6 @@ files.upsert(file)
 - 旧备份/重置留下的 `.restore` 目录会在 `app.whenReady()` 后第一时间完成切换，早于 Storage v2 config hydrate/mirror、启动 seed、窗口创建和 renderer 加载，避免恢复/重置启动时旧运行态先写回新库。每次恢复解压前会先清空 restore temp 目录，避免上一次失败残留的 `metadata.json` / `Data` 影响本次格式判断和恢复内容。factory reset 会先在 `Data.restore` 中预置全新的 Storage v2 manifest，再暂停 renderer mirror、清理 localStorage / IndexedDB 并重启；如果新 Data root staging 失败，不会先清掉 renderer runtime cache。切换完成后会立即把这个新路径重新注册为 active data root，避免旧产品名、旧用户名或旧配置里的 data root 继续优先命中，造成用户误以为重置失败或旧数据复活。
 - 设置页提供手动“从 Storage v2 恢复运行时缓存”入口，可把 Storage v2 核心快照恢复到 Redux runtime cache；同时提供默认关闭的启动恢复开关，开启后会在 Redux ready 通知前从 Storage v2 hydrate runtime cache。自动恢复只把真实 runtime 数据视为可恢复内容，不会因为 Storage v2 内部 `storage-v2` 设置元数据存在就把空库误判成可恢复快照。
 
-当前阶段仍不完全接管既有 Redux、IndexedDB、`agents.db` 或 `app.db` 的业务读写；其中 Redux、普通对话、文件、Pi agent 和 app-data 写入已经开始双写 / mirror 到 Storage v2，读取路径仍按模块逐步切换。
-StorageService-first 写路径和 legacy 归档清理仍是后续步骤。
+当前阶段代码侧已经完成 StorageService-first 主写保护、主要 read-through / projection、legacy runtime 清理策略、完整测试矩阵和安装包启动恢复验证。Redux、IndexedDB、`agents.db`、`app.db` 仍保留为 runtime cache / projection，以兼容既有业务路径和渐进迁移，但不再作为长期用户资产的唯一权威数据承诺。
+
+后续不再是本地代码重构本身，而是正式发布执行和发布产物验收：按确认的版本号触发 GitHub Release workflow，并检查 macOS 签名/公证、Windows 签名、Linux 安装包和自动更新 metadata。

@@ -1,10 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetModels, mockInitSkillsForAgent, mockTombstoneAgent, mockUpsertAgent } = vi.hoisted(() => ({
+const {
+  mockGetModels,
+  mockInitSkillsForAgent,
+  mockReorderAgents,
+  mockTombstoneAgent,
+  mockUpsertAgent,
+  mockUpsertAgentSession
+} = vi.hoisted(() => ({
   mockGetModels: vi.fn(),
   mockInitSkillsForAgent: vi.fn(),
+  mockReorderAgents: vi.fn(),
   mockTombstoneAgent: vi.fn(),
-  mockUpsertAgent: vi.fn()
+  mockUpsertAgent: vi.fn(),
+  mockUpsertAgentSession: vi.fn()
 }))
 
 vi.mock('@main/apiServer/services/mcp', () => ({
@@ -73,7 +82,9 @@ vi.mock('../../skills/SkillService', () => ({
 
 vi.mock('@main/services/storageV2/AgentRuntimeWriteService', () => ({
   storageV2AgentRuntimeWriteService: {
-    upsertAgent: mockUpsertAgent
+    reorderAgents: mockReorderAgents,
+    upsertAgent: mockUpsertAgent,
+    upsertAgentSession: mockUpsertAgentSession
   }
 }))
 
@@ -110,7 +121,9 @@ describe('AgentService built-in agent lifecycle', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockReorderAgents.mockResolvedValue(undefined)
     mockUpsertAgent.mockResolvedValue(undefined)
+    mockUpsertAgentSession.mockResolvedValue(undefined)
     mockTombstoneAgent.mockResolvedValue(undefined)
     vi.mocked(validateModelId).mockResolvedValue({
       valid: true,
@@ -219,6 +232,96 @@ describe('AgentService built-in agent lifecycle', () => {
     ).rejects.toThrow('storage unavailable')
 
     expect(insert).not.toHaveBeenCalled()
+  })
+
+  it('upserts inherited session changes in Storage v2 before updating legacy session rows', async () => {
+    const oldAgent = {
+      id: 'agent-1',
+      type: 'claude-code',
+      name: 'Agent',
+      description: null,
+      instructions: 'Old instructions',
+      model: 'openai:gpt-4o',
+      plan_model: null,
+      small_model: null,
+      accessible_paths: JSON.stringify(['/tmp/agent-1']),
+      mcps: JSON.stringify([]),
+      allowed_tools: JSON.stringify([]),
+      configuration: JSON.stringify({ permission_mode: 'plan' }),
+      sort_order: 0,
+      created_at: '2026-05-29T00:00:00.000Z',
+      updated_at: '2026-05-29T00:00:00.000Z',
+      deleted_at: null
+    }
+    const updatedAgent = {
+      ...oldAgent,
+      instructions: 'New instructions',
+      updated_at: '2026-05-29T00:00:01.000Z'
+    }
+    const inheritedSession = {
+      id: 'session-1',
+      agent_id: 'agent-1',
+      agent_type: 'claude-code',
+      name: 'Session',
+      instructions: 'Old instructions',
+      model: 'openai:gpt-4o',
+      plan_model: null,
+      small_model: null,
+      accessible_paths: JSON.stringify(['/tmp/agent-1']),
+      mcps: JSON.stringify([]),
+      allowed_tools: JSON.stringify([]),
+      slash_commands: JSON.stringify([]),
+      configuration: JSON.stringify({ permission_mode: 'plan' }),
+      sort_order: 0,
+      created_at: '2026-05-29T00:00:00.000Z',
+      updated_at: '2026-05-29T00:00:00.000Z'
+    }
+    const updateWhere = vi.fn().mockResolvedValue(undefined)
+    const updateSet = vi.fn(() => ({ where: updateWhere }))
+    const update = vi.fn(() => ({ set: updateSet }))
+    const txUpdateWhere = vi.fn().mockResolvedValue(undefined)
+    const txUpdateSet = vi.fn(() => ({ where: txUpdateWhere }))
+    const txUpdate = vi.fn(() => ({ set: txUpdateSet }))
+    const transaction = vi.fn(async (callback: (tx: unknown) => Promise<void>) => callback({ update: txUpdate }))
+    const database = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce(createSelectQuery([oldAgent]))
+        .mockReturnValueOnce(createSelectQuery([oldAgent]))
+        .mockReturnValueOnce(createWhereQuery([inheritedSession]))
+        .mockReturnValueOnce(createSelectQuery([updatedAgent])),
+      update,
+      transaction
+    }
+
+    vi.spyOn(service as never, 'getDatabase').mockResolvedValue(database as never)
+
+    await expect(service.updateAgent('agent-1', { instructions: 'New instructions' })).resolves.toEqual(
+      expect.objectContaining({ id: 'agent-1', instructions: 'New instructions' })
+    )
+
+    expect(mockUpsertAgentSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'session-1',
+        instructions: 'New instructions'
+      })
+    )
+    expect(mockUpsertAgentSession.mock.invocationCallOrder[0]).toBeLessThan(txUpdate.mock.invocationCallOrder[0])
+  })
+
+  it('reorders agents in Storage v2 before reordering the legacy cache', async () => {
+    const where = vi.fn().mockResolvedValue(undefined)
+    const set = vi.fn(() => ({ where }))
+    const txUpdate = vi.fn(() => ({ set }))
+    const transaction = vi.fn(async (callback: (tx: unknown) => Promise<void>) => callback({ update: txUpdate }))
+    const database = { transaction }
+
+    vi.spyOn(service as never, 'getDatabase').mockResolvedValue(database as never)
+
+    await expect(service.reorderAgents(['agent-1', 'agent-2'])).resolves.toBeUndefined()
+
+    expect(mockReorderAgents).toHaveBeenCalledWith(['agent-1', 'agent-2'])
+    expect(mockReorderAgents.mock.invocationCallOrder[0]).toBeLessThan(transaction.mock.invocationCallOrder[0])
   })
 
   it('soft-deletes built-in agents while preserving the row', async () => {

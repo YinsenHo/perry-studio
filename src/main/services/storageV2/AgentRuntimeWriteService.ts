@@ -255,6 +255,37 @@ export class StorageV2AgentRuntimeWriteService {
     })
   }
 
+  async reorderAgents(orderedIds: string[]): Promise<void> {
+    const client = await storageV2Database.getClient()
+    const updatedAt = now()
+
+    await storageV2Database.withTransaction(client, async () => {
+      for (let index = 0; index < orderedIds.length; index++) {
+        const agentId = orderedIds[index]
+        const result = await client.execute({
+          sql: `
+            UPDATE agents
+            SET sort_order = ?, updated_at = ?, version = version + 1
+            WHERE id = ? AND deleted_at IS NULL
+          `,
+          args: [index, updatedAt, agentId]
+        })
+        if (result.rowsAffected === 0) continue
+
+        await storageV2SyncLogService.recordChange({
+          client,
+          entityType: 'agent',
+          entityId: agentId,
+          payload: {
+            id: agentId,
+            sortOrder: index
+          },
+          version: await getVersion(client, 'agents', agentId)
+        })
+      }
+    })
+  }
+
   async upsertAgentSession(session: AgentSessionRuntimeRow, options: AgentSessionUpsertOptions = {}): Promise<void> {
     const client = await storageV2Database.getClient()
     const updatedAt = toIsoTimestamp(session.updated_at, now())
@@ -356,6 +387,63 @@ export class StorageV2AgentRuntimeWriteService {
         },
         version: await getVersion(client, 'conversations', `agent-session:${session.id}`)
       })
+    })
+  }
+
+  async reorderAgentSessions(agentId: string, orderedIds: string[]): Promise<void> {
+    const client = await storageV2Database.getClient()
+    const updatedAt = now()
+
+    await storageV2Database.withTransaction(client, async () => {
+      for (let index = 0; index < orderedIds.length; index++) {
+        const sessionId = orderedIds[index]
+        const result = await client.execute({
+          sql: `
+            UPDATE agent_sessions
+            SET sort_order = ?, updated_at = ?, version = version + 1
+            WHERE id = ? AND agent_id = ? AND deleted_at IS NULL
+          `,
+          args: [index, updatedAt, sessionId, agentId]
+        })
+        if (result.rowsAffected === 0) continue
+
+        const conversationResult = await client.execute({
+          sql: `
+            UPDATE conversations
+            SET sort_order = ?, updated_at = ?, version = version + 1
+            WHERE id = ? AND kind = 'agent_session' AND deleted_at IS NULL
+          `,
+          args: [index, updatedAt, `agent-session:${sessionId}`]
+        })
+
+        await storageV2SyncLogService.recordChange({
+          client,
+          entityType: 'agent_session',
+          entityId: sessionId,
+          payload: {
+            id: sessionId,
+            agentId,
+            sortOrder: index
+          },
+          version: await getVersion(client, 'agent_sessions', sessionId)
+        })
+
+        if (conversationResult.rowsAffected !== 0) {
+          await storageV2SyncLogService.recordChange({
+            client,
+            entityType: 'conversation',
+            entityId: `agent-session:${sessionId}`,
+            payload: {
+              kind: 'agent_session',
+              ownerType: 'agent',
+              ownerId: agentId,
+              sessionId,
+              sortOrder: index
+            },
+            version: await getVersion(client, 'conversations', `agent-session:${sessionId}`)
+          })
+        }
+      }
     })
   }
 

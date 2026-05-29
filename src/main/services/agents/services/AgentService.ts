@@ -542,6 +542,10 @@ export class AgentService extends BaseService {
 
           if (Object.keys(sessionUpdateData).length > 0) {
             sessionUpdateData.updated_at = now
+            await storageV2AgentRuntimeWriteService.upsertAgentSession({
+              ...session,
+              ...sessionUpdateData
+            })
             await tx.update(sessionsTable).set(sessionUpdateData).where(eq(sessionsTable.id, session.id))
           }
         }
@@ -562,6 +566,7 @@ export class AgentService extends BaseService {
 
   async reorderAgents(orderedIds: string[]): Promise<void> {
     const database = await this.getDatabase()
+    await storageV2AgentRuntimeWriteService.reorderAgents(orderedIds)
     await database.transaction(async (tx) => {
       for (let i = 0; i < orderedIds.length; i++) {
         await tx.update(agentsTable).set({ sort_order: i }).where(eq(agentsTable.id, orderedIds[i]))

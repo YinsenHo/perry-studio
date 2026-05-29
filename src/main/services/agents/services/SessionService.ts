@@ -348,6 +348,7 @@ export class SessionService extends BaseService {
 
   async reorderSessions(agentId: string, orderedIds: string[]): Promise<void> {
     const database = await this.getDatabase()
+    await storageV2AgentRuntimeWriteService.reorderAgentSessions(agentId, orderedIds)
     await database.transaction(async (tx) => {
       for (let i = 0; i < orderedIds.length; i++) {
         await tx

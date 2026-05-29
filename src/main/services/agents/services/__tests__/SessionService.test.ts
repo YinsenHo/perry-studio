@@ -1,7 +1,8 @@
 import { validateModelId } from '@main/apiServer/utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockTombstoneSession, mockUpsertAgentSession } = vi.hoisted(() => ({
+const { mockReorderAgentSessions, mockTombstoneSession, mockUpsertAgentSession } = vi.hoisted(() => ({
+  mockReorderAgentSessions: vi.fn(),
   mockTombstoneSession: vi.fn(),
   mockUpsertAgentSession: vi.fn()
 }))
@@ -60,6 +61,7 @@ vi.mock('@electron-toolkit/utils', () => ({
 
 vi.mock('@main/services/storageV2/AgentRuntimeWriteService', () => ({
   storageV2AgentRuntimeWriteService: {
+    reorderAgentSessions: mockReorderAgentSessions,
     upsertAgentSession: mockUpsertAgentSession
   }
 }))
@@ -110,6 +112,7 @@ describe('SessionService Storage v2-first writes', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockReorderAgentSessions.mockResolvedValue(undefined)
     mockUpsertAgentSession.mockResolvedValue(undefined)
     mockTombstoneSession.mockResolvedValue(undefined)
     vi.mocked(validateModelId).mockResolvedValue({
@@ -257,5 +260,20 @@ describe('SessionService Storage v2-first writes', () => {
 
     expect(mockTombstoneSession).toHaveBeenCalledWith('session-1')
     expect(mockTombstoneSession.mock.invocationCallOrder[0]).toBeLessThan(legacyDelete.mock.invocationCallOrder[0])
+  })
+
+  it('reorders sessions in Storage v2 before reordering the legacy cache', async () => {
+    const where = vi.fn().mockResolvedValue(undefined)
+    const set = vi.fn(() => ({ where }))
+    const txUpdate = vi.fn(() => ({ set }))
+    const transaction = vi.fn(async (callback: (tx: unknown) => Promise<void>) => callback({ update: txUpdate }))
+    const database = { transaction }
+
+    vi.spyOn(service as never, 'getDatabase').mockResolvedValue(database as never)
+
+    await expect(service.reorderSessions('agent-1', ['session-1', 'session-2'])).resolves.toBeUndefined()
+
+    expect(mockReorderAgentSessions).toHaveBeenCalledWith('agent-1', ['session-1', 'session-2'])
+    expect(mockReorderAgentSessions.mock.invocationCallOrder[0]).toBeLessThan(transaction.mock.invocationCallOrder[0])
   })
 })

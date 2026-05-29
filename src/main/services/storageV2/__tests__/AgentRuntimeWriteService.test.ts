@@ -162,6 +162,69 @@ describe('StorageV2AgentRuntimeWriteService', () => {
     )
   })
 
+  it('reorders agents through Storage v2 and records sync metadata', async () => {
+    mocks.client.execute
+      .mockResolvedValueOnce({ rows: [], columns: [], columnTypes: [], rowsAffected: 1 })
+      .mockResolvedValueOnce({ rows: [{ version: 4 }], columns: [], columnTypes: [] })
+
+    await new StorageV2AgentRuntimeWriteService().reorderAgents(['agent-1'])
+
+    expect(mocks.client.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining('UPDATE agents'),
+        args: [0, expect.any(String), 'agent-1']
+      })
+    )
+    expect(mocks.recordChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'agent',
+        entityId: 'agent-1',
+        payload: expect.objectContaining({
+          id: 'agent-1',
+          sortOrder: 0
+        }),
+        version: 4
+      })
+    )
+  })
+
+  it('reorders agent sessions and conversation metadata through Storage v2', async () => {
+    mocks.client.execute
+      .mockResolvedValueOnce({ rows: [], columns: [], columnTypes: [], rowsAffected: 1 })
+      .mockResolvedValueOnce({ rows: [], columns: [], columnTypes: [], rowsAffected: 1 })
+      .mockResolvedValueOnce({ rows: [{ version: 5 }], columns: [], columnTypes: [] })
+      .mockResolvedValueOnce({ rows: [{ version: 6 }], columns: [], columnTypes: [] })
+
+    await new StorageV2AgentRuntimeWriteService().reorderAgentSessions('agent-1', ['session-1'])
+
+    expect(mocks.client.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining('UPDATE agent_sessions'),
+        args: [0, expect.any(String), 'session-1', 'agent-1']
+      })
+    )
+    expect(mocks.client.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining('UPDATE conversations'),
+        args: [0, expect.any(String), 'agent-session:session-1']
+      })
+    )
+    expect(mocks.recordChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'agent_session',
+        entityId: 'session-1',
+        version: 5
+      })
+    )
+    expect(mocks.recordChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'conversation',
+        entityId: 'agent-session:session-1',
+        version: 6
+      })
+    )
+  })
+
   it('upserts channels through Storage v2 and moves credentials into the secret vault first', async () => {
     await new StorageV2AgentRuntimeWriteService().upsertChannel({
       id: 'channel-1',

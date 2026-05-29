@@ -94,6 +94,75 @@ const INTEGRITY_ISSUE_CHECKS: Array<{ id: string; label: string; sql: string }> 
     sql: 'SELECT COUNT(*) AS count FROM files f LEFT JOIN blobs b ON b.id = f.blob_id WHERE b.id IS NULL'
   },
   {
+    id: 'message_blocks_without_blob',
+    label: 'Message blocks without blob',
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM message_blocks mb
+      LEFT JOIN blobs b ON b.id = mb.blob_id
+      WHERE mb.blob_id IS NOT NULL AND mb.deleted_at IS NULL AND b.id IS NULL
+    `
+  },
+  {
+    id: 'profile_avatars_without_blob',
+    label: 'Profile avatars without blob',
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM profiles p
+      LEFT JOIN blobs b ON b.id = p.avatar_blob_id
+      WHERE p.avatar_blob_id IS NOT NULL AND b.id IS NULL
+    `
+  },
+  {
+    id: 'assistant_avatars_without_blob',
+    label: 'Assistant avatars without blob',
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM assistants a
+      LEFT JOIN blobs b ON b.id = a.avatar_blob_id
+      WHERE a.avatar_blob_id IS NOT NULL AND a.deleted_at IS NULL AND b.id IS NULL
+    `
+  },
+  {
+    id: 'agent_avatars_without_blob',
+    label: 'Agent avatars without blob',
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM agents a
+      LEFT JOIN blobs b ON b.id = a.avatar_blob_id
+      WHERE a.avatar_blob_id IS NOT NULL AND a.deleted_at IS NULL AND b.id IS NULL
+    `
+  },
+  {
+    id: 'orphan_blobs',
+    label: 'Blobs without logical references',
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM blobs b
+      LEFT JOIN files f ON f.blob_id = b.id AND f.deleted_at IS NULL
+      LEFT JOIN message_blocks mb ON mb.blob_id = b.id AND mb.deleted_at IS NULL
+      LEFT JOIN profiles p ON p.avatar_blob_id = b.id
+      LEFT JOIN assistants a ON a.avatar_blob_id = b.id AND a.deleted_at IS NULL
+      LEFT JOIN agents ag ON ag.avatar_blob_id = b.id AND ag.deleted_at IS NULL
+      WHERE f.id IS NULL AND mb.id IS NULL AND p.id IS NULL AND a.id IS NULL AND ag.id IS NULL
+    `
+  },
+  {
+    id: 'blob_ref_count_mismatch',
+    label: 'Blob ref_count mismatch',
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM blobs b
+      LEFT JOIN (
+        SELECT blob_id, COUNT(*) AS active_file_count
+        FROM files
+        WHERE deleted_at IS NULL
+        GROUP BY blob_id
+      ) f ON f.blob_id = b.id
+      WHERE b.ref_count != COALESCE(f.active_file_count, 0)
+    `
+  },
+  {
     id: 'agent_skills_without_agent',
     label: 'Agent skills without agent',
     sql: 'SELECT COUNT(*) AS count FROM agent_skills s LEFT JOIN agents a ON a.id = s.agent_id WHERE a.id IS NULL'
@@ -807,6 +876,18 @@ export class StorageV2Database {
         id: 'missing_secret_refs',
         label: 'Secret references missing vault entries',
         count: missingSecretRefCount
+      })
+    }
+
+    const orphanSecretVaultEntryCount = Array.from(vault.secretIds).filter(
+      (secretId) => !secretReferenceScan.refs.has(secretId)
+    ).length
+
+    if (orphanSecretVaultEntryCount > 0) {
+      issues.push({
+        id: 'orphan_secret_vault_entries',
+        label: 'Secret vault entries without references',
+        count: orphanSecretVaultEntryCount
       })
     }
 

@@ -4595,6 +4595,8 @@
           "anthropic_oauth_legacy": "Anthropic OAuth token file",
           "app_db": "App database",
           "channels": "Channel runtime files",
+          "code_tools_bin": "CodeTools managed CLI binaries",
+          "code_tools_install": "CodeTools managed CLI install tree",
           "copilot_token_legacy": "Config Copilot token",
           "data": "Current Data directory",
           "external_notes_path": "External notes directory",

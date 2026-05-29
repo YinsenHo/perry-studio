@@ -4595,6 +4595,8 @@
           "anthropic_oauth_legacy": "Anthropic OAuth 權杖檔案",
           "app_db": "應用資料庫",
           "channels": "Channel 執行階段檔案",
+          "code_tools_bin": "CodeTools 託管 CLI 二進位目錄",
+          "code_tools_install": "CodeTools 託管 CLI 安裝目錄",
           "copilot_token_legacy": "設定目錄 Copilot 權杖",
           "data": "目前 Data 目錄",
           "external_notes_path": "外部筆記目錄",

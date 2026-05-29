@@ -66,6 +66,8 @@ describe('StorageV2MigrationAuditService', () => {
     expect(itemPath('home-config')).toBe('/mock/home/.cherrystudio/config/config.json')
     expect(itemPath('mcp-memory-json')).toBe('/mock/home/.cherrystudio/config/memory.json')
     expect(itemPath('mcp-oauth-legacy')).toBe('/mock/home/.cherrystudio/config/mcp/oauth')
+    expect(itemPath('code-tools-bin')).toBe('/mock/home/.cherrystudio/bin')
+    expect(itemPath('code-tools-install')).toBe('/mock/home/.cherrystudio/install')
     expect(itemPath('openclaw-config')).toBe('/mock/home/.openclaw/openclaw.json')
     expect(itemPath('ovms-config')).toBe('/mock/home/.cherrystudio/ovms/ovms/models/config.json')
     expect(itemPath('trace-cache')).toBe('/mock/home/.cherrystudio/trace')

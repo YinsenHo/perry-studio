@@ -25,6 +25,7 @@
 - [x] 默认 `Data/Notes` 纳入 migration audit 和 Storage v2 backup / restore；`userData/Cache`、`version.log` 标为可重建/诊断缓存，不进入恢复承诺。
 - [x] 默认 `Data/Workspace`（filesystem MCP / agent 工作区）纳入 data root 识别、migration audit 和 Storage v2 backup / restore；未知 `Data/*` 顶层条目会作为 action-required 审计项暴露。
 - [x] 自定义外部 Notes 路径从 Storage v2 `redux.note` 审计；路径配置已镜像，外部内容不在 data root 内时会作为 high-risk action-required 项提示。
+- [x] CodeTools / OpenCode 的 `~/.cherrystudio/bin` 与 `~/.cherrystudio/install` 归类为可重建 CLI cache；CodeTools 选择、模型、环境变量、目录列表继续由 Storage v2 `redux.codeTools` 保存。
 - [ ] 继续扫描 `userData`、`Data/*`、`~/.cherrystudio`、外部 JSON/DB 写入路径。
 - [ ] 判定每个路径属于用户资产、可重建缓存、临时文件或外部工具投影。
 - [ ] 用户资产必须进入 Storage v2 或 backup/restore。

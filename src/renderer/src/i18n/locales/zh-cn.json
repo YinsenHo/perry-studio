@@ -4595,6 +4595,8 @@
           "anthropic_oauth_legacy": "Anthropic OAuth 令牌文件",
           "app_db": "应用数据库",
           "channels": "Channel 运行时文件",
+          "code_tools_bin": "CodeTools 托管 CLI 二进制目录",
+          "code_tools_install": "CodeTools 托管 CLI 安装目录",
           "copilot_token_legacy": "配置目录 Copilot 令牌",
           "data": "当前 Data 目录",
           "external_notes_path": "外部笔记目录",

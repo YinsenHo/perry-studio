@@ -359,6 +359,19 @@ export class StorageV2MigrationAuditService {
         risk: 'medium',
         notes: 'OpenClaw config is mirrored into Storage v2 secrets and can be rebuilt.'
       }),
+      auditPath('code-tools-bin', 'Managed CLI tool binaries', path.join(homeCherryPath, 'bin'), {
+        category: 'runtime-cache',
+        coverage: 'cache',
+        risk: 'low',
+        notes:
+          'Managed CLI binaries for CodeTools and MCP helpers; selected tools, models, environment variables, and directories are mirrored through Storage v2 Redux settings.'
+      }),
+      auditPath('code-tools-install', 'Managed CLI tool install tree', path.join(homeCherryPath, 'install'), {
+        category: 'runtime-cache',
+        coverage: 'cache',
+        risk: 'low',
+        notes: 'Bun/npm global install tree for managed CLI tools; rebuildable from runtime settings.'
+      }),
       auditPath(
         'openclaw-legacy-config',
         'Legacy OpenClaw config',

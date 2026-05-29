@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -185,6 +186,97 @@ async function createBackupValidationDb(dbPath: string, secretRef?: string) {
   }
 }
 
+async function createCompleteBackupValidationDb(
+  dbPath: string,
+  input: {
+    blobStoragePath: string
+    blobChecksum: string
+    secretRef: string
+  }
+) {
+  const client = createClient({
+    url: `file:${dbPath}`,
+    intMode: 'number'
+  })
+
+  try {
+    await client.executeMultiple(`
+      CREATE TABLE storage_meta (key TEXT, value TEXT);
+      CREATE TABLE profiles (id TEXT);
+      CREATE TABLE devices (id TEXT);
+      CREATE TABLE settings (value_json TEXT);
+      CREATE TABLE providers (config_json TEXT);
+      CREATE TABLE models (id TEXT);
+      CREATE TABLE provider_credentials (secret_ref TEXT);
+      CREATE TABLE assistants (settings_json TEXT);
+      CREATE TABLE assistant_versions (id TEXT);
+      CREATE TABLE agents (configuration_json TEXT);
+      CREATE TABLE agent_versions (id TEXT);
+      CREATE TABLE agent_sessions (id TEXT);
+      CREATE TABLE conversations (id TEXT);
+      CREATE TABLE messages (id TEXT);
+      CREATE TABLE message_blocks (id TEXT);
+      CREATE TABLE blobs (storage_path TEXT, checksum TEXT);
+      CREATE TABLE files (id TEXT);
+      CREATE TABLE skills (id TEXT);
+      CREATE TABLE agent_skills (id TEXT);
+      CREATE TABLE scheduled_tasks (id TEXT);
+      CREATE TABLE task_run_logs (id TEXT);
+      CREATE TABLE channels (config_json TEXT);
+      CREATE TABLE channel_task_subscriptions (id TEXT);
+      CREATE TABLE knowledge_bases (settings_json TEXT);
+      CREATE TABLE knowledge_items (metadata_json TEXT);
+      CREATE TABLE kv_records (value_json TEXT);
+      CREATE TABLE sync_changes (id TEXT);
+      CREATE TABLE sync_tombstones (id TEXT);
+      CREATE TABLE sync_state (value_json TEXT);
+      CREATE TABLE sync_conflicts (local_snapshot_json TEXT, remote_snapshot_json TEXT);
+      CREATE TABLE migration_runs (id TEXT);
+
+      INSERT INTO storage_meta VALUES ('schema_version', '2');
+      INSERT INTO profiles VALUES ('profile-1');
+      INSERT INTO devices VALUES ('device-1');
+      INSERT INTO settings VALUES ('{"theme":"dark"}');
+      INSERT INTO providers VALUES ('{"id":"provider-1"}');
+      INSERT INTO models VALUES ('model-1');
+      INSERT INTO assistants VALUES ('{"temperature":0.7}');
+      INSERT INTO assistant_versions VALUES ('assistant-version-1');
+      INSERT INTO agents VALUES ('{"mode":"soul"}');
+      INSERT INTO agent_versions VALUES ('agent-version-1');
+      INSERT INTO agent_sessions VALUES ('agent-session-1');
+      INSERT INTO conversations VALUES ('topic-1');
+      INSERT INTO messages VALUES ('message-1');
+      INSERT INTO message_blocks VALUES ('block-1');
+      INSERT INTO files VALUES ('file-1');
+      INSERT INTO skills VALUES ('skill-1');
+      INSERT INTO agent_skills VALUES ('agent-skill-1');
+      INSERT INTO scheduled_tasks VALUES ('task-1');
+      INSERT INTO task_run_logs VALUES ('task-run-log-1');
+      INSERT INTO channels VALUES ('{"type":"slack"}');
+      INSERT INTO channel_task_subscriptions VALUES ('channel-task-1');
+      INSERT INTO knowledge_bases VALUES ('{"embedding":"model-1"}');
+      INSERT INTO knowledge_items VALUES ('{"source":"fixture"}');
+      INSERT INTO kv_records VALUES ('{"workbench":"shortcut"}');
+      INSERT INTO sync_changes VALUES ('change-1');
+      INSERT INTO sync_tombstones VALUES ('tombstone-1');
+      INSERT INTO sync_state VALUES ('{"deviceId":"device-1"}');
+      INSERT INTO sync_conflicts VALUES ('{"value":"local"}', '{"value":"remote"}');
+      INSERT INTO migration_runs VALUES ('migration-1');
+    `)
+
+    await client.execute({
+      sql: 'INSERT INTO provider_credentials (secret_ref) VALUES (?)',
+      args: [input.secretRef]
+    })
+    await client.execute({
+      sql: 'INSERT INTO blobs (storage_path, checksum) VALUES (?, ?)',
+      args: [input.blobStoragePath, input.blobChecksum]
+    })
+  } finally {
+    client.close()
+  }
+}
+
 describe('StorageV2BackupService.getBackupOverview', () => {
   let tmpDir: string
   let dataRoot: string
@@ -340,6 +432,79 @@ describe('StorageV2BackupService.validateBackup', () => {
       expect.objectContaining({
         id: 'secret_vault_decrypt_unavailable'
       })
+    )
+  })
+
+  it('validates a complete Storage v2 backup fixture without schema, blob, or secret ref warnings', async () => {
+    const copiedDirectories = [
+      'blobs',
+      'secrets',
+      'KnowledgeBase',
+      'Memory',
+      'Skills',
+      'Agents',
+      'Channels',
+      'Workbench',
+      'Notes',
+      'Workspace'
+    ]
+    const secretRef = 'storage-v2://secret/provider/provider-1/apiKey'
+    const blobStoragePath = 'blobs/file-1.txt'
+    const blobContent = 'blob-content'
+    const blobChecksum = createHash('sha256').update(blobContent).digest('hex')
+
+    for (const dirname of copiedDirectories) {
+      fs.mkdirSync(path.join(backupPath, dirname), { recursive: true })
+    }
+    fs.writeFileSync(path.join(backupPath, blobStoragePath), blobContent)
+    fs.writeFileSync(
+      path.join(backupPath, 'metadata.json'),
+      JSON.stringify({
+        format: 'cherry-studio-pi-storage-backup',
+        version: 1,
+        reason: 'complete-fixture',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        copiedDirectories
+      })
+    )
+    fs.writeFileSync(
+      path.join(backupPath, 'secrets', 'vault.json'),
+      JSON.stringify({
+        version: 1,
+        secrets: {
+          'provider:provider-1:apiKey': {
+            encrypted: Buffer.from('encrypted-provider-key').toString('base64'),
+            encoding: 'electron-safe-storage',
+            updatedAt: '2026-01-01T00:00:00.000Z'
+          }
+        }
+      })
+    )
+    await createCompleteBackupValidationDb(path.join(backupPath, 'main.db'), {
+      blobStoragePath,
+      blobChecksum,
+      secretRef
+    })
+
+    const validation = await new StorageV2BackupService().validateBackup(backupPath)
+
+    expect(validation.ok).toBe(true)
+    expect(validation.reason).toBe('complete-fixture')
+    expect(validation.copiedDirectories).toEqual(copiedDirectories)
+    expect(validation.missingBlobFileCount).toBe(0)
+    expect(validation.corruptBlobFileCount).toBe(0)
+    expect(validation.secretVaultSecretCount).toBe(1)
+    expect(validation.missingSecretRefCount).toBe(0)
+    expect(validation.invalidSecretRefCount).toBe(0)
+    expect(validation.orphanSecretVaultEntryCount).toBe(0)
+    expect(validation.issues).toEqual([])
+    expect(validation.warnings).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'schema_tables_missing' }),
+        expect.objectContaining({ id: 'missing_secret_refs' }),
+        expect.objectContaining({ id: 'missing_blob_files' }),
+        expect.objectContaining({ id: 'corrupt_blob_files' })
+      ])
     )
   })
 

@@ -71,7 +71,7 @@
 
 状态：未完成
 
-- [ ] 构造完整 fixture：provider、助手、普通会话、附件、知识库、agent、agent 历史、channel、app data、workbench、MCP、OAuth、localStorage。
+- [x] 构造完整 fixture：provider、助手、普通会话、附件、知识库、agent、agent 历史、channel、app data、workbench、MCP、OAuth、localStorage；BackupService 已有完整 Storage v2 backup validation fixture 覆盖当前 schema 表、blob checksum、secret ref、restorable directories 和核心实体占位数据，后续恢复读回继续扩展同一夹具。
 - [ ] 生成 Storage v2 backup 后恢复到全新 data root。
 - [ ] 验证恢复后所有列表、详情、搜索、导出、agent 历史都能读到。
 - [ ] 验证 `Perry Studio -> Cherry Studio Pi`、username 变化、appId/productName 变化。

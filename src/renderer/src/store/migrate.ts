@@ -32,6 +32,7 @@ import db from '@renderer/databases'
 import { getModel } from '@renderer/hooks/useModel'
 import i18n from '@renderer/i18n'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
+import { scheduleStorageV2LocalStorageMirror } from '@renderer/services/StorageV2LocalStorageSnapshot'
 import { defaultPreprocessProviders } from '@renderer/store/preprocess'
 import type {
   Assistant,
@@ -3372,6 +3373,7 @@ const migrateConfig = {
   '205': (state: RootState) => {
     try {
       localStorage.setItem('onboarding-completed', 'true')
+      scheduleStorageV2LocalStorageMirror()
 
       // Add anthropicApiHost to lmstudio and ollama providers for CodeTools compatibility
       state.llm.providers.forEach((provider) => {

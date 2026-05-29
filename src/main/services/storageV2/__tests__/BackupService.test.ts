@@ -743,6 +743,137 @@ describe('StorageV2BackupService.restoreBackup', () => {
     expect(result.warnings).toEqual([])
   })
 
+  it('creates a complete backup and restores it into a fresh data root', async () => {
+    const sourceRoot = path.join(tmpDir, 'SourceData')
+    const targetRoot = path.join(tmpDir, 'FreshData')
+    const snapshotDbPath = path.join(tmpDir, 'source-snapshot.db')
+    const copiedDirectories = ['blobs', 'secrets', 'Channels', 'Workbench', 'Notes', 'Workspace']
+    const blobStoragePath = 'blobs/file-1.txt'
+    const blobContent = 'blob-content'
+    const blobChecksum = createHash('sha256').update(blobContent).digest('hex')
+    const secretRef = 'storage-v2://secret/provider/provider-1/apiKey'
+
+    fs.mkdirSync(sourceRoot, { recursive: true })
+    for (const dirname of copiedDirectories) {
+      fs.mkdirSync(path.join(sourceRoot, dirname), { recursive: true })
+    }
+    fs.writeFileSync(
+      path.join(sourceRoot, 'manifest.json'),
+      JSON.stringify({
+        format: 'cherry-studio-pi-storage',
+        version: 2,
+        profileId: 'default',
+        workspaceId: 'source-workspace',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        lastOpenedBy: {
+          appId: 'com.cherryai.cherrystudio-pi',
+          productName: 'Cherry Studio Pi',
+          version: '1.0.0'
+        }
+      })
+    )
+    fs.writeFileSync(path.join(sourceRoot, blobStoragePath), blobContent)
+    fs.writeFileSync(
+      path.join(sourceRoot, 'secrets', 'vault.json'),
+      JSON.stringify({
+        version: 1,
+        secrets: {
+          'provider:provider-1:apiKey': {
+            encrypted: Buffer.from('encrypted-provider-key').toString('base64'),
+            encoding: 'electron-safe-storage',
+            updatedAt: '2026-01-01T00:00:00.000Z'
+          }
+        }
+      })
+    )
+    fs.writeFileSync(path.join(sourceRoot, 'Channels', 'weixin_bot_channel-1.json'), '{"token":"secret"}')
+    fs.writeFileSync(path.join(sourceRoot, 'Workbench', 'artifact.html'), '<h1>Artifact</h1>')
+    fs.writeFileSync(path.join(sourceRoot, 'Notes', 'note.md'), '# Note')
+    fs.writeFileSync(path.join(sourceRoot, 'Workspace', 'README.md'), '# Workspace')
+    await createCompleteBackupValidationDb(snapshotDbPath, {
+      blobStoragePath,
+      blobChecksum,
+      secretRef
+    })
+
+    mocks.dataRootService.ensureDataRoot.mockReturnValue({
+      dataRoot: sourceRoot,
+      manifest: { workspaceId: 'source-workspace' },
+      source: 'current-user-data',
+      candidates: []
+    })
+    mocks.database.healthCheck.mockResolvedValue({ ok: true })
+    mocks.database.waitForIdle.mockResolvedValue(undefined)
+    mocks.secretVault.waitForIdle.mockResolvedValue(undefined)
+    mocks.database.pruneUnreferencedSecretVaultEntries.mockResolvedValue({
+      beforeCount: 1,
+      afterCount: 1,
+      prunedCount: 0,
+      prunedSecretIds: [],
+      referencedSecretCount: 1,
+      invalidSecretRefCount: 0,
+      skippedSources: []
+    })
+    mocks.database.createSnapshot.mockResolvedValue({
+      path: snapshotDbPath,
+      reason: 'backup-complete-fixture',
+      createdAt: '2026-01-01T00:00:00.000Z'
+    })
+    mocks.database.integrityReport.mockResolvedValue({
+      ok: true,
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      quickCheck: 'ok',
+      integrityCheck: 'ok',
+      foreignKeyIssueCount: 0,
+      issues: []
+    })
+    mocks.statisticsService.getStats.mockResolvedValue({ generatedAt: '2026-01-01T00:00:00.000Z', counts: {} })
+
+    const service = new StorageV2BackupService()
+    const backup = await service.createBackup('complete-fixture')
+
+    fs.mkdirSync(targetRoot, { recursive: true })
+    mocks.dataRootService.ensureDataRoot.mockReturnValue({
+      dataRoot: targetRoot,
+      manifest: null,
+      source: 'current-user-data',
+      candidates: []
+    })
+    vi.spyOn(service, 'createBackup').mockResolvedValue({
+      path: path.join(tmpDir, 'pre-restore'),
+      dbPath: path.join(tmpDir, 'pre-restore', 'main.db'),
+      manifestPath: path.join(tmpDir, 'pre-restore', 'metadata.json'),
+      reason: 'pre-restore',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      copiedDirectories: []
+    })
+
+    const result = await service.restoreBackup(backup.path)
+
+    expect(result.dataRoot).toBe(targetRoot)
+    expect(result.restoredFiles).toEqual(['main.db', 'manifest.json'])
+    expect(result.restoredDirectories).toEqual(expect.arrayContaining(copiedDirectories))
+    expect(result.validation.ok).toBe(true)
+    expect(fs.existsSync(path.join(targetRoot, 'main.db'))).toBe(true)
+    expect(JSON.parse(fs.readFileSync(path.join(targetRoot, 'manifest.json'), 'utf-8')).workspaceId).toBe(
+      'source-workspace'
+    )
+    expect(fs.readFileSync(path.join(targetRoot, blobStoragePath), 'utf-8')).toBe(blobContent)
+    expect(fs.readFileSync(path.join(targetRoot, 'secrets', 'vault.json'), 'utf-8')).toContain(
+      'provider:provider-1:apiKey'
+    )
+    expect(fs.readFileSync(path.join(targetRoot, 'Channels', 'weixin_bot_channel-1.json'), 'utf-8')).toBe(
+      '{"token":"secret"}'
+    )
+    expect(fs.readFileSync(path.join(targetRoot, 'Workbench', 'artifact.html'), 'utf-8')).toBe('<h1>Artifact</h1>')
+    expect(fs.readFileSync(path.join(targetRoot, 'Notes', 'note.md'), 'utf-8')).toBe('# Note')
+    expect(fs.readFileSync(path.join(targetRoot, 'Workspace', 'README.md'), 'utf-8')).toBe('# Workspace')
+    expect(mocks.dataRootService.activateDataRoot).toHaveBeenCalledWith(targetRoot)
+    expect(result.requiresRestart).toBe(true)
+    expect(result.warnings).toEqual([])
+  })
+
   it('returns restore warnings instead of failing when legacy projection fails after main restore', async () => {
     const service = new StorageV2BackupService()
     vi.spyOn(service, 'validateBackup').mockResolvedValue(createValidation(backupPath))

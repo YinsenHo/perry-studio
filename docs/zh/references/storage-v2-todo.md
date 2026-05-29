@@ -52,7 +52,7 @@
 - [x] Agent session create/update/reorder 已先写 Storage v2 `agent_sessions` 和对应 `agent_session` conversation metadata，再写 `agents.db` runtime cache；delete 路径保留 Storage v2 tombstone-first，服务层也防止绕过 wrapper 直接删 legacy。
 - [x] Agent session message history 已先写 Storage v2 `agent_session` conversation/message/block，再写 `session_messages` runtime cache；新增消息会先生成 legacy-compatible 数字 ID，保证 Storage v2 message/block 与后续删除恢复路径继续对齐。
 - [x] App data/workbench/sync state 从 `app.db` first 切到 Storage v2 first；IPC 和 AppDataDatabase 直写入口均先写 Storage v2 record/cache/workbench shortcut/sync state/conflict，再写 `app.db` runtime cache。
-- [ ] destructive 操作统一先写 tombstone，再更新 legacy/UI。
+- [x] destructive 操作统一先写 tombstone，再更新 legacy/UI；Provider、Assistant、Topic、普通会话消息/块、文件、Agent runtime、App data、Translate/Image 等删除路径已有顺序测试，Topic 删除已修复为先写 conversation tombstone，再清 legacy topic/messages。
 
 ## 3. 读取路径切换
 

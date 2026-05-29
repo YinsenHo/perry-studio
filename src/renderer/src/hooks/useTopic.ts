@@ -247,7 +247,6 @@ export const TopicManager = {
   },
 
   async removeTopic(id: string) {
-    await TopicManager.clearTopicMessages(id)
     if (typeof window.api?.storageV2?.deleteConversation !== 'function') {
       throw new Error('Storage v2 conversation delete API unavailable')
     }
@@ -258,10 +257,11 @@ export const TopicManager = {
       logger.warn(`Failed to tombstone topic ${id} in Storage v2:`, error as Error)
       throw error
     }
+    await TopicManager.clearTopicMessages(id, { flushStorageV2: false })
     await db.topics.delete(id)
   },
 
-  async clearTopicMessages(id: string): Promise<void> {
+  async clearTopicMessages(id: string, options: { flushStorageV2?: boolean } = {}): Promise<void> {
     // 暂存需要删除的文件信息
     let filesToDelete: FileMetadata[] = []
     const topic = await db.topics.get(id)
@@ -285,10 +285,12 @@ export const TopicManager = {
           .filter((file) => file !== undefined)
       }
 
-      await storageV2ConversationMirrorService.flushTopicMessagesSnapshot(id, () => store.getState(), [], {
-        topic,
-        destructive: true
-      })
+      if (options.flushStorageV2 !== false) {
+        await storageV2ConversationMirrorService.flushTopicMessagesSnapshot(id, () => store.getState(), [], {
+          topic,
+          destructive: true
+        })
+      }
 
       await db.transaction('rw', [db.topics, db.message_blocks], async () => {
         if (blockIds.length > 0) {

@@ -50,7 +50,7 @@ macOS signing and notarization:
 - `APPLE_APP_SPECIFIC_PASSWORD`
 - `APPLE_TEAM_ID`
 
-Windows signing:
+Windows installers are not signed by the `Release` workflow. The Windows signing secrets below are only needed by workflows that explicitly set `WIN_SIGN`, such as GitCode sync signing builds:
 
 - `WIN_SIGN`
 - `CHERRY_CERT_PATH`
@@ -58,4 +58,4 @@ Windows signing:
 - `CHERRY_CERT_CSP`
 - `WIN_SIGN_TIMESTAMP_URLS`
 
-If signing secrets are not configured, the workflow still builds unsigned/ad-hoc artifacts where supported.
+If signing secrets are not configured, the `Release` workflow still builds unsigned Windows artifacts.

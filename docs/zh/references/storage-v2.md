@@ -859,4 +859,4 @@ files.upsert(file)
 
 当前阶段代码侧已经完成 StorageService-first 主写保护、主要 read-through / projection、legacy runtime 清理策略、完整测试矩阵和安装包启动恢复验证。Redux、IndexedDB、`agents.db`、`app.db` 仍保留为 runtime cache / projection，以兼容既有业务路径和渐进迁移，但不再作为长期用户资产的唯一权威数据承诺。
 
-后续不再是本地代码重构本身，而是正式发布执行和发布产物验收：按确认的版本号触发 GitHub Release workflow，并检查 macOS 签名/公证、Windows 签名、Linux 安装包和自动更新 metadata。
+后续不再是本地代码重构本身，而是正式发布执行和发布产物验收：按确认的版本号触发 GitHub Release workflow，并检查 macOS 签名/公证、Windows 安装包、Linux 安装包和自动更新 metadata。

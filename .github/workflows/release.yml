@@ -101,58 +101,15 @@ jobs:
             git push origin "$TAG"
           fi
 
-  preflight:
-    name: Release preflight
-    needs: prepare
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check Windows signing prerequisites
-        if: github.event_name == 'push' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'windows'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CHERRY_CERT_PATH: ${{ secrets.CHERRY_CERT_PATH }}
-          CHERRY_CERT_KEY: ${{ secrets.CHERRY_CERT_KEY }}
-          CHERRY_CERT_CSP: ${{ secrets.CHERRY_CERT_CSP }}
-        run: |
-          missing=()
-          for name in CHERRY_CERT_PATH CHERRY_CERT_KEY CHERRY_CERT_CSP; do
-            if [ -z "${!name}" ]; then
-              missing+=("$name")
-            fi
-          done
-
-          if [ "${#missing[@]}" -gt 0 ]; then
-            printf 'Missing Windows signing secrets: %s\n' "${missing[*]}"
-            printf 'Grant CherryHQ organization secrets to this repository or add repo-level secrets before running a Windows release.\n'
-            exit 1
-          fi
-
-          runner_count="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runners" \
-            --jq '[.runners[] | select(.status == "online" and ([.labels[].name] | index("windows-signing")))] | length')"
-
-          if [ "${runner_count:-0}" = "0" ]; then
-            printf 'No online self-hosted runner with label windows-signing is available to %s.\n' "$GITHUB_REPOSITORY"
-            printf 'Grant the CherryHQ windows-signing runner group to this repository before running a Windows release.\n'
-            exit 1
-          fi
-
-      - name: Skip Windows signing preflight
-        if: github.event_name != 'push' && github.event.inputs.platform != 'all' && github.event.inputs.platform != 'windows'
-        run: echo "Windows release was not requested."
-
   build:
     name: Build ${{ matrix.platform }}
-    needs:
-      - prepare
-      - preflight
+    needs: prepare
     runs-on: ${{ matrix.os }}
 
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(github.event_name == 'push' && '[{"platform":"mac","os":"macos-latest","build":"npm run build && pnpm exec electron-builder --mac --arm64 --x64 --publish never"},{"platform":"windows","os":["self-hosted","windows-signing"],"build":"npm run build && pnpm exec electron-builder --win --x64 --arm64 --publish never"},{"platform":"linux","os":"ubuntu-latest","build":"npm run build && pnpm exec electron-builder --linux --x64 --arm64 --publish never"}]' || github.event.inputs.platform == 'all' && '[{"platform":"mac","os":"macos-latest","build":"npm run build && pnpm exec electron-builder --mac --arm64 --x64 --publish never"},{"platform":"windows","os":["self-hosted","windows-signing"],"build":"npm run build && pnpm exec electron-builder --win --x64 --arm64 --publish never"},{"platform":"linux","os":"ubuntu-latest","build":"npm run build && pnpm exec electron-builder --linux --x64 --arm64 --publish never"}]' || github.event.inputs.platform == 'mac' && '[{"platform":"mac","os":"macos-latest","build":"npm run build && pnpm exec electron-builder --mac --arm64 --x64 --publish never"}]' || github.event.inputs.platform == 'windows' && '[{"platform":"windows","os":["self-hosted","windows-signing"],"build":"npm run build && pnpm exec electron-builder --win --x64 --arm64 --publish never"}]' || github.event.inputs.platform == 'linux' && '[{"platform":"linux","os":"ubuntu-latest","build":"npm run build && pnpm exec electron-builder --linux --x64 --arm64 --publish never"}]' || '[]') }}
+        include: ${{ fromJSON(github.event_name == 'push' && '[{"platform":"mac","os":"macos-latest","build":"npm run build && pnpm exec electron-builder --mac --arm64 --x64 --publish never"},{"platform":"windows","os":"windows-latest","build":"npm run build && pnpm exec electron-builder --win --x64 --arm64 --publish never"},{"platform":"linux","os":"ubuntu-latest","build":"npm run build && pnpm exec electron-builder --linux --x64 --arm64 --publish never"}]' || github.event.inputs.platform == 'all' && '[{"platform":"mac","os":"macos-latest","build":"npm run build && pnpm exec electron-builder --mac --arm64 --x64 --publish never"},{"platform":"windows","os":"windows-latest","build":"npm run build && pnpm exec electron-builder --win --x64 --arm64 --publish never"},{"platform":"linux","os":"ubuntu-latest","build":"npm run build && pnpm exec electron-builder --linux --x64 --arm64 --publish never"}]' || github.event.inputs.platform == 'mac' && '[{"platform":"mac","os":"macos-latest","build":"npm run build && pnpm exec electron-builder --mac --arm64 --x64 --publish never"}]' || github.event.inputs.platform == 'windows' && '[{"platform":"windows","os":"windows-latest","build":"npm run build && pnpm exec electron-builder --win --x64 --arm64 --publish never"}]' || github.event.inputs.platform == 'linux' && '[{"platform":"linux","os":"ubuntu-latest","build":"npm run build && pnpm exec electron-builder --linux --x64 --arm64 --publish never"}]' || '[]') }}
 
     steps:
       - name: Check out release tag
@@ -224,27 +181,6 @@ jobs:
             exit 1
           fi
 
-      - name: Verify Windows signing secrets
-        if: matrix.platform == 'windows'
-        shell: bash
-        env:
-          CHERRY_CERT_PATH: ${{ secrets.CHERRY_CERT_PATH }}
-          CHERRY_CERT_KEY: ${{ secrets.CHERRY_CERT_KEY }}
-          CHERRY_CERT_CSP: ${{ secrets.CHERRY_CERT_CSP }}
-        run: |
-          missing=()
-          for name in CHERRY_CERT_PATH CHERRY_CERT_KEY CHERRY_CERT_CSP; do
-            if [ -z "${!name}" ]; then
-              missing+=("$name")
-            fi
-          done
-
-          if [ "${#missing[@]}" -gt 0 ]; then
-            printf 'Missing Windows signing secrets: %s\n' "${missing[*]}"
-            printf 'Grant CherryHQ organization secrets to this repository or add repo-level secrets.\n'
-            exit 1
-          fi
-
       - name: Build ${{ matrix.platform }} installers
         shell: bash
         run: ${{ matrix.build }}
@@ -265,13 +201,6 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
-          # Windows release installers must be signed. scripts/win-sign.js fails if certificate metadata is missing.
-          WIN_SIGN: ${{ matrix.platform == 'windows' && 'true' || '' }}
-          CHERRY_CERT_PATH: ${{ secrets.CHERRY_CERT_PATH }}
-          CHERRY_CERT_KEY: ${{ secrets.CHERRY_CERT_KEY }}
-          CHERRY_CERT_CSP: ${{ secrets.CHERRY_CERT_CSP }}
-          WIN_SIGN_TIMESTAMP_URLS: ${{ secrets.WIN_SIGN_TIMESTAMP_URLS }}
 
       - name: Generate SHA256 checksums
         shell: bash

@@ -108,7 +108,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(github.event_name == 'push' && '[{"platform":"mac","os":"macos-latest","build":"npm run build && pnpm exec electron-builder --mac --arm64 --x64 --publish never"},{"platform":"windows","os":"windows-latest","build":"npm run build && pnpm exec electron-builder --win --x64 --arm64 --publish never"},{"platform":"linux","os":"ubuntu-latest","build":"npm run build && pnpm exec electron-builder --linux --x64 --arm64 --publish never"}]' || github.event.inputs.platform == 'all' && '[{"platform":"mac","os":"macos-latest","build":"npm run build && pnpm exec electron-builder --mac --arm64 --x64 --publish never"},{"platform":"windows","os":"windows-latest","build":"npm run build && pnpm exec electron-builder --win --x64 --arm64 --publish never"},{"platform":"linux","os":"ubuntu-latest","build":"npm run build && pnpm exec electron-builder --linux --x64 --arm64 --publish never"}]' || github.event.inputs.platform == 'mac' && '[{"platform":"mac","os":"macos-latest","build":"npm run build && pnpm exec electron-builder --mac --arm64 --x64 --publish never"}]' || github.event.inputs.platform == 'windows' && '[{"platform":"windows","os":"windows-latest","build":"npm run build && pnpm exec electron-builder --win --x64 --arm64 --publish never"}]' || github.event.inputs.platform == 'linux' && '[{"platform":"linux","os":"ubuntu-latest","build":"npm run build && pnpm exec electron-builder --linux --x64 --arm64 --publish never"}]' || '[]') }}
+        include: ${{ fromJSON(github.event_name == 'push' && '[{"platform":"mac","os":"macos-latest","build":"npm run build && pnpm exec electron-builder --mac --arm64 --x64 --publish never"},{"platform":"windows","os":["self-hosted","windows-signing"],"build":"npm run build && pnpm exec electron-builder --win --x64 --arm64 --publish never"},{"platform":"linux","os":"ubuntu-latest","build":"npm run build && pnpm exec electron-builder --linux --x64 --arm64 --publish never"}]' || github.event.inputs.platform == 'all' && '[{"platform":"mac","os":"macos-latest","build":"npm run build && pnpm exec electron-builder --mac --arm64 --x64 --publish never"},{"platform":"windows","os":["self-hosted","windows-signing"],"build":"npm run build && pnpm exec electron-builder --win --x64 --arm64 --publish never"},{"platform":"linux","os":"ubuntu-latest","build":"npm run build && pnpm exec electron-builder --linux --x64 --arm64 --publish never"}]' || github.event.inputs.platform == 'mac' && '[{"platform":"mac","os":"macos-latest","build":"npm run build && pnpm exec electron-builder --mac --arm64 --x64 --publish never"}]' || github.event.inputs.platform == 'windows' && '[{"platform":"windows","os":["self-hosted","windows-signing"],"build":"npm run build && pnpm exec electron-builder --win --x64 --arm64 --publish never"}]' || github.event.inputs.platform == 'linux' && '[{"platform":"linux","os":"ubuntu-latest","build":"npm run build && pnpm exec electron-builder --linux --x64 --arm64 --publish never"}]' || '[]') }}
 
     steps:
       - name: Check out release tag
@@ -180,6 +180,27 @@ jobs:
             exit 1
           fi
 
+      - name: Verify Windows signing secrets
+        if: matrix.platform == 'windows'
+        shell: bash
+        env:
+          CHERRY_CERT_PATH: ${{ secrets.CHERRY_CERT_PATH }}
+          CHERRY_CERT_KEY: ${{ secrets.CHERRY_CERT_KEY }}
+          CHERRY_CERT_CSP: ${{ secrets.CHERRY_CERT_CSP }}
+        run: |
+          missing=()
+          for name in CHERRY_CERT_PATH CHERRY_CERT_KEY CHERRY_CERT_CSP; do
+            if [ -z "${!name}" ]; then
+              missing+=("$name")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing Windows signing secrets: %s\n' "${missing[*]}"
+            printf 'Grant CherryHQ organization secrets to this repository or add repo-level secrets.\n'
+            exit 1
+          fi
+
       - name: Build ${{ matrix.platform }} installers
         shell: bash
         run: ${{ matrix.build }}
@@ -201,8 +222,8 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
-          # Optional Windows signing. scripts/win-sign.js signs only when WIN_SIGN is set.
-          WIN_SIGN: ${{ secrets.WIN_SIGN }}
+          # Windows release installers must be signed. scripts/win-sign.js fails if certificate metadata is missing.
+          WIN_SIGN: ${{ matrix.platform == 'windows' && 'true' || '' }}
           CHERRY_CERT_PATH: ${{ secrets.CHERRY_CERT_PATH }}
           CHERRY_CERT_KEY: ${{ secrets.CHERRY_CERT_KEY }}
           CHERRY_CERT_CSP: ${{ secrets.CHERRY_CERT_CSP }}

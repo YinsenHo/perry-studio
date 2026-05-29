@@ -74,7 +74,7 @@
 - [x] 构造完整 fixture：provider、助手、普通会话、附件、知识库、agent、agent 历史、channel、app data、workbench、MCP、OAuth、localStorage；BackupService 已有完整 Storage v2 backup validation fixture 覆盖当前 schema 表、blob checksum、secret ref、restorable directories 和核心实体占位数据，后续恢复读回继续扩展同一夹具。
 - [x] 生成 Storage v2 backup 后恢复到全新 data root；BackupService 测试已从完整 fixture source data root 真实 createBackup，再 restoreBackup 到空 FreshData，验证 main.db、manifest、blob、secret vault、Channels、Workbench、Notes、Workspace 均恢复并重新 activate data root。
 - [x] 验证恢复后所有列表、详情、搜索、导出、agent 历史都能读到；restore 流程已断言 agent/file/app data legacy projection 在恢复后执行并返回 agent/session/history/channel/file/workbench/sync 计数，普通会话列表/消息/搜索/导出、agent history、file/app data read-through 已由 TopicManager、ConversationHydration、AgentRuntimeRecovery、FileRecovery、AppDataRuntimeRecovery 测试覆盖。
-- [ ] 验证 `Perry Studio -> Cherry Studio Pi`、username 变化、appId/productName 变化。
+- [x] 验证 `Perry Studio -> Cherry Studio Pi`、username 变化、appId/productName 变化；DataRootService 已覆盖 Perry/Cherry 旧 root 兼容、旧 username configured root 缺失时不遮蔽当前 root，Backup validation 已覆盖 legacy Perry Studio manifest 仍可被 Cherry Studio Pi 接受。
 - [ ] 验证自定义 App Data 路径迁移。
 - [ ] 验证旧 `.bak` / legacy JSON 备份恢复不会被 Storage v2 旧快照覆盖。
 - [ ] 验证 secret vault 不可解密、缺失 secret ref、旧备份缺表时的 warning 行为。

@@ -508,6 +508,69 @@ describe('StorageV2BackupService.validateBackup', () => {
     )
   })
 
+  it('accepts backups whose manifest was last opened by legacy Perry Studio builds', async () => {
+    const secretRef = 'storage-v2://secret/provider/provider-1/apiKey'
+    const blobStoragePath = 'blobs/file-1.txt'
+    const blobContent = 'blob-content'
+    const blobChecksum = createHash('sha256').update(blobContent).digest('hex')
+
+    fs.mkdirSync(path.join(backupPath, 'blobs'), { recursive: true })
+    fs.mkdirSync(path.join(backupPath, 'secrets'), { recursive: true })
+    fs.writeFileSync(path.join(backupPath, blobStoragePath), blobContent)
+    fs.writeFileSync(
+      path.join(backupPath, 'manifest.json'),
+      JSON.stringify({
+        format: 'cherry-studio-pi-storage',
+        version: 2,
+        profileId: 'default',
+        workspaceId: 'perry-workspace',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        lastOpenedBy: {
+          appId: 'perry-studio',
+          productName: 'Perry Studio',
+          version: '1.9.7'
+        }
+      })
+    )
+    fs.writeFileSync(
+      path.join(backupPath, 'metadata.json'),
+      JSON.stringify({
+        format: 'cherry-studio-pi-storage-backup',
+        version: 1,
+        reason: 'legacy-perry',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        copiedDirectories: ['blobs', 'secrets']
+      })
+    )
+    fs.writeFileSync(
+      path.join(backupPath, 'secrets', 'vault.json'),
+      JSON.stringify({
+        version: 1,
+        secrets: {
+          'provider:provider-1:apiKey': {
+            encrypted: Buffer.from('encrypted-provider-key').toString('base64'),
+            encoding: 'electron-safe-storage',
+            updatedAt: '2026-01-01T00:00:00.000Z'
+          }
+        }
+      })
+    )
+    await createCompleteBackupValidationDb(path.join(backupPath, 'main.db'), {
+      blobStoragePath,
+      blobChecksum,
+      secretRef
+    })
+
+    const validation = await new StorageV2BackupService().validateBackup(backupPath)
+
+    expect(validation.ok).toBe(true)
+    expect(validation.manifestPath).toBe(path.join(backupPath, 'manifest.json'))
+    expect(validation.warnings).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'manifest_missing' })])
+    )
+  })
+
   it('checks copied directory metadata and current schema compatibility', async () => {
     await createBackupValidationDb(path.join(backupPath, 'main.db'))
     fs.writeFileSync(

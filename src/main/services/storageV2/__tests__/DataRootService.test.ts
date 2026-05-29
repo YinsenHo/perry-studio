@@ -263,6 +263,46 @@ describe('StorageV2DataRootService', () => {
     expect(info.source).toBe('current-user-data')
   })
 
+  it('ignores a missing configured root from an old username when the current root has data', async () => {
+    const configPath = '/mock/home/.cherrystudio/config/config.json'
+    const oldUsernameRoot = '/Users/old-name/Library/Application Support/Perry Studio/Data'
+    const currentRoot = '/mock/appData/Cherry Studio Pi/Data'
+    vi.mocked(fs.existsSync).mockImplementation((candidate) =>
+      [configPath, currentRoot, `${currentRoot}/manifest.json`, `${currentRoot}/main.db`].includes(String(candidate))
+    )
+    vi.mocked(fs.readFileSync).mockImplementation((candidate) => {
+      if (String(candidate) === configPath) {
+        return JSON.stringify({
+          dataRoots: [
+            {
+              app: 'perry-studio',
+              profileId: 'default',
+              path: oldUsernameRoot,
+              active: true
+            }
+          ]
+        })
+      }
+
+      return JSON.stringify(manifest)
+    })
+
+    const { StorageV2DataRootService } = await import('../DataRootService')
+    const info = new StorageV2DataRootService().resolveDataRoot()
+
+    expect(info.dataRoot).toBe(currentRoot)
+    expect(info.source).toBe('current-user-data')
+    expect(info.candidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: oldUsernameRoot,
+          source: 'config',
+          exists: false
+        })
+      ])
+    )
+  })
+
   it('does not count empty data directories as real runtime data', async () => {
     const configPath = '/mock/home/.cherrystudio/config/config.json'
     const configuredRoot = '/mock/stale-root'

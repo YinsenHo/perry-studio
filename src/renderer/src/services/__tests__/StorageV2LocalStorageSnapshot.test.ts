@@ -216,6 +216,40 @@ describe('StorageV2LocalStorageSnapshot', () => {
     expect(importLegacyReduxSnapshot).toHaveBeenCalledTimes(1)
   })
 
+  it('retries scheduled durable localStorage mirrors when the Storage v2 API becomes available later', async () => {
+    vi.useFakeTimers()
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {}
+    })
+    localStorage.setItem('language', 'api-later')
+
+    scheduleStorageV2LocalStorageMirror()
+
+    const importLegacyReduxSnapshot = vi.fn().mockResolvedValue({ dryRun: false })
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        storageV2: {
+          importLegacyReduxSnapshot
+        }
+      }
+    })
+
+    await vi.advanceTimersByTimeAsync(5000)
+
+    expect(importLegacyReduxSnapshot).toHaveBeenCalledWith(
+      {
+        localStorage: expect.objectContaining({
+          durableValues: {
+            language: 'api-later'
+          }
+        })
+      },
+      { dryRun: false }
+    )
+  })
+
   it('suspends scheduled durable localStorage mirrors until reload after restore', async () => {
     vi.useFakeTimers()
     const importLegacyReduxSnapshot = vi.fn().mockResolvedValue({ dryRun: false })

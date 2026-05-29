@@ -93,7 +93,11 @@ export function applyStorageV2LocalStorageSnapshot(snapshot: Partial<StorageV2Lo
 export function scheduleStorageV2LocalStorageMirror(debounceMs = DEFAULT_LOCAL_STORAGE_MIRROR_DEBOUNCE_MS) {
   if (localStorageMirrorSuspended) return
   localStorageMirrorPending = true
-  if (typeof window === 'undefined' || !window.api?.storageV2) return
+  if (typeof window === 'undefined') return
+  if (!window.api?.storageV2) {
+    scheduleLocalStorageMirrorRetry()
+    return
+  }
 
   clearLocalStorageMirrorRetryTimer()
 
@@ -115,7 +119,13 @@ export function scheduleStorageV2LocalStorageMirror(debounceMs = DEFAULT_LOCAL_S
 
 export async function flushStorageV2LocalStorageMirror() {
   if (localStorageMirrorSuspended) return
-  if (typeof window === 'undefined' || !window.api?.storageV2) return
+  if (typeof window === 'undefined') return
+  if (!window.api?.storageV2) {
+    if (localStorageMirrorPending) {
+      scheduleLocalStorageMirrorRetry()
+    }
+    return
+  }
 
   clearLocalStorageMirrorRetryTimer()
 
@@ -204,7 +214,7 @@ function clearLocalStorageMirrorRetryTimer() {
 }
 
 function scheduleLocalStorageMirrorRetry() {
-  if (localStorageMirrorRetryTimer || typeof window === 'undefined' || !window.api?.storageV2) return
+  if (localStorageMirrorRetryTimer || typeof window === 'undefined' || localStorageMirrorSuspended) return
 
   localStorageMirrorRetryTimer = setTimeout(() => {
     localStorageMirrorRetryTimer = null

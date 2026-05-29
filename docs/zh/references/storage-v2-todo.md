@@ -2,7 +2,7 @@
 
 更新时间：2026-05-29
 
-固定进度口径：整体 94%。这表示 Storage v2 并行保护层、主要数据 mirror/read-through、StorageService-first 主写保护、端到端备份/恢复验证、漏网路径归类/补洞、同步/账号体系前置策略、legacy runtime 清理策略和最终测试矩阵已经完成，剩余工作集中在安装包启动的真实恢复验证和最终 review/release 决策。
+固定进度口径：整体 96%。这表示 Storage v2 并行保护层、主要数据 mirror/read-through、StorageService-first 主写保护、端到端备份/恢复验证、漏网路径归类/补洞、同步/账号体系前置策略、legacy runtime 清理策略、最终测试矩阵和安装包启动恢复验证已经完成，剩余工作集中在最终 review/release 决策。
 
 跟踪规则：
 
@@ -132,5 +132,5 @@
 - [x] 明确哪些 legacy 文件/库保留为 runtime cache；`LegacyRuntimeCleanupService` 已固化 Redux/IndexedDB、`Data/agents.db`、`Data/app.db`、OpenClaw、OVMS、MCP memory、旧 userData DB 等 retention policy。
 - [x] 对可清理的 legacy 明文敏感数据做安全归档或清除，清理前必须有快照；Anthropic OAuth 旧 JSON 和 Copilot 旧 token 文件只有在 Storage v2 secret ref / cleared marker 存在时才会进入归档计划，非 dry-run 归档前会先创建 `before-sensitive-legacy-cleanup` snapshot。
 - [x] 更新 Storage v2 文档，避免文档和代码进度不一致；`storage-v2.md` 已补 legacy runtime 清理策略。
-- [ ] 做一次从安装包启动的真实恢复验证。
+- [x] 做一次从安装包启动的真实恢复验证；2026-05-29 已完成：修复 packaged app 缺少 `@vscode/ripgrep-darwin-arm64` 导致的启动早期主进程错误，`pnpm build:unpack` 成功，并将已验证的 Storage v2 backup staging 到全新 Data root 后用 `dist/mac-arm64/Cherry Studio Pi.app` 启动，Storage v2 health `quick_check=ok`，marker 与 Notes 文件均从恢复数据读回。备注：packaged 环境直接调用 `restoreBackup` IPC 时，macOS Keychain safeStorage 写入在自动化环境触发授权等待；本次安装包启动验证采用已验证 backup staging 后启动的方式，`restoreBackup` 逻辑仍由 main test 覆盖。
 - [ ] 最终 review 后再决定 push/release。

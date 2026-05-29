@@ -42,7 +42,19 @@ const packages = [
   '@napi-rs/canvas-darwin-arm64',
   '@napi-rs/canvas-win32-x64-msvc',
   '@napi-rs/canvas-win32-arm64-msvc',
-  '@strongtz/win32-arm64-msvc'
+  '@strongtz/win32-arm64-msvc',
+  '@vscode/ripgrep-darwin-arm64',
+  '@vscode/ripgrep-darwin-x64',
+  '@vscode/ripgrep-linux-arm',
+  '@vscode/ripgrep-linux-arm64',
+  '@vscode/ripgrep-linux-ia32',
+  '@vscode/ripgrep-linux-ppc64',
+  '@vscode/ripgrep-linux-riscv64',
+  '@vscode/ripgrep-linux-s390x',
+  '@vscode/ripgrep-linux-x64',
+  '@vscode/ripgrep-win32-arm64',
+  '@vscode/ripgrep-win32-ia32',
+  '@vscode/ripgrep-win32-x64'
 ]
 
 const platformToArch = {

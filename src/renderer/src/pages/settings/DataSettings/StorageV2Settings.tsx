@@ -141,16 +141,36 @@ const REPORT_LABEL_KEYS: Record<string, string> = {
 const AUDIT_ITEM_LABEL_KEYS: Record<string, string> = {
   'agents-db': 'settings.data.storage_v2.audit_items.agents_db',
   'agents-workspaces': 'settings.data.storage_v2.audit_items.agents_workspaces',
+  'anthropic-oauth-legacy': 'settings.data.storage_v2.audit_items.anthropic_oauth_legacy',
   'app-db': 'settings.data.storage_v2.audit_items.app_db',
+  channels: 'settings.data.storage_v2.audit_items.channels',
+  'copilot-token-legacy': 'settings.data.storage_v2.audit_items.copilot_token_legacy',
   data: 'settings.data.storage_v2.audit_items.data',
   files: 'settings.data.storage_v2.audit_items.files',
+  'home-config': 'settings.data.storage_v2.audit_items.home_config',
   indexeddb: 'settings.data.storage_v2.audit_items.indexeddb',
   'knowledge-base': 'settings.data.storage_v2.audit_items.knowledge_base',
+  'legacy-user-data-agents-db': 'settings.data.storage_v2.audit_items.legacy_user_data_agents_db',
+  'legacy-user-data-copilot-token': 'settings.data.storage_v2.audit_items.legacy_user_data_copilot_token',
+  'legacy-user-data-memory-db': 'settings.data.storage_v2.audit_items.legacy_user_data_memory_db',
   'local-storage': 'settings.data.storage_v2.audit_items.local_storage',
+  logs: 'settings.data.storage_v2.audit_items.logs',
+  'mcp-memory-json': 'settings.data.storage_v2.audit_items.mcp_memory_json',
+  'mcp-oauth-legacy': 'settings.data.storage_v2.audit_items.mcp_oauth_legacy',
+  memory: 'settings.data.storage_v2.audit_items.memory',
+  notes: 'settings.data.storage_v2.audit_items.notes',
+  'openclaw-config': 'settings.data.storage_v2.audit_items.openclaw_config',
+  'openclaw-legacy-config': 'settings.data.storage_v2.audit_items.openclaw_legacy_config',
+  'ovms-config': 'settings.data.storage_v2.audit_items.ovms_config',
   'redux-local-storage-leveldb': 'settings.data.storage_v2.audit_items.redux_local_storage_leveldb',
   skills: 'settings.data.storage_v2.audit_items.skills',
   'storage-v2-main-db': 'settings.data.storage_v2.audit_items.storage_v2_main_db',
-  'storage-v2-manifest': 'settings.data.storage_v2.audit_items.storage_v2_manifest'
+  'storage-v2-manifest': 'settings.data.storage_v2.audit_items.storage_v2_manifest',
+  'tesseract-cache': 'settings.data.storage_v2.audit_items.tesseract_cache',
+  'trace-cache': 'settings.data.storage_v2.audit_items.trace_cache',
+  'user-data-cache': 'settings.data.storage_v2.audit_items.user_data_cache',
+  'version-log': 'settings.data.storage_v2.audit_items.version_log',
+  workbench: 'settings.data.storage_v2.audit_items.workbench'
 }
 
 const REPORT_KEYS = ['redux', 'dexie', 'agentDb', 'appDb'] as const

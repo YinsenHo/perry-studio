@@ -158,6 +158,13 @@ export class StorageV2MigrationAuditService {
         risk: 'medium',
         notes: 'HTML artifacts are copied by Storage v2 backups and path-rewritten on restore.'
       }),
+      auditPath('notes', 'Default notes directory', path.join(dataPath, 'Notes'), {
+        category: 'user-asset',
+        coverage: 'covered',
+        risk: 'high',
+        notes:
+          'Default notes live under the active Storage v2 data root and are copied by Storage v2 backups; custom external notes paths still need separate authority metadata.'
+      }),
       auditPath('agents-workspaces', 'Agent workspaces', path.join(dataPath, 'Agents'), {
         category: 'user-asset',
         coverage: 'covered',
@@ -275,6 +282,18 @@ export class StorageV2MigrationAuditService {
         coverage: 'cache',
         risk: 'low',
         notes: 'Runtime log files; not part of the user-data restore promise.'
+      }),
+      auditPath('user-data-cache', 'Chromium runtime cache', path.join(userDataPath, 'Cache'), {
+        category: 'runtime-cache',
+        coverage: 'cache',
+        risk: 'low',
+        notes: 'Rebuildable Chromium/runtime cache; not part of the user-data restore promise.'
+      }),
+      auditPath('version-log', 'Version history log', path.join(userDataPath, 'version.log'), {
+        category: 'runtime-cache',
+        coverage: 'cache',
+        risk: 'low',
+        notes: 'Diagnostic version and migration log; not part of the user-data restore promise.'
       }),
       auditPath('tesseract-cache', 'Tesseract cache', path.join(userDataPath, 'tesseract'), {
         category: 'runtime-cache',

@@ -48,6 +48,7 @@ describe('StorageV2MigrationAuditService', () => {
     expect(itemPath('data')).toBe('/mock/stable-data-root')
     expect(itemPath('files')).toBe('/mock/stable-data-root/Files')
     expect(itemPath('knowledge-base')).toBe('/mock/stable-data-root/KnowledgeBase')
+    expect(itemPath('notes')).toBe('/mock/stable-data-root/Notes')
     expect(itemPath('channels')).toBe('/mock/stable-data-root/Channels')
     expect(itemPath('workbench')).toBe('/mock/stable-data-root/Workbench')
     expect(itemPath('agents-db')).toBe('/mock/stable-data-root/agents.db')
@@ -60,6 +61,8 @@ describe('StorageV2MigrationAuditService', () => {
     expect(itemPath('ovms-config')).toBe('/mock/home/.cherrystudio/ovms/ovms/models/config.json')
     expect(itemPath('trace-cache')).toBe('/mock/home/.cherrystudio/trace')
     expect(itemPath('logs')).toBe('/mock/current-user-data/logs')
+    expect(itemPath('user-data-cache')).toBe('/mock/current-user-data/Cache')
+    expect(itemPath('version-log')).toBe('/mock/current-user-data/version.log')
     expect(itemPath('tesseract-cache')).toBe('/mock/current-user-data/tesseract')
   })
 

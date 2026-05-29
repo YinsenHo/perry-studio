@@ -98,7 +98,8 @@ const RESTORABLE_DIRECTORIES = [
   'Skills',
   'Agents',
   'Channels',
-  'Workbench'
+  'Workbench',
+  'Notes'
 ] as const
 const RESTORABLE_DB_FILES = ['main.db', 'main.db-wal', 'main.db-shm'] as const
 const RESTORABLE_DIRECTORY_SET = new Set<string>(RESTORABLE_DIRECTORIES)

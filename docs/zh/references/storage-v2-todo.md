@@ -22,6 +22,7 @@
 - [x] Workbench HTML artifact 文件纳入 Storage v2 backup / restore，并修复恢复后的 `file://` 路径。
 - [x] migration audit 已纳入 Channels、Workbench、旧 `agents.db` / `memories.db`、MCP / OpenClaw / OVMS / OAuth、trace/log/OCR cache 等路径分类；legacy-only 且需要处理的路径会生成 warning。
 - [x] `Channels` 目录纳入 Storage v2 backup / restore；backup validation 会检查 copiedDirectories 缺失、未知目录和当前 schema 表缺失。
+- [x] 默认 `Data/Notes` 纳入 migration audit 和 Storage v2 backup / restore；`userData/Cache`、`version.log` 标为可重建/诊断缓存，不进入恢复承诺。
 - [ ] 继续扫描 `userData`、`Data/*`、`~/.cherrystudio`、外部 JSON/DB 写入路径。
 - [ ] 判定每个路径属于用户资产、可重建缓存、临时文件或外部工具投影。
 - [ ] 用户资产必须进入 Storage v2 或 backup/restore。

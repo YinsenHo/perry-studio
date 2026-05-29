@@ -4607,6 +4607,13 @@
           "help": "When enabled, app startup restores the runtime cache from Storage v2 settings, model providers, and assistant configuration first. Keep this off until migration checks look good.",
           "title": "Restore from Storage v2 on startup"
         },
+        "backup_overview": {
+          "count": "{{count}} backup(s)",
+          "latest": "Latest: {{time}}",
+          "none": "No Storage v2 backups yet",
+          "reason": "Reason: {{reason}}",
+          "title": "Recent backup"
+        },
         "backup_restore": {
           "archived": "Archived old files: {{path}}",
           "invalid": "Backup is not usable",
@@ -4753,6 +4760,25 @@
         },
         "manifest": "Manifest",
         "menu": "Unified Storage",
+        "mirror_status": {
+          "failed_item": "{{label}}: {{message}}",
+          "failures": "{{count}} failed retry queue(s)",
+          "healthy": "No failures",
+          "idle": "No pending work",
+          "labels": {
+            "agents": "Agent database",
+            "conversations": "Conversations",
+            "dexie_settings": "Dexie settings",
+            "dexie_tables": "Dexie auxiliary tables",
+            "files": "Files",
+            "local_storage": "localStorage",
+            "redux": "Redux state",
+            "unknown": "Unknown queue"
+          },
+          "pending": "{{count}} pending write(s)",
+          "pending_item": "{{label}}: {{count}} pending write(s)",
+          "title": "Mirror queue"
+        },
         "profile": "Profile {{value}}",
         "reports": {
           "agent_db": "Agent database",

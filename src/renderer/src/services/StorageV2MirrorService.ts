@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import type { Middleware } from '@reduxjs/toolkit'
 
 import { getStorageV2LocalStorageSnapshot } from './StorageV2LocalStorageSnapshot'
+import { serializeStorageV2MirrorError, type StorageV2RuntimeMirrorStatusEntry } from './StorageV2RuntimeMirrorStatus'
 
 const logger = loggerService.withContext('StorageV2MirrorService')
 
@@ -310,6 +311,18 @@ class StorageV2MirrorService {
 
     if (options.scheduleLatest && this.latestGetState) {
       this.schedule(this.latestGetState, 0, { pruneMissing: options.pruneMissing })
+    }
+  }
+
+  getStatus(): StorageV2RuntimeMirrorStatusEntry {
+    const queuedCount = this.hasStrictPendingWork() ? 1 : 0
+
+    return {
+      id: 'redux',
+      pendingCount: queuedCount + (this.inflight ? 1 : 0),
+      inflight: Boolean(this.inflight),
+      suspended: this.suspended,
+      lastError: serializeStorageV2MirrorError(this.lastError)
     }
   }
 }

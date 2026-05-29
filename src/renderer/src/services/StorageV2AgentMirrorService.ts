@@ -1,5 +1,7 @@
 import { loggerService } from '@logger'
 
+import { serializeStorageV2MirrorError, type StorageV2RuntimeMirrorStatusEntry } from './StorageV2RuntimeMirrorStatus'
+
 const logger = loggerService.withContext('StorageV2AgentMirrorService')
 
 const DEFAULT_DEBOUNCE_MS = 4000
@@ -98,6 +100,16 @@ class StorageV2AgentMirrorService {
     if (this.timer) {
       clearTimeout(this.timer)
       this.timer = null
+    }
+  }
+
+  getStatus(): StorageV2RuntimeMirrorStatusEntry {
+    return {
+      id: 'agents',
+      pendingCount: (this.pending ? 1 : 0) + (this.inflight ? 1 : 0),
+      inflight: Boolean(this.inflight),
+      suspended: this.suspended,
+      lastError: serializeStorageV2MirrorError(this.lastError)
     }
   }
 }

@@ -324,6 +324,7 @@ export enum IpcChannel {
   StorageV2_GetHealthSummary = 'storage-v2:get-health-summary',
   StorageV2_CreateSnapshot = 'storage-v2:create-snapshot',
   StorageV2_CreateBackup = 'storage-v2:create-backup',
+  StorageV2_GetBackupOverview = 'storage-v2:get-backup-overview',
   StorageV2_ValidateBackup = 'storage-v2:validate-backup',
   StorageV2_RestoreBackup = 'storage-v2:restore-backup',
   StorageV2_GetMigrationAudit = 'storage-v2:get-migration-audit',

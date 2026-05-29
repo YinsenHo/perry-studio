@@ -37,6 +37,14 @@ export type StorageV2Backup = {
   copiedDirectories: string[]
 }
 
+export type StorageV2BackupOverview = {
+  backupRoot: string
+  backupCount: number
+  latestBackupPath: string | null
+  latestBackupCreatedAt: string | null
+  latestBackupReason: string | null
+}
+
 export type StorageV2BackupValidationMessage = {
   id: string
   message: string
@@ -322,6 +330,26 @@ function getBackupManifest(metadata: Record<string, any> | null, manifestPath: s
   return sourceManifest && typeof sourceManifest === 'object' ? sourceManifest : null
 }
 
+function getBackupTimeValue(createdAt: string | null) {
+  if (!createdAt) return 0
+
+  const time = Date.parse(createdAt)
+  return Number.isFinite(time) ? time : 0
+}
+
+function readBackupOverviewEntry(backupPath: string) {
+  const stat = fs.statSync(backupPath)
+  const metadata = readJsonFile(path.join(backupPath, 'metadata.json'))
+  const createdAt = typeof metadata?.createdAt === 'string' ? metadata.createdAt : stat.mtime.toISOString()
+  const reason = typeof metadata?.reason === 'string' ? metadata.reason : null
+
+  return {
+    path: backupPath,
+    createdAt,
+    reason
+  }
+}
+
 function copyDirectoryIfExists(source: string, target: string) {
   if (!fs.existsSync(source)) return false
   fs.cpSync(source, target, {
@@ -404,6 +432,39 @@ async function sha256File(filePath: string): Promise<string> {
 }
 
 export class StorageV2BackupService {
+  async getBackupOverview(): Promise<StorageV2BackupOverview> {
+    const rootInfo = storageV2DataRootService.ensureDataRoot()
+    const backupRoot = path.join(rootInfo.dataRoot, 'backups')
+
+    if (!fs.existsSync(backupRoot)) {
+      return {
+        backupRoot,
+        backupCount: 0,
+        latestBackupPath: null,
+        latestBackupCreatedAt: null,
+        latestBackupReason: null
+      }
+    }
+
+    const backups = fs
+      .readdirSync(backupRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => readBackupOverviewEntry(path.join(backupRoot, entry.name)))
+      .sort((left, right) => {
+        const timeDiff = getBackupTimeValue(right.createdAt) - getBackupTimeValue(left.createdAt)
+        return timeDiff !== 0 ? timeDiff : right.path.localeCompare(left.path)
+      })
+    const latestBackup = backups[0]
+
+    return {
+      backupRoot,
+      backupCount: backups.length,
+      latestBackupPath: latestBackup?.path ?? null,
+      latestBackupCreatedAt: latestBackup?.createdAt ?? null,
+      latestBackupReason: latestBackup?.reason ?? null
+    }
+  }
+
   async createBackup(reason = 'manual'): Promise<StorageV2Backup> {
     const rootInfo = storageV2DataRootService.ensureDataRoot()
     await storageV2Database.healthCheck()

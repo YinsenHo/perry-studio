@@ -1,6 +1,8 @@
 import { loggerService } from '@logger'
 import db from '@renderer/databases'
 
+import { serializeStorageV2MirrorError, type StorageV2RuntimeMirrorStatusEntry } from './StorageV2RuntimeMirrorStatus'
+
 const logger = loggerService.withContext('StorageV2DexieTableMirrorService')
 
 const DEFAULT_DEBOUNCE_MS = 500
@@ -46,6 +48,10 @@ function readRowId(primaryKey: unknown, obj?: { id?: unknown }): string | undefi
 
 function clonePendingMap(source: Map<StorageV2DexieTableName, Set<string>>) {
   return new Map(Array.from(source.entries()).map(([tableName, rowIds]) => [tableName, Array.from(rowIds)]))
+}
+
+function countPendingRows(source: Map<StorageV2DexieTableName, Set<string>>) {
+  return Array.from(source.values()).reduce((total, rowIds) => total + rowIds.size, 0)
 }
 
 class StorageV2DexieTableMirrorService {
@@ -164,6 +170,17 @@ class StorageV2DexieTableMirrorService {
     if (this.timer) {
       clearTimeout(this.timer)
       this.timer = null
+    }
+  }
+
+  getStatus(): StorageV2RuntimeMirrorStatusEntry {
+    return {
+      id: 'dexie_tables',
+      pendingCount:
+        countPendingRows(this.pendingRowIds) + countPendingRows(this.pendingDeletedIds) + (this.inflight ? 1 : 0),
+      inflight: Boolean(this.inflight),
+      suspended: this.suspended,
+      lastError: serializeStorageV2MirrorError(this.lastError)
     }
   }
 

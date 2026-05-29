@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   },
   backupService: {
     createBackup: vi.fn(),
+    getBackupOverview: vi.fn(),
     restoreBackup: vi.fn(),
     validateBackup: vi.fn()
   },
@@ -198,6 +199,23 @@ describe('StorageV2Service', () => {
     expect(mocks.configManager.mirrorAllToStorageV2).toHaveBeenCalledTimes(1)
     expect(mocks.agentDbMirrorService.flushStrict).toHaveBeenCalledTimes(1)
     expect(mocks.database.createSnapshot).toHaveBeenCalledWith('manual')
+  })
+
+  it('returns backup overview without forcing a runtime mirror flush', async () => {
+    const overview = {
+      backupRoot: '/mock/Data/backups',
+      backupCount: 1,
+      latestBackupPath: '/mock/Data/backups/latest',
+      latestBackupCreatedAt: '2026-01-02T00:00:00.000Z',
+      latestBackupReason: 'settings-manual'
+    }
+    mocks.backupService.getBackupOverview.mockResolvedValue(overview)
+
+    await expect(new StorageV2Service().getBackupOverview()).resolves.toEqual(overview)
+
+    expect(mocks.backupService.getBackupOverview).toHaveBeenCalledTimes(1)
+    expect(mocks.configManager.flushPendingStorageV2ConfigStrict).not.toHaveBeenCalled()
+    expect(mocks.agentDbMirrorService.flushStrict).not.toHaveBeenCalled()
   })
 
   it('projects legacy Dexie auxiliary table rows into core snapshots', async () => {

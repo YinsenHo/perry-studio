@@ -4,6 +4,7 @@ import type { Assistant, FileMetadata, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 
 import { fetchStorageV2TopicMessages } from './StorageV2ConversationHydrationService'
+import { serializeStorageV2MirrorError, type StorageV2RuntimeMirrorStatusEntry } from './StorageV2RuntimeMirrorStatus'
 
 const logger = loggerService.withContext('StorageV2ConversationMirrorService')
 
@@ -790,6 +791,18 @@ class StorageV2ConversationMirrorService {
       pruneMissingMessages: false,
       pruneMissingBlocks: false
     })
+  }
+
+  getStatus(): StorageV2RuntimeMirrorStatusEntry {
+    const queuedCount = this.pendingTopicIds.size + this.pendingMessageIds.size + this.pendingBlockIds.size
+
+    return {
+      id: 'conversations',
+      pendingCount: queuedCount + (this.inflight ? 1 : 0),
+      inflight: Boolean(this.inflight),
+      suspended: this.suspended,
+      lastError: serializeStorageV2MirrorError(this.lastError)
+    }
   }
 }
 

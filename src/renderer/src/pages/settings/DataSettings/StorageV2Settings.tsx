@@ -8,20 +8,24 @@ import {
 import {
   createStorageV2Backup,
   createStorageV2Snapshot,
+  getStorageV2BackupOverview,
   getStorageV2DataRoot,
   getStorageV2Health,
   getStorageV2HealthSummary,
   getStorageV2IntegrityReport,
   getStorageV2MigrationAudit,
+  getStorageV2RuntimeMirrorStatus,
   getStorageV2Stats,
   listStorageV2MigrationRuns,
   restoreStorageV2Backup,
   runLegacyMigrationToStorageV2,
+  type StorageV2BackupOverview,
   type StorageV2BackupValidation,
   type StorageV2HealthSummary,
   type StorageV2LegacyMigrationReport,
   type StorageV2MigrationRun,
   type StorageV2RestoreBackupResult,
+  type StorageV2RuntimeMirrorStatus,
   validateStorageV2Backup
 } from '@renderer/services/StorageV2Service'
 import { persistor, useAppDispatch } from '@renderer/store'
@@ -319,6 +323,16 @@ const HEALTH_SUMMARY_STATUS_COLORS: Record<StorageV2HealthSummary['status'], str
   warning: 'warning'
 }
 
+const MIRROR_STATUS_LABEL_KEYS: Record<string, string> = {
+  agents: 'settings.data.storage_v2.mirror_status.labels.agents',
+  conversations: 'settings.data.storage_v2.mirror_status.labels.conversations',
+  dexie_settings: 'settings.data.storage_v2.mirror_status.labels.dexie_settings',
+  dexie_tables: 'settings.data.storage_v2.mirror_status.labels.dexie_tables',
+  files: 'settings.data.storage_v2.mirror_status.labels.files',
+  local_storage: 'settings.data.storage_v2.mirror_status.labels.local_storage',
+  redux: 'settings.data.storage_v2.mirror_status.labels.redux'
+}
+
 function asRecord(value: unknown): Record<string, any> {
   return value && typeof value === 'object' ? (value as Record<string, any>) : {}
 }
@@ -353,6 +367,8 @@ const StorageV2Settings: FC = () => {
   const [dataRoot, setDataRoot] = useState<StorageV2DataRootInfo | null>(null)
   const [health, setHealth] = useState<StorageV2Health | null>(null)
   const [healthSummary, setHealthSummary] = useState<StorageV2HealthSummary | null>(null)
+  const [backupOverview, setBackupOverview] = useState<StorageV2BackupOverview | null>(null)
+  const [mirrorStatus, setMirrorStatus] = useState<StorageV2RuntimeMirrorStatus | null>(null)
   const [audit, setAudit] = useState<StorageV2MigrationAudit | null>(null)
   const [stats, setStats] = useState<StorageV2Stats | null>(null)
   const [integrityReport, setIntegrityReport] = useState<StorageV2IntegrityReport | null>(null)
@@ -375,6 +391,7 @@ const StorageV2Settings: FC = () => {
           nextAudit,
           nextHealth,
           nextHealthSummary,
+          nextBackupOverview,
           nextStats,
           nextMigrationRuns,
           nextAutoHydrateEnabled
@@ -403,6 +420,13 @@ const StorageV2Settings: FC = () => {
               }
             ]
           })),
+          getStorageV2BackupOverview().catch(() => ({
+            backupRoot: '',
+            backupCount: 0,
+            latestBackupPath: null,
+            latestBackupCreatedAt: null,
+            latestBackupReason: null
+          })),
           getStorageV2Stats(),
           listStorageV2MigrationRuns(8),
           getStorageV2AutoHydrateEnabled().catch(() => false)
@@ -412,6 +436,8 @@ const StorageV2Settings: FC = () => {
         setAudit(nextAudit as StorageV2MigrationAudit)
         setHealth(nextHealth as StorageV2Health)
         setHealthSummary(nextHealthSummary)
+        setBackupOverview(nextBackupOverview)
+        setMirrorStatus(getStorageV2RuntimeMirrorStatus())
         setStats(nextStats as StorageV2Stats)
         setMigrationRuns(nextMigrationRuns)
         setAutoHydrateEnabled(nextAutoHydrateEnabled)
@@ -629,6 +655,10 @@ const StorageV2Settings: FC = () => {
     () => (healthSummary?.checks ?? []).filter((check) => check.status !== 'ok'),
     [healthSummary]
   )
+  const mirrorStatusItems = useMemo(
+    () => (mirrorStatus?.mirrors ?? []).filter((mirror) => mirror.pendingCount > 0 || mirror.lastError),
+    [mirrorStatus]
+  )
   const dataRootPath = dataRoot?.dataRoot
   const sourceLabel = dataRoot?.source
     ? t(SOURCE_LABEL_KEYS[dataRoot.source] ?? 'settings.data.storage_v2.sources.unknown')
@@ -729,6 +759,84 @@ const StorageV2Settings: FC = () => {
               </ManifestInline>
             </SettingRow>
           </>
+        )}
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.storage_v2.backup_overview.title')}</SettingRowTitle>
+          <BackupOverviewInline>
+            <Tag>
+              {t('settings.data.storage_v2.backup_overview.count', {
+                count: backupOverview?.backupCount ?? 0
+              })}
+            </Tag>
+            {backupOverview?.latestBackupPath ? (
+              <>
+                <Typography.Text type="secondary">
+                  {t('settings.data.storage_v2.backup_overview.latest', {
+                    time: backupOverview.latestBackupCreatedAt
+                      ? dayjs(backupOverview.latestBackupCreatedAt).format('YYYY-MM-DD HH:mm:ss')
+                      : t('settings.data.storage_v2.empty')
+                  })}
+                </Typography.Text>
+                {backupOverview.latestBackupReason && (
+                  <Tag>
+                    {t('settings.data.storage_v2.backup_overview.reason', {
+                      reason: backupOverview.latestBackupReason
+                    })}
+                  </Tag>
+                )}
+                <Typography.Text type="secondary" copyable ellipsis>
+                  {backupOverview.latestBackupPath}
+                </Typography.Text>
+                <Button
+                  size="small"
+                  icon={<FolderOpen size={14} />}
+                  onClick={() => window.api.openPath(backupOverview.latestBackupPath!)}>
+                  {t('settings.data.storage_v2.actions.open')}
+                </Button>
+              </>
+            ) : (
+              <Typography.Text type="secondary">{t('settings.data.storage_v2.backup_overview.none')}</Typography.Text>
+            )}
+          </BackupOverviewInline>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.storage_v2.mirror_status.title')}</SettingRowTitle>
+          <HealthSummaryInline>
+            <Tag color={mirrorStatus?.pendingCount ? 'processing' : 'success'}>
+              {mirrorStatus?.pendingCount
+                ? t('settings.data.storage_v2.mirror_status.pending', { count: mirrorStatus.pendingCount })
+                : t('settings.data.storage_v2.mirror_status.idle')}
+            </Tag>
+            <Tag color={mirrorStatus?.failureCount ? 'error' : 'success'}>
+              {mirrorStatus?.failureCount
+                ? t('settings.data.storage_v2.mirror_status.failures', { count: mirrorStatus.failureCount })
+                : t('settings.data.storage_v2.mirror_status.healthy')}
+            </Tag>
+          </HealthSummaryInline>
+        </SettingRow>
+        {mirrorStatusItems.length > 0 && (
+          <MirrorStatusList>
+            {mirrorStatusItems.map((mirror) => {
+              const label = t(
+                MIRROR_STATUS_LABEL_KEYS[mirror.id] ?? 'settings.data.storage_v2.mirror_status.labels.unknown'
+              )
+              return (
+                <Typography.Text key={mirror.id} type={mirror.lastError ? 'danger' : 'secondary'}>
+                  {mirror.lastError
+                    ? t('settings.data.storage_v2.mirror_status.failed_item', {
+                        label,
+                        message: mirror.lastError
+                      })
+                    : t('settings.data.storage_v2.mirror_status.pending_item', {
+                        label,
+                        count: mirror.pendingCount
+                      })}
+                </Typography.Text>
+              )
+            })}
+          </MirrorStatusList>
         )}
       </SettingGroup>
 
@@ -1052,6 +1160,21 @@ const ManifestInline = styled(Space)`
   max-width: min(680px, 62vw);
 `
 
+const BackupOverviewInline = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  max-width: min(760px, 62vw);
+  min-width: 0;
+
+  .ant-typography {
+    min-width: 0;
+    max-width: min(360px, 40vw);
+  }
+`
+
 const HealthSummaryInline = styled.div`
   display: flex;
   flex-wrap: wrap;
@@ -1062,6 +1185,13 @@ const HealthSummaryInline = styled.div`
 `
 
 const HealthSummaryChecks = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+`
+
+const MirrorStatusList = styled.div`
   display: flex;
   flex-direction: column;
   gap: 4px;

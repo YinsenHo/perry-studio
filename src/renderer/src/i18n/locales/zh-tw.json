@@ -4607,6 +4607,13 @@
           "help": "開啟後，應用程式啟動時會優先用 Storage v2 中的設定、模型服務商和助手配置還原執行階段快取。遷移驗證完成前建議保持關閉。",
           "title": "啟動時從 Storage v2 還原"
         },
+        "backup_overview": {
+          "count": "共 {{count}} 個備份",
+          "latest": "最近：{{time}}",
+          "none": "暫無 Storage v2 備份",
+          "reason": "原因：{{reason}}",
+          "title": "最近備份"
+        },
         "backup_restore": {
           "archived": "舊檔案歸檔：{{path}}",
           "invalid": "備份不可用",
@@ -4753,6 +4760,25 @@
         },
         "manifest": "Manifest",
         "menu": "統一存儲",
+        "mirror_status": {
+          "failed_item": "{{label}}：{{message}}",
+          "failures": "{{count}} 個失敗重試",
+          "healthy": "無失敗",
+          "idle": "無待處理",
+          "labels": {
+            "agents": "Agent 資料庫",
+            "conversations": "對話",
+            "dexie_settings": "Dexie 設定",
+            "dexie_tables": "Dexie 輔助表",
+            "files": "檔案",
+            "local_storage": "localStorage",
+            "redux": "Redux 狀態",
+            "unknown": "未知佇列"
+          },
+          "pending": "{{count}} 個待寫入",
+          "pending_item": "{{label}}：{{count}} 個待寫入",
+          "title": "Mirror 佇列"
+        },
         "profile": "Profile {{value}}",
         "reports": {
           "agent_db": "Agent 資料庫",

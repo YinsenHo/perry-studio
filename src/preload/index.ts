@@ -263,6 +263,7 @@ const api = {
     getHealthSummary: () => ipcRenderer.invoke(IpcChannel.StorageV2_GetHealthSummary),
     createSnapshot: (reason?: string) => ipcRenderer.invoke(IpcChannel.StorageV2_CreateSnapshot, reason),
     createBackup: (reason?: string) => ipcRenderer.invoke(IpcChannel.StorageV2_CreateBackup, reason),
+    getBackupOverview: () => ipcRenderer.invoke(IpcChannel.StorageV2_GetBackupOverview),
     validateBackup: (backupPath: string) => ipcRenderer.invoke(IpcChannel.StorageV2_ValidateBackup, backupPath),
     restoreBackup: (backupPath: string) => ipcRenderer.invoke(IpcChannel.StorageV2_RestoreBackup, backupPath),
     getMigrationAudit: () => ipcRenderer.invoke(IpcChannel.StorageV2_GetMigrationAudit),

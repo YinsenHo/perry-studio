@@ -1,6 +1,8 @@
 import { loggerService } from '@logger'
 import db from '@renderer/databases'
 
+import { serializeStorageV2MirrorError, type StorageV2RuntimeMirrorStatusEntry } from './StorageV2RuntimeMirrorStatus'
+
 const logger = loggerService.withContext('StorageV2DexieSettingsMirrorService')
 
 const DEFAULT_DEBOUNCE_MS = 0
@@ -142,6 +144,16 @@ class StorageV2DexieSettingsMirrorService {
     if (this.timer) {
       clearTimeout(this.timer)
       this.timer = null
+    }
+  }
+
+  getStatus(): StorageV2RuntimeMirrorStatusEntry {
+    return {
+      id: 'dexie_settings',
+      pendingCount: this.pendingSettingIds.size + this.pendingDeletedIds.size + (this.inflight ? 1 : 0),
+      inflight: Boolean(this.inflight),
+      suspended: this.suspended,
+      lastError: serializeStorageV2MirrorError(this.lastError)
     }
   }
 

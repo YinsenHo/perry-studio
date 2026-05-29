@@ -1,5 +1,7 @@
 import { loggerService } from '@logger'
 
+import { serializeStorageV2MirrorError, type StorageV2RuntimeMirrorStatusEntry } from './StorageV2RuntimeMirrorStatus'
+
 const logger = loggerService.withContext('StorageV2LocalStorageSnapshot')
 
 const MCP_PROVIDER_TOKEN_KEYS = [
@@ -204,6 +206,24 @@ export function suspendStorageV2LocalStorageMirrorUntilReload() {
   }
 
   clearLocalStorageMirrorRetryTimer()
+}
+
+export function getStorageV2LocalStorageMirrorStatus(): StorageV2RuntimeMirrorStatusEntry {
+  const queuedCount =
+    localStorageMirrorPending ||
+    localStorageMirrorTimer ||
+    localStorageMirrorRetryTimer ||
+    localStorageMirrorNeedsFollowUp
+      ? 1
+      : 0
+
+  return {
+    id: 'local_storage',
+    pendingCount: queuedCount + (localStorageMirrorInflight ? 1 : 0),
+    inflight: Boolean(localStorageMirrorInflight),
+    suspended: localStorageMirrorSuspended,
+    lastError: serializeStorageV2MirrorError(lastLocalStorageMirrorError)
+  }
 }
 
 function clearLocalStorageMirrorRetryTimer() {

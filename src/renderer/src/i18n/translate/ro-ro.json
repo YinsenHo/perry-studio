@@ -4065,6 +4065,44 @@
       "data": {
         "title": "Director de date"
       },
+      "data_sync": {
+        "auto_sync": "[to be translated]:Auto sync",
+        "current_device": "[to be translated]:Current device",
+        "help": "[to be translated]:Data sync uses an independent WebDAV configuration. Local cache stays on this device.",
+        "interval": {
+          "day_one": "[to be translated]:Every day",
+          "hour_one": "[to be translated]:Every 1 hour",
+          "hour_other": "[to be translated]:Every {{count}} hours",
+          "minute_one": "[to be translated]:Every 1 minute",
+          "minute_other": "[to be translated]:Every {{count}} minutes",
+          "off": "[to be translated]:Off"
+        },
+        "last_result": "[to be translated]:Last result",
+        "method": "[to be translated]:Sync method",
+        "method_value": "[to be translated]:SQLite change log + WebDAV",
+        "password": "[to be translated]:Password",
+        "password_placeholder": "[to be translated]:WebDAV password or app password",
+        "remote_path": "[to be translated]:Sync directory",
+        "summary": {
+          "conflicts": "[to be translated]:Conflicts {{count}}",
+          "deleted": "[to be translated]:Deleted {{count}}",
+          "downloaded": "[to be translated]:Downloaded {{count}}",
+          "uploaded": "[to be translated]:Uploaded {{count}}"
+        },
+        "sync": "[to be translated]:Sync",
+        "sync_now": "[to be translated]:Sync now",
+        "title": "[to be translated]:Data Sync",
+        "toast": {
+          "sync_failed": "[to be translated]:Sync failed: {{message}}",
+          "sync_success": "[to be translated]:Data sync completed",
+          "webdav_required": "[to be translated]:Configure the WebDAV URL first"
+        },
+        "uninitialized": "[to be translated]:Not initialized",
+        "unresolved_conflicts": "[to be translated]:Unresolved conflicts",
+        "username": "[to be translated]:Username",
+        "username_placeholder": "[to be translated]:WebDAV username",
+        "webdav_host": "[to be translated]:WebDAV URL"
+      },
       "divider": {
         "basic": "Setări date de bază",
         "cloud_storage": "Setări backup în cloud",
@@ -4528,6 +4566,253 @@
           "label": "Token SiYuan Note"
         },
         "token_placeholder": "Te rugăm să introduci tokenul SiYuan Note"
+      },
+      "storage_v2": {
+        "actions": {
+          "backup": "[to be translated]:Create backup",
+          "dry_run": "[to be translated]:Dry run",
+          "help": "[to be translated]:Dry run only reads legacy data. Import writes to Storage v2 and keeps the current legacy stores untouched.",
+          "hydrate": "[to be translated]:Restore from Storage v2",
+          "import": "[to be translated]:Import to Storage v2",
+          "open": "[to be translated]:Open",
+          "refresh": "[to be translated]:Refresh",
+          "relaunch": "[to be translated]:Restart now",
+          "restore_backup": "[to be translated]:Restore backup",
+          "select_backup": "[to be translated]:Select backup",
+          "snapshot": "[to be translated]:Create snapshot",
+          "title": "[to be translated]:Operations",
+          "verify": "[to be translated]:Verify storage"
+        },
+        "audit": {
+          "exists": "[to be translated]:Found",
+          "files": "[to be translated]:{{value}} files",
+          "missing": "[to be translated]:Missing",
+          "title": "[to be translated]:Legacy data audit"
+        },
+        "audit_items": {
+          "agents_db": "[to be translated]:Pi agent database",
+          "agents_workspaces": "[to be translated]:Agent workspaces",
+          "app_db": "[to be translated]:App database",
+          "data": "[to be translated]:Current Data directory",
+          "files": "[to be translated]:Uploaded files",
+          "indexeddb": "[to be translated]:Chromium IndexedDB",
+          "knowledge_base": "[to be translated]:Knowledge bases",
+          "local_storage": "[to be translated]:Chromium Local Storage",
+          "redux_local_storage_leveldb": "[to be translated]:Chromium Local Storage LevelDB",
+          "skills": "[to be translated]:Global skills",
+          "storage_v2_main_db": "[to be translated]:Storage v2 main database",
+          "storage_v2_manifest": "[to be translated]:Storage v2 manifest"
+        },
+        "auto_hydrate": {
+          "help": "[to be translated]:When enabled, app startup restores the runtime cache from Storage v2 settings, model providers, and assistant configuration first. Keep this off until migration checks look good.",
+          "title": "[to be translated]:Restore from Storage v2 on startup"
+        },
+        "backup_overview": {
+          "count": "[to be translated]:{{count}} backup(s)",
+          "latest": "[to be translated]:Latest: {{time}}",
+          "none": "[to be translated]:No Storage v2 backups yet",
+          "reason": "[to be translated]:Reason: {{reason}}",
+          "title": "[to be translated]:Recent backup"
+        },
+        "backup_restore": {
+          "archived": "[to be translated]:Archived old files: {{path}}",
+          "invalid": "[to be translated]:Backup is not usable",
+          "issue": "[to be translated]:Issue: {{message}}",
+          "issues": {
+            "copied_directory_missing": "[to be translated]:Backup metadata says {{directory}} was copied, but the directory is missing",
+            "corrupt_blob_files": "[to be translated]:Backup has {{count}} blob file(s) with checksum mismatch",
+            "db_missing": "[to be translated]:Backup main.db is missing",
+            "db_open_failed": "[to be translated]:Backup database cannot be opened: {{message}}",
+            "format_unsupported": "[to be translated]:Backup format is not supported",
+            "integrity_check_failed": "[to be translated]:Backup integrity_check failed: {{integrityCheck}}",
+            "invalid_secret_refs": "[to be translated]:Backup contains {{count}} invalid secret reference(s)",
+            "metadata_invalid": "[to be translated]:Backup metadata.json is missing or invalid",
+            "missing_blob_files": "[to be translated]:Backup is missing {{count}} referenced blob file(s)",
+            "missing_secret_refs": "[to be translated]:Backup is missing {{count}} secret value(s) referenced by the database",
+            "path_not_directory": "[to be translated]:Selected path is not a directory",
+            "quick_check_failed": "[to be translated]:Backup quick_check failed: {{quickCheck}}",
+            "secret_vault_invalid": "[to be translated]:Backup secrets/vault.json is invalid",
+            "version_unsupported": "[to be translated]:Backup version is not supported"
+          },
+          "no_backup_selected": "[to be translated]:Select a usable Storage v2 backup first",
+          "pre_restore": "[to be translated]:Pre-restore backup: {{path}}",
+          "restart_content": "[to be translated]:A pre-restore backup was saved to {{preRestoreBackupPath}}. Restart now so every window reloads the database.",
+          "restart_title": "[to be translated]:Storage v2 backup restored",
+          "select_title": "[to be translated]:Select Storage v2 backup directory",
+          "selected": "[to be translated]:Backup: {{path}}",
+          "summary": "[to be translated]:quick_check={{quickCheck}}, integrity_check={{integrityCheck}}, missing_blob={{missingBlobFileCount}}, corrupt_blob={{corruptBlobFileCount}}, secrets={{secretVaultSecretCount}}, missing_secret={{missingSecretRefCount}}, invalid_secret_ref={{invalidSecretRefCount}}, orphan_secret={{orphanSecretVaultEntryCount}}, undecryptable_secret={{undecryptableSecretVaultEntryCount}}",
+          "valid": "[to be translated]:Backup is usable",
+          "warning": "[to be translated]:Warning: {{message}}",
+          "warnings": {
+            "manifest_missing": "[to be translated]:Backup manifest.json is missing or invalid; a new manifest may be created after restore",
+            "orphan_secret_vault_entries": "[to be translated]:Backup contains {{count}} secret value(s) that are no longer referenced by the database. New backups prune them automatically",
+            "restorable_directory_untracked": "[to be translated]:Backup contains restorable directories not listed in metadata: {{directories}}; restore still recognizes them",
+            "schema_tables_missing": "[to be translated]:Backup database is missing {{count}} current Storage v2 table(s): {{tables}}; the tables can be recreated after restore, but their records are not present in this backup",
+            "secret_vault_decrypt_unavailable": "[to be translated]:System encryption is unavailable, so this backup's secret values cannot be verified on this device",
+            "secret_vault_missing": "[to be translated]:Backup metadata says secrets were copied, but secrets/vault.json is missing",
+            "undecryptable_secret_vault_entries": "[to be translated]:Backup contains {{count}} secret value(s) that cannot be decrypted on this device; you may need to re-enter them after cross-device restore",
+            "unknown_copied_directories": "[to be translated]:Backup metadata contains unknown directory entries: {{directories}}"
+          }
+        },
+        "banner": "[to be translated]:Storage v2 is a parallel local data layer for migration, backup, and future sync recovery.",
+        "confirm_hydrate": {
+          "content": "[to be translated]:This will overwrite the current runtime cache with settings, model providers, and assistant configuration from Storage v2. Check Storage v2 stats first.",
+          "title": "[to be translated]:Restore runtime cache from Storage v2?"
+        },
+        "confirm_import": {
+          "content": "[to be translated]:A snapshot will be created before import. The current app data path and legacy stores will not be deleted.",
+          "title": "[to be translated]:Import legacy data to Storage v2?"
+        },
+        "confirm_restore": {
+          "content": "[to be translated]:A backup of the current Storage v2 data will be created first, and old files will be archived under legacy. Restart the app after restore.",
+          "title": "[to be translated]:Restore this Storage v2 backup?"
+        },
+        "data_root": "[to be translated]:Data root",
+        "empty": "[to be translated]:-",
+        "entities": {
+          "agent_sessions": "[to be translated]:Agent sessions",
+          "agents": "[to be translated]:Agents",
+          "assistants": "[to be translated]:Assistants",
+          "channels": "[to be translated]:Channels",
+          "conversations": "[to be translated]:Conversations",
+          "files": "[to be translated]:Files",
+          "knowledge_bases": "[to be translated]:Knowledge bases",
+          "knowledge_items": "[to be translated]:Knowledge items",
+          "kv_records": "[to be translated]:App records",
+          "message_blocks": "[to be translated]:Message blocks",
+          "messages": "[to be translated]:Messages",
+          "migration_runs": "[to be translated]:Migration runs",
+          "models": "[to be translated]:Models",
+          "providers": "[to be translated]:Providers",
+          "scheduled_tasks": "[to be translated]:Scheduled tasks",
+          "settings": "[to be translated]:Settings",
+          "skills": "[to be translated]:Skills",
+          "sync_changes": "[to be translated]:Sync changes",
+          "sync_conflicts": "[to be translated]:Sync conflicts",
+          "sync_tombstones": "[to be translated]:Sync tombstones"
+        },
+        "health": "[to be translated]:Health",
+        "health_failed": "[to be translated]:Failed",
+        "health_ok": "[to be translated]:OK",
+        "health_summary": {
+          "backup_blocked": "[to be translated]:Backup blocked",
+          "backup_ready": "[to be translated]:Backup ready",
+          "checks": {
+            "audit_warnings": "[to be translated]:{{count}} migration audit warning(s) need review",
+            "integrity": "[to be translated]:Integrity report has {{count}} issue(s), foreign_key={{foreignKeyIssueCount}}",
+            "legacy_only_paths": "[to be translated]:{{count}} legacy-only path(s) need handling before final migration",
+            "record_coverage": "[to be translated]:Storage v2 currently has {{count}} record(s)",
+            "storage_health": "[to be translated]:Storage health check: {{quickCheck}}"
+          },
+          "migration_blocked": "[to be translated]:Migration needs attention",
+          "migration_ready": "[to be translated]:Migration ready",
+          "status_blocked": "[to be translated]:Blocked",
+          "status_ready": "[to be translated]:Ready",
+          "status_warning": "[to be translated]:Needs attention",
+          "summary": "[to be translated]:{{issueCount}} blocker(s), {{warningCount}} warning(s)",
+          "title": "[to be translated]:Migration/Backup Readiness"
+        },
+        "history": {
+          "dry_run": "[to be translated]:Dry run",
+          "empty": "[to be translated]:No migration records yet",
+          "failed": "[to be translated]:Failed",
+          "import": "[to be translated]:Import",
+          "success": "[to be translated]:Success",
+          "title": "[to be translated]:Migration history"
+        },
+        "integrity": {
+          "failed": "[to be translated]:Issues found",
+          "issues": {
+            "agent_avatars_without_blob": "[to be translated]:{{count}} agent avatar(s) without a blob",
+            "agent_sessions_without_agent": "[to be translated]:{{count}} agent session(s) without an agent",
+            "agent_skills_without_agent": "[to be translated]:{{count}} agent skill binding(s) without an agent",
+            "agent_skills_without_skill": "[to be translated]:{{count}} agent skill binding(s) without a skill",
+            "assistant_avatars_without_blob": "[to be translated]:{{count}} assistant avatar(s) without a blob",
+            "blob_ref_count_mismatch": "[to be translated]:{{count}} blob(s) with mismatched ref_count",
+            "corrupt_blob_files": "[to be translated]:{{count}} blob file(s) with checksum mismatch",
+            "files_without_blob": "[to be translated]:{{count}} file record(s) without a blob",
+            "invalid_secret_refs": "[to be translated]:{{count}} invalid secret reference(s)",
+            "knowledge_items_without_base": "[to be translated]:{{count}} knowledge item(s) without a knowledge base",
+            "message_blocks_without_blob": "[to be translated]:{{count}} message block(s) without a blob",
+            "message_blocks_without_message": "[to be translated]:{{count}} message block(s) without a message",
+            "messages_without_conversation": "[to be translated]:{{count}} message(s) without a conversation",
+            "missing_blob_files": "[to be translated]:{{count}} blob file(s) missing on disk",
+            "missing_secret_refs": "[to be translated]:{{count}} secret reference(s) without vault entries",
+            "models_without_provider": "[to be translated]:{{count}} model(s) without a provider",
+            "orphan_blobs": "[to be translated]:{{count}} blob(s) without logical references",
+            "orphan_secret_vault_entries": "[to be translated]:{{count}} unreferenced secret vault entries",
+            "profile_avatars_without_blob": "[to be translated]:{{count}} profile avatar(s) without a blob",
+            "provider_credentials_without_provider": "[to be translated]:{{count}} credential reference(s) without a provider",
+            "secret_vault_invalid": "[to be translated]:secrets/vault.json is invalid",
+            "task_logs_without_task": "[to be translated]:{{count}} task log(s) without a task",
+            "tasks_without_agent": "[to be translated]:{{count}} scheduled task(s) without an agent",
+            "unknown": "[to be translated]:{{label}}: {{count}}"
+          },
+          "ok": "[to be translated]:Healthy",
+          "summary": "[to be translated]:quick_check={{quickCheck}}, integrity_check={{integrityCheck}}, foreign_key={{foreignKeyIssueCount}}",
+          "title": "[to be translated]:Integrity check"
+        },
+        "last_report": {
+          "dry_run": "[to be translated]:Dry run",
+          "imported": "[to be translated]:Imported",
+          "imported_count": "[to be translated]:Imported {{value}}",
+          "title": "[to be translated]:Last migration report"
+        },
+        "manifest": "[to be translated]:Manifest",
+        "menu": "[to be translated]:Unified Storage",
+        "mirror_status": {
+          "failed_item": "[to be translated]:{{label}}: {{message}}",
+          "failures": "[to be translated]:{{count}} failed retry queue(s)",
+          "healthy": "[to be translated]:No failures",
+          "idle": "[to be translated]:No pending work",
+          "labels": {
+            "agents": "[to be translated]:Agent database",
+            "conversations": "[to be translated]:Conversations",
+            "dexie_settings": "[to be translated]:Dexie settings",
+            "dexie_tables": "[to be translated]:Dexie auxiliary tables",
+            "files": "[to be translated]:Files",
+            "local_storage": "[to be translated]:localStorage",
+            "redux": "[to be translated]:Redux state",
+            "unknown": "[to be translated]:Unknown queue"
+          },
+          "pending": "[to be translated]:{{count}} pending write(s)",
+          "pending_item": "[to be translated]:{{label}}: {{count}} pending write(s)",
+          "title": "[to be translated]:Mirror queue"
+        },
+        "profile": "[to be translated]:Profile {{value}}",
+        "reports": {
+          "agent_db": "[to be translated]:Agent database",
+          "app_db": "[to be translated]:App database",
+          "dexie": "[to be translated]:IndexedDB",
+          "redux": "[to be translated]:Redux state"
+        },
+        "source": "[to be translated]:Source",
+        "sources": {
+          "config": "[to be translated]:Config file",
+          "current_user_data": "[to be translated]:Current user data",
+          "env": "[to be translated]:Environment variable",
+          "legacy_user_data": "[to be translated]:Legacy user data",
+          "unknown": "[to be translated]:Unknown"
+        },
+        "stats": {
+          "title": "[to be translated]:Storage v2 records"
+        },
+        "title": "[to be translated]:Unified Local Storage",
+        "toast": {
+          "action_failed": "[to be translated]:Operation failed: {{message}}",
+          "auto_hydrate_updated": "[to be translated]:Startup restore setting updated",
+          "backup_success": "[to be translated]:Storage v2 backup created",
+          "backup_validate_failed": "[to be translated]:Backup validation failed",
+          "backup_validate_success": "[to be translated]:Backup validation passed",
+          "dry_run_success": "[to be translated]:Dry run completed",
+          "hydrate_success": "[to be translated]:Runtime cache restored from Storage v2",
+          "import_success": "[to be translated]:Import completed",
+          "refresh_failed": "[to be translated]:Refresh failed: {{message}}",
+          "restore_success": "[to be translated]:Storage v2 backup restored",
+          "snapshot_success": "[to be translated]:Storage v2 snapshot created",
+          "verify_success": "[to be translated]:Storage v2 integrity check completed"
+        },
+        "version": "[to be translated]:v{{value}}"
       },
       "title": "Setări date",
       "webdav": {

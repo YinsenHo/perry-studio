@@ -10,10 +10,14 @@ import { STORAGE_V2_DEXIE_TABLE_NAMES, storageV2DexieTableMirrorService } from '
 import { storageV2FileMirrorService } from './StorageV2FileMirrorService'
 import {
   flushStorageV2LocalStorageMirrorStrict,
+  getStorageV2LocalStorageMirrorStatus,
   getStorageV2LocalStorageSnapshot,
   suspendStorageV2LocalStorageMirrorUntilReload
 } from './StorageV2LocalStorageSnapshot'
 import { storageV2MirrorService } from './StorageV2MirrorService'
+import type { StorageV2RuntimeMirrorStatus, StorageV2RuntimeMirrorStatusEntry } from './StorageV2RuntimeMirrorStatus'
+
+export type { StorageV2RuntimeMirrorStatus } from './StorageV2RuntimeMirrorStatus'
 
 export type StorageV2LegacyImportOptions = {
   dryRun?: boolean
@@ -131,6 +135,14 @@ export type StorageV2HealthSummary = {
   }>
 }
 
+export type StorageV2BackupOverview = {
+  backupRoot: string
+  backupCount: number
+  latestBackupPath: string | null
+  latestBackupCreatedAt: string | null
+  latestBackupReason: string | null
+}
+
 export type StorageV2RestoreBackupResult = {
   backupPath: string
   dataRoot: string
@@ -198,6 +210,10 @@ export function getStorageV2Health() {
 
 export function getStorageV2HealthSummary(): Promise<StorageV2HealthSummary> {
   return window.api.storageV2.getHealthSummary()
+}
+
+export function getStorageV2BackupOverview(): Promise<StorageV2BackupOverview> {
+  return window.api.storageV2.getBackupOverview()
 }
 
 export function getStorageV2MigrationAudit() {
@@ -508,6 +524,25 @@ async function flushStorageV2RuntimeMirrors() {
   await storageV2DexieSettingsMirrorService.flushStrict()
   await storageV2DexieTableMirrorService.flushStrict()
   await storageV2AgentMirrorService.flushStrict()
+}
+
+export function getStorageV2RuntimeMirrorStatus(): StorageV2RuntimeMirrorStatus {
+  const mirrors: StorageV2RuntimeMirrorStatusEntry[] = [
+    storageV2MirrorService.getStatus(),
+    getStorageV2LocalStorageMirrorStatus(),
+    storageV2ConversationMirrorService.getStatus(),
+    storageV2FileMirrorService.getStatus(),
+    storageV2DexieSettingsMirrorService.getStatus(),
+    storageV2DexieTableMirrorService.getStatus(),
+    storageV2AgentMirrorService.getStatus()
+  ]
+
+  return {
+    generatedAt: new Date().toISOString(),
+    pendingCount: mirrors.reduce((total, mirror) => total + mirror.pendingCount, 0),
+    failureCount: mirrors.filter((mirror) => Boolean(mirror.lastError)).length,
+    mirrors
+  }
 }
 
 export async function createStorageV2Backup(reason?: string) {

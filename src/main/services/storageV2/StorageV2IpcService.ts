@@ -16,6 +16,7 @@ export function registerStorageV2IpcHandlers() {
     storageV2Service.createSnapshot(reason)
   )
   ipcMain.handle(IpcChannel.StorageV2_CreateBackup, (_event, reason?: string) => storageV2Service.createBackup(reason))
+  ipcMain.handle(IpcChannel.StorageV2_GetBackupOverview, () => storageV2Service.getBackupOverview())
   ipcMain.handle(IpcChannel.StorageV2_ValidateBackup, (_event, backupPath: string) =>
     storageV2Service.validateBackup(backupPath)
   )

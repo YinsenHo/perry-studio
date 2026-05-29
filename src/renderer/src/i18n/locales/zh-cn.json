@@ -4607,6 +4607,13 @@
           "help": "开启后，应用启动时会优先用 Storage v2 中的设置、模型服务商和助手配置恢复运行时缓存。迁移验证完成前建议保持关闭。",
           "title": "启动时从 Storage v2 恢复"
         },
+        "backup_overview": {
+          "count": "共 {{count}} 个备份",
+          "latest": "最近：{{time}}",
+          "none": "暂无 Storage v2 备份",
+          "reason": "原因：{{reason}}",
+          "title": "最近备份"
+        },
         "backup_restore": {
           "archived": "旧文件归档：{{path}}",
           "invalid": "备份不可用",
@@ -4753,6 +4760,25 @@
         },
         "manifest": "Manifest",
         "menu": "统一存储",
+        "mirror_status": {
+          "failed_item": "{{label}}：{{message}}",
+          "failures": "{{count}} 个失败重试",
+          "healthy": "无失败",
+          "idle": "无待处理",
+          "labels": {
+            "agents": "Agent 数据库",
+            "conversations": "对话",
+            "dexie_settings": "Dexie 设置",
+            "dexie_tables": "Dexie 辅助表",
+            "files": "文件",
+            "local_storage": "localStorage",
+            "redux": "Redux 状态",
+            "unknown": "未知队列"
+          },
+          "pending": "{{count}} 个待写入",
+          "pending_item": "{{label}}：{{count}} 个待写入",
+          "title": "Mirror 队列"
+        },
         "profile": "Profile {{value}}",
         "reports": {
           "agent_db": "Agent 数据库",

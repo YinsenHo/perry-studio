@@ -505,6 +505,10 @@ export class StorageV2Service {
     return storageV2BackupService.createBackup(reason)
   }
 
+  async getBackupOverview() {
+    return storageV2BackupService.getBackupOverview()
+  }
+
   async validateBackup(backupPath: string) {
     return storageV2BackupService.validateBackup(backupPath)
   }

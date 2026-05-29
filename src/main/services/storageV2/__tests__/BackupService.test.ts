@@ -185,6 +185,58 @@ async function createBackupValidationDb(dbPath: string, secretRef?: string) {
   }
 }
 
+describe('StorageV2BackupService.getBackupOverview', () => {
+  let tmpDir: string
+  let dataRoot: string
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'storage-v2-backup-overview-'))
+    dataRoot = path.join(tmpDir, 'Data')
+    fs.mkdirSync(path.join(dataRoot, 'backups', 'older'), { recursive: true })
+    fs.mkdirSync(path.join(dataRoot, 'backups', 'newer'), { recursive: true })
+    fs.writeFileSync(
+      path.join(dataRoot, 'backups', 'older', 'metadata.json'),
+      JSON.stringify({
+        reason: 'old-test',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      })
+    )
+    fs.writeFileSync(
+      path.join(dataRoot, 'backups', 'newer', 'metadata.json'),
+      JSON.stringify({
+        reason: 'new-test',
+        createdAt: '2026-01-02T00:00:00.000Z'
+      })
+    )
+    fs.writeFileSync(path.join(dataRoot, 'backups', 'not-a-dir'), 'ignored')
+
+    mocks.dataRootService.ensureDataRoot.mockReturnValue({
+      dataRoot,
+      manifest: { workspaceId: 'workspace-1' },
+      source: 'current-user-data',
+      candidates: []
+    })
+  })
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+    vi.restoreAllMocks()
+  })
+
+  it('returns the most recent Storage v2 backup for settings overview', async () => {
+    const overview = await new StorageV2BackupService().getBackupOverview()
+
+    expect(overview).toEqual({
+      backupRoot: path.join(dataRoot, 'backups'),
+      backupCount: 2,
+      latestBackupPath: path.join(dataRoot, 'backups', 'newer'),
+      latestBackupCreatedAt: '2026-01-02T00:00:00.000Z',
+      latestBackupReason: 'new-test'
+    })
+  })
+})
+
 describe('StorageV2BackupService.validateBackup', () => {
   let tmpDir: string
   let backupPath: string

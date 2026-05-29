@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { Client } from '@libsql/client'
 
 import { storageV2Database } from './StorageV2Database'
+import { assertStorageV2SyncPolicy, STORAGE_V2_SYNC_DEVICE_ID_META_KEY } from './SyncPolicy'
 
 type StorageV2ChangeOperation = 'upsert' | 'delete'
 
@@ -15,8 +16,6 @@ type StorageV2ChangeInput = {
   baseVersion?: number | null
   version?: number
 }
-
-const DEVICE_ID_KEY = 'device_id'
 
 function now() {
   return new Date().toISOString()
@@ -31,7 +30,7 @@ export class StorageV2SyncLogService {
     const dbClient = client ?? (await storageV2Database.getClient())
     const result = await dbClient.execute({
       sql: 'SELECT value FROM storage_meta WHERE key = ?',
-      args: [DEVICE_ID_KEY]
+      args: [STORAGE_V2_SYNC_DEVICE_ID_META_KEY]
     })
     const existing = result.rows[0]?.value
     if (typeof existing === 'string' && existing) {
@@ -47,7 +46,7 @@ export class StorageV2SyncLogService {
           value = excluded.value,
           updated_at = excluded.updated_at
       `,
-      args: [DEVICE_ID_KEY, deviceId, now()]
+      args: [STORAGE_V2_SYNC_DEVICE_ID_META_KEY, deviceId, now()]
     })
 
     return deviceId
@@ -55,6 +54,12 @@ export class StorageV2SyncLogService {
 
   async recordChange(input: StorageV2ChangeInput) {
     const client = input.client ?? (await storageV2Database.getClient())
+    const policy = assertStorageV2SyncPolicy(input.entityType)
+    const operation = input.operation ?? 'upsert'
+    if (operation === 'delete' && policy.deletionSemantics === 'append-only') {
+      throw new Error(`Storage v2 sync entity type ${input.entityType} is append-only and cannot be deleted.`)
+    }
+
     const createdAt = now()
     const deviceId = await this.getDeviceId(client)
     const version = input.version ?? 1
@@ -70,7 +75,7 @@ export class StorageV2SyncLogService {
         randomUUID(),
         input.entityType,
         input.entityId,
-        input.operation ?? 'upsert',
+        operation,
         toJson(input.payload),
         input.baseVersion ?? null,
         version,
@@ -79,7 +84,7 @@ export class StorageV2SyncLogService {
       ]
     })
 
-    if (input.operation === 'delete') {
+    if (operation === 'delete') {
       await client.execute({
         sql: `
           INSERT INTO sync_tombstones (entity_type, entity_id, deleted_at, device_id, version)

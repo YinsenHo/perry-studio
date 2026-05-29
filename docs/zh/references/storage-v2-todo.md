@@ -2,7 +2,7 @@
 
 更新时间：2026-05-29
 
-固定进度口径：整体 84%。这表示 Storage v2 并行保护层、主要数据 mirror/read-through、StorageService-first 主写保护、端到端备份/恢复验证和大部分漏网路径归类已经完成，剩余工作集中在 OVMS / legacy 外部投影收尾、同步/账号体系策略、legacy runtime 清理和收尾实机验证。
+固定进度口径：整体 88%。这表示 Storage v2 并行保护层、主要数据 mirror/read-through、StorageService-first 主写保护、端到端备份/恢复验证、大部分漏网路径归类和同步/账号体系前置策略已经完成，剩余工作集中在 OVMS / legacy 外部投影收尾、legacy runtime 清理、最终测试矩阵和收尾实机验证。
 
 跟踪规则：
 
@@ -82,14 +82,14 @@
 
 ## 5. 同步/账号体系前置设计
 
-状态：未完成
+状态：完成
 
-- [ ] 统一所有表的 `version`、`updated_at`、`deleted_at` 语义。
-- [ ] 完善 sync ledger 覆盖范围，保证未来跨设备可增量同步。
-- [ ] 明确 settings、provider、assistant、conversation、agent、file、app data 的 merge 策略。
-- [ ] 敏感密钥默认不云同步，只同步 secret ref/缺失状态。
-- [ ] 设计跨设备恢复时的设备身份、app sync device-id、冲突 UI 数据结构。
-- [ ] 区分“用户主动清除”和“密钥不可用”，避免误恢复。
+- [x] 统一所有表的 `version`、`updated_at`、`deleted_at` 语义；`SyncPolicy.ts` 已按 sync entity type 固化 versioned / updatedAt / deletedAt / deletionSemantics，append-only 的 `task_run_log` 使用事件时间语义。
+- [x] 完善 sync ledger 覆盖范围，保证未来跨设备可增量同步；当前 `sync_changes` 写入过的 entity type 都必须存在 policy，未知 entity type 会在 `SyncLogService` 入库前失败。
+- [x] 明确 settings、provider、assistant、conversation、agent、file、app data 的 merge 策略；已区分 source-scoped LWW、secret-ref LWW、parent-child ordered、content-addressed、append-only 和 composite join。
+- [x] 敏感密钥默认不云同步，只同步 secret ref/缺失状态；provider、channel、settings、kv_record 等策略均为 `secret-ref-only`，云同步层不得携带明文 secret。
+- [x] 设计跨设备恢复时的设备身份、app sync device-id、冲突 UI 数据结构；device id meta key 和 conflict UI 字段已抽为稳定常量并有回归测试。
+- [x] 区分“用户主动清除”和“密钥不可用”，避免误恢复；settings / kv_record 使用 `explicit-cleared-marker`，secret 不可用继续由 secret ref/unavailable 状态表达。
 
 ## 6. 完整性和审计工具
 

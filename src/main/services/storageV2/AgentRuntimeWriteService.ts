@@ -43,6 +43,25 @@ type ScheduledTaskRuntimeRow = Pick<
   channel_ids?: string[] | null
 }
 
+type AgentRuntimeRow = {
+  id: string
+  type: string
+  name: string
+  description?: string | null
+  instructions?: string | null
+  model?: string | null
+  plan_model?: string | null
+  small_model?: string | null
+  accessible_paths?: unknown
+  mcps?: unknown
+  allowed_tools?: unknown
+  configuration?: unknown
+  sort_order?: number | null
+  created_at?: string | number | null
+  updated_at?: string | number | null
+  deleted_at?: string | null
+}
+
 function now() {
   return new Date().toISOString()
 }
@@ -79,7 +98,90 @@ function cloneRecord(value: unknown): Record<string, unknown> {
   return { ...(value as Record<string, unknown>) }
 }
 
+function parseJson(value: unknown): unknown {
+  if (typeof value !== 'string') return value ?? null
+  if (!value.trim()) return null
+
+  try {
+    return JSON.parse(value)
+  } catch {
+    return value
+  }
+}
+
+function normalizeJson(value: unknown, fallback: unknown) {
+  const parsed = parseJson(value)
+  return toJson(parsed ?? fallback)
+}
+
 export class StorageV2AgentRuntimeWriteService {
+  async upsertAgent(agent: AgentRuntimeRow): Promise<void> {
+    const client = await storageV2Database.getClient()
+    const updatedAt = toIsoTimestamp(agent.updated_at, now())
+    const createdAt = toIsoTimestamp(agent.created_at, updatedAt)
+
+    await storageV2Database.withTransaction(client, async () => {
+      await client.execute({
+        sql: `
+          INSERT INTO agents (
+            id, type, name, description, instructions, model_id, plan_model_id, small_model_id,
+            accessible_paths_json, mcps_json, allowed_tools_json, configuration_json,
+            sort_order, created_at, updated_at, deleted_at, version
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+          ON CONFLICT(id) DO UPDATE SET
+            type = excluded.type,
+            name = excluded.name,
+            description = excluded.description,
+            instructions = excluded.instructions,
+            model_id = excluded.model_id,
+            plan_model_id = excluded.plan_model_id,
+            small_model_id = excluded.small_model_id,
+            accessible_paths_json = excluded.accessible_paths_json,
+            mcps_json = excluded.mcps_json,
+            allowed_tools_json = excluded.allowed_tools_json,
+            configuration_json = excluded.configuration_json,
+            sort_order = excluded.sort_order,
+            updated_at = excluded.updated_at,
+            deleted_at = excluded.deleted_at,
+            version = agents.version + 1
+        `,
+        args: [
+          agent.id,
+          agent.type,
+          agent.name,
+          agent.description ?? null,
+          agent.instructions ?? null,
+          agent.model ?? '',
+          agent.plan_model ?? null,
+          agent.small_model ?? null,
+          normalizeJson(agent.accessible_paths, []),
+          normalizeJson(agent.mcps, []),
+          normalizeJson(agent.allowed_tools, []),
+          normalizeJson(agent.configuration, {}),
+          agent.sort_order ?? 0,
+          createdAt,
+          updatedAt,
+          agent.deleted_at ?? null
+        ]
+      })
+
+      await storageV2SyncLogService.recordChange({
+        client,
+        entityType: 'agent',
+        entityId: agent.id,
+        operation: agent.deleted_at ? 'delete' : 'upsert',
+        payload: {
+          id: agent.id,
+          type: agent.type,
+          name: agent.name,
+          deletedAt: agent.deleted_at ?? null
+        },
+        version: await getVersion(client, 'agents', agent.id)
+      })
+    })
+  }
+
   async upsertScheduledTask(task: ScheduledTaskRuntimeRow, channelIds?: string[]): Promise<void> {
     const client = await storageV2Database.getClient()
     const updatedAt = toIsoTimestamp(task.updated_at, now())

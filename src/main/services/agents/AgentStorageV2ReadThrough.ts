@@ -102,7 +102,7 @@ export async function deleteAgentWithStorageV2Recovery(id: string): Promise<bool
   if (!agent) return false
 
   await storageV2AgentRuntimeTombstoneService.tombstoneAgent(id)
-  const deleted = await agentService.deleteAgent(id)
+  const deleted = await agentService.deleteAgent(id, { storageV2Tombstoned: true })
   if (deleted) {
     await flushAgentRuntimeMutationToStorageV2({ strict: true })
   }

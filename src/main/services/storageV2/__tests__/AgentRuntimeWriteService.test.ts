@@ -39,6 +39,59 @@ describe('StorageV2AgentRuntimeWriteService', () => {
     mocks.secretVault.setSecret.mockResolvedValue('storage-v2://secret/channel/channel-1/bot_token')
   })
 
+  it('upserts agents through Storage v2 and records sync metadata', async () => {
+    await new StorageV2AgentRuntimeWriteService().upsertAgent({
+      id: 'agent-1',
+      type: 'claude-code',
+      name: 'Agent',
+      description: 'Helpful agent',
+      instructions: 'Be useful',
+      model: 'openai:gpt-4o',
+      plan_model: null,
+      small_model: null,
+      accessible_paths: ['/tmp/agent-1'],
+      mcps: ['filesystem'],
+      allowed_tools: ['Read'],
+      configuration: { permission_mode: 'plan' },
+      sort_order: 2,
+      created_at: '2026-05-29T00:00:00.000Z',
+      updated_at: '2026-05-29T00:00:01.000Z'
+    })
+
+    expect(mocks.client.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining('INSERT INTO agents'),
+        args: expect.arrayContaining([
+          'agent-1',
+          'claude-code',
+          'Agent',
+          'Helpful agent',
+          'Be useful',
+          'openai:gpt-4o',
+          JSON.stringify(['/tmp/agent-1']),
+          JSON.stringify(['filesystem']),
+          JSON.stringify(['Read']),
+          JSON.stringify({ permission_mode: 'plan' }),
+          2,
+          '2026-05-29T00:00:00.000Z',
+          '2026-05-29T00:00:01.000Z'
+        ])
+      })
+    )
+    expect(mocks.recordChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'agent',
+        entityId: 'agent-1',
+        payload: expect.objectContaining({
+          id: 'agent-1',
+          type: 'claude-code',
+          name: 'Agent'
+        }),
+        version: 3
+      })
+    )
+  })
+
   it('upserts channels through Storage v2 and moves credentials into the secret vault first', async () => {
     await new StorageV2AgentRuntimeWriteService().upsertChannel({
       id: 'channel-1',

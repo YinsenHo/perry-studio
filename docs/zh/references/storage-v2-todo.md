@@ -48,6 +48,7 @@
 - [ ] Agent/session/task/channel 从 `agents.db` first 切到 Storage v2 first。
 - [x] Channel 配置 create/update 已先写 Storage v2 `channels` 和 secret vault，再写 `agents.db` runtime cache；delete 路径保留 Storage v2 tombstone-first，服务层也防止绕过 wrapper 直接删 legacy。
 - [x] Scheduled task create/update/run-state 已先写 Storage v2 `scheduled_tasks`，再写 `agents.db` runtime cache；`channel_task_subscriptions` 已纳入 Storage v2 schema、legacy import/projection、backup validation 和 stats，避免任务 channel 订阅关系恢复丢失。Task run log 写入仍待后续权威化。
+- [x] Agent create/update 已先写 Storage v2 `agents`，再写 `agents.db` runtime cache；delete 路径保留 Storage v2 tombstone-first，服务层也防止绕过 wrapper 直接删 legacy。Agent reorder 和同步继承到 session 的权威化仍待后续处理。
 - [ ] App data/workbench/sync state 从 `app.db` first 切到 Storage v2 first。
 - [ ] destructive 操作统一先写 tombstone，再更新 legacy/UI。
 
@@ -111,6 +112,7 @@
 - [x] 文件 metadata Storage v2-first 写路径测试：FileManager 覆盖 add 前 upsert 和 upsert 失败阻断 legacy 写入，main StorageService 覆盖 file upsert/delete API。
 - [x] Agent runtime channel Storage v2-first 写路径测试：ChannelService 覆盖 create/update 先写 Storage v2、失败阻断 legacy，以及服务层 delete tombstone-first；AgentRuntimeWriteService 覆盖 channel secret vault 写入和 safeStorage 不可用时不落明文。
 - [x] Agent runtime scheduled task Storage v2-first 写路径测试：TaskService 覆盖 create/update/run-state 先写 Storage v2、失败阻断 legacy、服务层 delete tombstone-first；AgentRuntimeWriteService 覆盖 task upsert 与 channel subscription 同步。
+- [x] Agent runtime agent Storage v2-first 写路径测试：AgentService 覆盖 create 先写 Storage v2、失败阻断 legacy；AgentRuntimeWriteService 覆盖 agent upsert 和 sync log。
 - [ ] 补恢复到空 legacy runtime 的 read-through 测试。
 - [ ] 补路径变化后不丢数据的集成测试。
 - [ ] 补 secret vault 不可用、safeStorage 不可用的降级测试。

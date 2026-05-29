@@ -1,5 +1,7 @@
 import { loggerService } from '@logger'
 import { modelsService } from '@main/apiServer/services/models'
+import { storageV2AgentRuntimeTombstoneService } from '@main/services/storageV2/AgentRuntimeTombstoneService'
+import { storageV2AgentRuntimeWriteService } from '@main/services/storageV2/AgentRuntimeWriteService'
 import { buildCherryStudioPiAgentInstructions } from '@shared/agents/pi/constants'
 import type {
   AgentEntity,
@@ -92,6 +94,7 @@ export class AgentService extends BaseService {
       .where(isNull(agentsTable.deleted_at))
     const newSortOrder = (minSortResult[0]?.min ?? 0) - 1
     insertData.sort_order = newSortOrder
+    await storageV2AgentRuntimeWriteService.upsertAgent(insertData)
     await database.insert(agentsTable).values(insertData)
     const result = await database.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1)
     if (!result[0]) {
@@ -292,6 +295,7 @@ export class AgentService extends BaseService {
         .where(isNull(agentsTable.deleted_at))
       const newSortOrder = (minSortResult[0]?.min ?? 0) - 1
       insertData.sort_order = newSortOrder
+      await storageV2AgentRuntimeWriteService.upsertAgent(insertData)
       await database.insert(agentsTable).values(insertData)
 
       try {
@@ -385,6 +389,7 @@ export class AgentService extends BaseService {
         .where(isNull(agentsTable.deleted_at))
       const newSortOrder = (minSortResult[0]?.min ?? 0) - 1
       insertData.sort_order = newSortOrder
+      await storageV2AgentRuntimeWriteService.upsertAgent(insertData)
       await database.insert(agentsTable).values(insertData)
 
       // Seed workspace templates for soul mode
@@ -471,14 +476,20 @@ export class AgentService extends BaseService {
       .where(and(eq(agentsTable.id, id), isNull(agentsTable.deleted_at)))
       .limit(1)
     const rawOldAgent = rawRows[0]
+    if (!rawOldAgent) {
+      return null
+    }
+
+    await storageV2AgentRuntimeWriteService.upsertAgent({
+      ...rawOldAgent,
+      ...updateData
+    })
 
     await database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
 
     // Sync changed fields to all sessions that still match the agent's old values.
     // Sessions where the user has customized a field are left untouched.
-    if (rawOldAgent) {
-      await this.syncSettingsToSessions(database, id, rawOldAgent, serializedUpdates)
-    }
+    await this.syncSettingsToSessions(database, id, rawOldAgent, serializedUpdates)
 
     return await this.getAgent(id)
   }
@@ -559,7 +570,7 @@ export class AgentService extends BaseService {
     logger.info('Agents reordered', { count: orderedIds.length })
   }
 
-  async deleteAgent(id: string): Promise<boolean> {
+  async deleteAgent(id: string, options: { storageV2Tombstoned?: boolean } = {}): Promise<boolean> {
     const database = await this.getDatabase()
     const agent = await this.findAgentRow(id)
 
@@ -568,6 +579,10 @@ export class AgentService extends BaseService {
     }
 
     const now = new Date().toISOString()
+
+    if (!options.storageV2Tombstoned) {
+      await storageV2AgentRuntimeTombstoneService.tombstoneAgent(id)
+    }
 
     await database.transaction(async (tx) => {
       await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agent_id, id))

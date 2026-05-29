@@ -1,8 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetModels, mockInitSkillsForAgent } = vi.hoisted(() => ({
+const { mockGetModels, mockInitSkillsForAgent, mockTombstoneAgent, mockUpsertAgent } = vi.hoisted(() => ({
   mockGetModels: vi.fn(),
-  mockInitSkillsForAgent: vi.fn()
+  mockInitSkillsForAgent: vi.fn(),
+  mockTombstoneAgent: vi.fn(),
+  mockUpsertAgent: vi.fn()
 }))
 
 vi.mock('@main/apiServer/services/mcp', () => ({
@@ -69,6 +71,20 @@ vi.mock('../../skills/SkillService', () => ({
   }
 }))
 
+vi.mock('@main/services/storageV2/AgentRuntimeWriteService', () => ({
+  storageV2AgentRuntimeWriteService: {
+    upsertAgent: mockUpsertAgent
+  }
+}))
+
+vi.mock('@main/services/storageV2/AgentRuntimeTombstoneService', () => ({
+  storageV2AgentRuntimeTombstoneService: {
+    tombstoneAgent: mockTombstoneAgent
+  }
+}))
+
+import { validateModelId } from '@main/apiServer/utils'
+
 import { AgentService } from '../AgentService'
 
 function createSelectQuery(rows: unknown[]) {
@@ -81,11 +97,32 @@ function createSelectQuery(rows: unknown[]) {
   }
 }
 
+function createWhereQuery(rows: unknown[]) {
+  return {
+    from: vi.fn(() => ({
+      where: vi.fn().mockResolvedValue(rows)
+    }))
+  }
+}
+
 describe('AgentService built-in agent lifecycle', () => {
   const service = AgentService.getInstance()
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockUpsertAgent.mockResolvedValue(undefined)
+    mockTombstoneAgent.mockResolvedValue(undefined)
+    vi.mocked(validateModelId).mockResolvedValue({
+      valid: true,
+      provider: {
+        id: 'openai',
+        apiKey: 'key'
+      }
+    } as any)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('skips recreating a built-in agent that was soft-deleted by the user', async () => {
@@ -107,6 +144,83 @@ describe('AgentService built-in agent lifecycle', () => {
     expect(mockGetModels).not.toHaveBeenCalled()
   })
 
+  it('upserts Storage v2 before inserting a legacy agent row', async () => {
+    const agentRow = {
+      id: 'agent-created',
+      type: 'claude-code',
+      name: 'Agent',
+      description: undefined,
+      instructions: 'Instructions',
+      model: 'openai:gpt-4o',
+      plan_model: undefined,
+      small_model: undefined,
+      accessible_paths: JSON.stringify(['/tmp/agent-created']),
+      mcps: undefined,
+      allowed_tools: undefined,
+      configuration: undefined,
+      sort_order: -1,
+      created_at: '2026-05-29T00:00:00.000Z',
+      updated_at: '2026-05-29T00:00:00.000Z'
+    }
+    const values = vi.fn().mockResolvedValue(undefined)
+    const insert = vi.fn(() => ({ values }))
+    const database = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce(createWhereQuery([{ min: 0 }]))
+        .mockReturnValueOnce(createSelectQuery([agentRow])),
+      insert
+    }
+
+    vi.spyOn(service as never, 'getDatabase').mockResolvedValue(database as never)
+    vi.spyOn(service as any, 'resolveAccessiblePaths').mockReturnValue(['/tmp/agent-created'])
+
+    await expect(
+      service.createAgent({
+        type: 'claude-code',
+        name: 'Agent',
+        instructions: 'Instructions',
+        model: 'openai:gpt-4o',
+        accessible_paths: []
+      })
+    ).resolves.toEqual(expect.objectContaining({ id: 'agent-created', accessible_paths: ['/tmp/agent-created'] }))
+
+    expect(mockUpsertAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'claude-code',
+        name: 'Agent',
+        model: 'openai:gpt-4o',
+        accessible_paths: JSON.stringify(['/tmp/agent-created']),
+        sort_order: -1
+      })
+    )
+    expect(mockUpsertAgent.mock.invocationCallOrder[0]).toBeLessThan(insert.mock.invocationCallOrder[0])
+    expect(values).toHaveBeenCalledWith(expect.objectContaining({ sort_order: -1 }))
+  })
+
+  it('does not insert a legacy agent row when the Storage v2 first write fails', async () => {
+    const insert = vi.fn()
+    const database = {
+      select: vi.fn().mockReturnValueOnce(createWhereQuery([{ min: 0 }])),
+      insert
+    }
+
+    vi.spyOn(service as never, 'getDatabase').mockResolvedValue(database as never)
+    vi.spyOn(service as any, 'resolveAccessiblePaths').mockReturnValue(['/tmp/agent-created'])
+    mockUpsertAgent.mockRejectedValueOnce(new Error('storage unavailable'))
+
+    await expect(
+      service.createAgent({
+        type: 'claude-code',
+        name: 'Agent',
+        model: 'openai:gpt-4o',
+        accessible_paths: []
+      })
+    ).rejects.toThrow('storage unavailable')
+
+    expect(insert).not.toHaveBeenCalled()
+  })
+
   it('soft-deletes built-in agents while preserving the row', async () => {
     const deleteWhere = vi.fn().mockResolvedValue({ rowsAffected: 1 })
     const txDelete = vi.fn(() => ({ where: deleteWhere }))
@@ -126,6 +240,10 @@ describe('AgentService built-in agent lifecycle', () => {
     const deleted = await service.deleteAgent('cherry-claw-default')
 
     expect(deleted).toBe(true)
+    expect(mockTombstoneAgent).toHaveBeenCalledWith('cherry-claw-default')
+    expect(mockTombstoneAgent.mock.invocationCallOrder[0]).toBeLessThan(
+      database.transaction.mock.invocationCallOrder[0]
+    )
     expect(database.transaction).toHaveBeenCalledTimes(1)
     expect(txDelete).toHaveBeenCalledTimes(3)
     expect(txUpdate).toHaveBeenCalledTimes(2)
@@ -158,6 +276,10 @@ describe('AgentService built-in agent lifecycle', () => {
     const deleted = await service.deleteAgent('agent-user-1')
 
     expect(deleted).toBe(true)
+    expect(mockTombstoneAgent).toHaveBeenCalledWith('agent-user-1')
+    expect(mockTombstoneAgent.mock.invocationCallOrder[0]).toBeLessThan(
+      database.transaction.mock.invocationCallOrder[0]
+    )
     expect(database.transaction).toHaveBeenCalledTimes(1)
     expect(txDelete).toHaveBeenCalledTimes(3)
     expect(txUpdate).toHaveBeenCalledTimes(2)

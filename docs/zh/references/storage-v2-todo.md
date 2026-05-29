@@ -2,7 +2,7 @@
 
 更新时间：2026-05-29
 
-固定进度口径：整体 99%。这表示 Storage v2 并行保护层、主要数据 mirror/read-through、StorageService-first 主写保护、端到端备份/恢复验证、漏网路径归类/补洞、同步/账号体系前置策略、legacy runtime 清理策略、最终测试矩阵、安装包启动恢复验证、最终代码 review 和 `v1.9.9` draft release 构建已完成；剩余工作集中在补齐 Windows 签名配置后重新跑 release workflow 并发布。
+固定进度口径：整体 99%。这表示 Storage v2 并行保护层、主要数据 mirror/read-through、StorageService-first 主写保护、端到端备份/恢复验证、漏网路径归类/补洞、同步/账号体系前置策略、legacy runtime 清理策略、最终测试矩阵、安装包启动恢复验证、最终代码 review 和 `v1.9.9` draft release 构建已完成；剩余工作集中在补齐 Windows 签名 secrets / runner 授权后重新跑 release workflow 并发布。
 
 跟踪规则：
 
@@ -135,4 +135,4 @@
 - [x] 做一次从安装包启动的真实恢复验证；2026-05-29 已完成：修复 packaged app 缺少 `@vscode/ripgrep-darwin-arm64` 导致的启动早期主进程错误，`pnpm build:unpack` 成功，并将已验证的 Storage v2 backup staging 到全新 Data root 后用 `dist/mac-arm64/Cherry Studio Pi.app` 启动，Storage v2 health `quick_check=ok`，marker 与 Notes 文件均从恢复数据读回。备注：packaged 环境直接调用 `restoreBackup` IPC 时，macOS Keychain safeStorage 写入在自动化环境触发授权等待；本次安装包启动验证采用已验证 backup staging 后启动的方式，`restoreBackup` 逻辑仍由 main test 覆盖。
 - [x] 最终 review 后再决定 push/release；2026-05-29 已完成：工作区 clean，`main` 与 `origin/main` 同步，打包修复提交 `b89e8c003 fix: include ripgrep binary in packaged app` 已包含在 `main`；`v1.9.8` release 已存在且对应旧 tag，当前 `HEAD` 已领先 `v1.9.8` 超过 200 个提交，因此不能复用旧版本号覆盖发布，应使用新 tag（例如 `v1.9.9` 或 `v1.9.9-rc.1`）。本地 release workflow review 确认 `.github/workflows/release.yml` 会构建 macOS / Windows / Linux，macOS 构建前会校验签名与公证 secrets。
 - [x] 按确认的版本号触发 GitHub Release workflow，并在产物生成后验收 macOS 签名/公证、Windows 签名、Linux 安装包和自动更新 metadata；2026-05-29 已触发 `v1.9.9` draft release，run `26620800093` 全部 job success，上传 24 个 assets，macOS 日志显示 Developer ID 签名和 notarization successful，Linux 安装包与 checksum 已生成。验收发现 Windows job 生成了 exe，但 `WIN_SIGN` / `CHERRY_CERT_*` 在 release workflow 中为空，因此本次 Windows assets 不是签名产物，draft release 不能直接发布。
-- [ ] 补齐 Windows signing secrets 或授予 CherryHQ 组织 secrets 给本仓库后，重新运行 `v1.9.9` release workflow 覆盖 draft assets，并发布 release；`release.yml` 已改为 Windows 走 `self-hosted/windows-signing` runner，并在缺少 `CHERRY_CERT_PATH` / `CHERRY_CERT_KEY` / `CHERRY_CERT_CSP` 时直接 fail，避免再次静默生成未签名 Windows 包。
+- [ ] 补齐 Windows signing secrets 和 `windows-signing` runner 授权后，重新运行 `v1.9.9` release workflow 覆盖 draft assets，并发布 release；`release.yml` 已改为 Windows 走 `self-hosted/windows-signing` runner，并在缺少 `CHERRY_CERT_PATH` / `CHERRY_CERT_KEY` / `CHERRY_CERT_CSP` 时直接 fail，避免再次静默生成未签名 Windows 包。当前 `gh secret list --repo` 未看到 Windows 签名 secrets，repo-level runner 列表也为空，且当前 token 无权查看/授权 CherryHQ org secrets 与 org runners。

@@ -25,6 +25,8 @@ import type {
 } from '@renderer/types'
 import { v4 as uuid } from 'uuid'
 
+import { upsertStorageV2AssistantList } from './StorageV2AssistantWriteService'
+
 const logger = loggerService.withContext('AssistantService')
 
 /**
@@ -289,6 +291,7 @@ export async function createAssistantFromAgent(agent: AssistantPreset) {
     settings: agent.settings || DEFAULT_ASSISTANT_SETTINGS
   }
 
+  await upsertStorageV2AssistantList([assistant, ...store.getState().assistants.assistants])
   store.dispatch(addAssistant(assistant))
 
   window.toast.success(i18n.t('message.assistant.added.content'))

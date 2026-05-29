@@ -7,6 +7,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useEnableDeveloperMode, useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
+import { mutateStorageV2AssistantFirst } from '@renderer/services/StorageV2AssistantWriteService'
 import { storageV2ConversationMirrorService } from '@renderer/services/StorageV2ConversationMirrorService'
 import {
   flushStorageV2LocalStorageMirror,
@@ -127,6 +128,11 @@ const GeneralSettings: FC = () => {
       const updatedTopics = defaultAssistant.topics.map((topic) =>
         knownTopicNames.has(topic.name) ? { ...topic, name: i18n.t('chat.default.topic.name') } : topic
       )
+      await mutateStorageV2AssistantFirst(defaultAssistant.id, store.getState().assistants.assistants, (assistant) => ({
+        ...assistant,
+        name: newName,
+        topics: updatedTopics
+      }))
       dispatch(updateDefaultAssistant({ assistant: { ...defaultAssistant, name: newName, topics: updatedTopics } }))
       dispatch(updateAssistant({ id: defaultAssistant.id, name: newName, topics: updatedTopics }))
       await storageV2ConversationMirrorService.flushTopics(

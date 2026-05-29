@@ -4,6 +4,7 @@ import i18n from '@renderer/i18n'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { safeDeleteFiles } from '@renderer/services/MessagesService'
+import { mutateStorageV2AssistantFirst } from '@renderer/services/StorageV2AssistantWriteService'
 import {
   fetchStorageV2TopicMessages,
   hydrateStorageV2ConversationsIfDexieEmpty
@@ -139,11 +140,17 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
       return
     }
 
-    const applyTopicName = (name: string) => {
+    const applyTopicName = async (name: string) => {
       const data = { ...topic, name } as Topic
       if (topic.id === _activeTopic.id) {
         _setActiveTopic(data)
       }
+      await mutateStorageV2AssistantFirst(assistant.id, store.getState().assistants.assistants, (assistant) => ({
+        ...assistant,
+        topics: (assistant.topics || []).map((currentTopic) =>
+          currentTopic.id === data.id ? { ...data, messages: [] } : currentTopic
+        )
+      }))
       store.dispatch(updateTopic({ assistantId: assistant.id, topic: data }))
       storageV2ConversationMirrorService.scheduleTopic(topicId, () => store.getState())
     }
@@ -164,7 +171,7 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
       if (topicName) {
         try {
           startTopicRenaming(topicId)
-          applyTopicName(topicName)
+          await applyTopicName(topicName)
         } finally {
           finishTopicRenaming(topicId)
         }
@@ -177,14 +184,14 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
       try {
         const { text: summaryText, error } = await fetchMessagesSummary({ messages: topic.messages })
         if (summaryText) {
-          applyTopicName(summaryText)
+          await applyTopicName(summaryText)
         } else {
           if (error) {
             window.toast?.error(`${i18n.t('message.error.fetchTopicName')}: ${error}`)
           }
           const fallbackName = getFirstMessageName()
           if (fallbackName) {
-            applyTopicName(fallbackName)
+            await applyTopicName(fallbackName)
           }
         }
       } finally {

@@ -7,12 +7,15 @@ import {
   MODEL_SUPPORTED_REASONING_EFFORT
 } from '@renderer/config/models'
 import { db } from '@renderer/databases'
-import { getDefaultTopic } from '@renderer/services/AssistantService'
+import { DEFAULT_ASSISTANT_SETTINGS, getDefaultTopic } from '@renderer/services/AssistantService'
+import {
+  mutateStorageV2AssistantFirst,
+  upsertStorageV2AssistantList
+} from '@renderer/services/StorageV2AssistantWriteService'
 import { storageV2ConversationMirrorService } from '@renderer/services/StorageV2ConversationMirrorService'
 import { deleteStorageV2Assistant } from '@renderer/services/StorageV2EntityDeleteService'
 import { flushStorageV2ReduxMirror } from '@renderer/services/StorageV2ReduxMirrorFlush'
-import { persistStorageV2PartialReduxSnapshot } from '@renderer/services/StorageV2ReduxSliceService'
-import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
+import store, { type RootState, useAppDispatch, useAppSelector, useAppStore } from '@renderer/store'
 import {
   addAssistant,
   addTopic,
@@ -113,9 +116,30 @@ function updateAssistantTopicsBatchInState(
 }
 
 async function persistAssistantTopicsBeforeRuntimeUpdate(updates: Array<{ assistantId: string; topics: Topic[] }>) {
-  await persistStorageV2PartialReduxSnapshot({
-    assistants: updateAssistantTopicsBatchInState(store.getState().assistants, updates)
-  })
+  const nextAssistantsState = updateAssistantTopicsBatchInState(store.getState().assistants, updates)
+  await upsertStorageV2AssistantList(nextAssistantsState.assistants)
+}
+
+function applyAssistantSettingsPatch(assistant: Assistant, settings: Partial<AssistantSettings>): Assistant {
+  const existingSettings = assistant.settings ?? DEFAULT_ASSISTANT_SETTINGS
+
+  return {
+    ...assistant,
+    settings: {
+      ...existingSettings,
+      ...settings
+    }
+  }
+}
+
+function insertAssistantAt(assistants: Assistant[], index: number, assistant: Assistant) {
+  if (index < 0 || index > assistants.length) {
+    throw new Error(`InsertAssistant: index ${index} is out of bounds [0, ${assistants.length}]`)
+  }
+
+  const nextAssistants = [...assistants]
+  nextAssistants.splice(index, 0, assistant)
+  return nextAssistants
 }
 
 async function removeTopicsFromRuntimeSettled(topics: Topic[], reason: string) {
@@ -145,35 +169,44 @@ export function useAssistants() {
   const { t } = useTranslation()
   const { assistants } = useAppSelector((state) => state.assistants)
   const dispatch = useAppDispatch()
+  const reduxStore = useAppStore()
 
   return {
     assistants,
-    updateAssistants: (assistants: Assistant[]) => {
+    updateAssistants: async (assistants: Assistant[]) => {
+      await upsertStorageV2AssistantList(assistants)
       dispatch(updateAssistants(assistants))
       flushAssistantMirror('assistants-update-list')
     },
-    addAssistant: (assistant: Assistant) => {
+    addAssistant: async (assistant: Assistant) => {
+      await upsertStorageV2AssistantList([assistant, ...reduxStore.getState().assistants.assistants])
       dispatch(addAssistant(assistant))
       flushAssistantMirror('assistants-add')
     },
-    insertAssistant: (index: number, assistant: Assistant) => {
+    insertAssistant: async (index: number, assistant: Assistant) => {
+      const nextAssistants = insertAssistantAt(reduxStore.getState().assistants.assistants, index, assistant)
+      await upsertStorageV2AssistantList(nextAssistants)
       dispatch(insertAssistant({ index, assistant }))
       flushAssistantMirror('assistants-insert')
     },
-    copyAssistant: (assistant: Assistant): Assistant | undefined => {
+    copyAssistant: async (assistant: Assistant): Promise<Assistant | undefined> => {
       if (!assistant) {
         logger.error("assistant doesn't exists.")
         return
       }
-      const index = assistants.findIndex((_assistant) => _assistant.id === assistant.id)
-      const _assistant: Assistant = { ...assistant, id: uuid(), topics: [getDefaultTopic(assistant.id)] }
+      const currentAssistants = reduxStore.getState().assistants.assistants
+      const index = currentAssistants.findIndex((_assistant) => _assistant.id === assistant.id)
+      const assistantId = uuid()
+      const _assistant: Assistant = { ...assistant, id: assistantId, topics: [getDefaultTopic(assistantId)] }
       if (index === -1) {
         logger.warn("Origin assistant's id not found. Fallback to addAssistant.")
+        await upsertStorageV2AssistantList([_assistant, ...currentAssistants])
         dispatch(addAssistant(_assistant))
         flushAssistantMirror('assistants-copy')
       } else {
         // 插入到后面
         try {
+          await upsertStorageV2AssistantList(insertAssistantAt(currentAssistants, index + 1, _assistant))
           dispatch(insertAssistant({ index: index + 1, assistant: _assistant }))
           flushAssistantMirror('assistants-copy')
         } catch (e) {
@@ -224,9 +257,12 @@ export function useAssistant(id: string) {
   }, [assistant?.settings])
 
   const updateAssistantSettings = useCallback(
-    (settings: Partial<AssistantSettings>) => {
+    async (settings: Partial<AssistantSettings>) => {
       if (!assistant?.id) return
 
+      await mutateStorageV2AssistantFirst(assistant.id, store.getState().assistants.assistants, (assistant) =>
+        applyAssistantSettingsPatch(assistant, settings)
+      )
       dispatch(_updateAssistantSettings({ assistantId: assistant.id, settings }))
       flushAssistantMirror('assistant-settings-update')
     },
@@ -280,6 +316,11 @@ export function useAssistant(id: string) {
     assistant: assistantWithModel,
     model,
     addTopic: async (topic: Topic) => {
+      const currentTopics = getAssistantTopicsFromState(store.getState().assistants, assistant.id, normalizedTopics)
+      await mutateStorageV2AssistantFirst(assistant.id, store.getState().assistants.assistants, (assistant) => ({
+        ...assistant,
+        topics: uniqBy([topic, ...currentTopics], 'id')
+      }))
       dispatch(addTopic({ assistantId: assistant.id, topic }))
       await flushStorageV2TopicMirror(topic.id)
     },
@@ -343,11 +384,21 @@ export function useAssistant(id: string) {
       await flushAssistantMirror('assistant-topic-move', { strict: true })
       void flushStorageV2TopicMirror(topic.id)
     },
-    updateTopic: (topic: Topic) => {
+    updateTopic: async (topic: Topic) => {
+      await mutateStorageV2AssistantFirst(assistant.id, store.getState().assistants.assistants, (assistant) => ({
+        ...assistant,
+        topics: getAssistantTopicsFromState(store.getState().assistants, assistant.id, normalizedTopics).map(
+          (currentTopic) => (currentTopic.id === topic.id ? { ...topic, messages: [] } : currentTopic)
+        )
+      }))
       dispatch(updateTopic({ assistantId: assistant.id, topic }))
       void flushStorageV2TopicMirror(topic.id)
     },
-    updateTopics: (topics: Topic[]) => {
+    updateTopics: async (topics: Topic[]) => {
+      await mutateStorageV2AssistantFirst(assistant.id, store.getState().assistants.assistants, (assistant) => ({
+        ...assistant,
+        topics: topics.map(omitTopicMessages)
+      }))
       dispatch(updateTopics({ assistantId: assistant.id, topics }))
       flushStorageV2TopicMirrors(topics.map((topic) => topic.id))
     },
@@ -364,16 +415,24 @@ export function useAssistant(id: string) {
       await flushStorageV2TopicMirror(replacementTopic.id)
     },
     setModel: useCallback(
-      (model: Model) => {
+      async (model: Model) => {
         if (!assistant) return
 
+        await mutateStorageV2AssistantFirst(assistant.id, store.getState().assistants.assistants, (assistant) => ({
+          ...assistant,
+          model
+        }))
         dispatch(setModel({ assistantId: assistant.id, model }))
         flushAssistantMirror('assistant-set-model')
       },
       [assistant, dispatch]
     ),
     updateAssistant: useCallback(
-      (update: Partial<Omit<Assistant, 'id'>>) => {
+      async (update: Partial<Omit<Assistant, 'id'>>) => {
+        await mutateStorageV2AssistantFirst(id, store.getState().assistants.assistants, (assistant) => ({
+          ...assistant,
+          ...update
+        }))
         dispatch(updateAssistant({ id, ...update }))
         flushAssistantMirror('assistant-update')
       },

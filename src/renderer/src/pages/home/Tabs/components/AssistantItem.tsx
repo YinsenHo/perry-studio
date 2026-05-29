@@ -285,7 +285,7 @@ function getMenuItems({
       key: 'duplicate',
       icon: <CopyIcon size={14} />,
       onClick: async () => {
-        const _assistant = copyAssistant(assistant)
+        const _assistant = await copyAssistant(assistant)
         if (_assistant) {
           onSwitch(_assistant)
         }

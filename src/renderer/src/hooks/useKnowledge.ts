@@ -485,7 +485,7 @@ export const useKnowledgeBases = () => {
     storageV2MirrorService.pauseRuntimeMirroring()
     try {
       dispatch(deleteBase({ baseId }))
-      updateAssistants(_assistants)
+      await updateAssistants(_assistants)
       setAssistantPresets(_presets)
     } finally {
       storageV2MirrorService.resumeRuntimeMirroring({ scheduleLatest: true })

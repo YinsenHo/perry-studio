@@ -78,7 +78,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
       if (preset.id === 'default') {
         assistant = { ...preset, id: uuid() }
-        addAssistant(assistant)
+        await addAssistant(assistant)
       } else {
         assistant = await createAssistantFromAgent(preset)
       }

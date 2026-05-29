@@ -6,6 +6,7 @@ import type { Assistant } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 
 import { DEFAULT_ASSISTANT_SETTINGS } from '../AssistantService'
+import { upsertStorageV2AssistantList } from '../StorageV2AssistantWriteService'
 import { availableImporters } from './importers'
 import type { ConversationImporter, ImportResponse } from './types'
 import { saveImportToDatabase } from './utils/database'
@@ -126,7 +127,7 @@ class ImportServiceClass {
         settings: DEFAULT_ASSISTANT_SETTINGS
       }
 
-      // Add assistant to store
+      await upsertStorageV2AssistantList([assistant, ...store.getState().assistants.assistants])
       store.dispatch(addAssistant(assistant))
 
       logger.info(

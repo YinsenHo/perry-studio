@@ -1,4 +1,4 @@
-import type { Provider } from '@types'
+import type { Assistant, Provider } from '@types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -65,6 +65,7 @@ const mocks = vi.hoisted(() => ({
     upsert: vi.fn()
   },
   assistantRepository: {
+    delete: vi.fn(),
     list: vi.fn(),
     upsert: vi.fn()
   },
@@ -167,6 +168,8 @@ describe('StorageV2Service', () => {
     mocks.providerRepository.upsert.mockResolvedValue({ skippedSecret: false })
     mocks.providerRepository.delete.mockResolvedValue({ deleted: true })
     mocks.assistantRepository.list.mockResolvedValue([])
+    mocks.assistantRepository.upsert.mockResolvedValue(undefined)
+    mocks.assistantRepository.delete.mockResolvedValue({ deleted: true })
     mocks.conversationRepository.list.mockResolvedValue([])
     mocks.fileRepository.get.mockResolvedValue(null)
     mocks.fileRepository.list.mockResolvedValue([])
@@ -403,6 +406,28 @@ describe('StorageV2Service', () => {
     await expect(new StorageV2Service().deleteProvider('provider-1')).resolves.toEqual({ deleted: true })
 
     expect(mocks.providerRepository.delete).toHaveBeenCalledWith('provider-1')
+  })
+
+  it('upserts assistants through the structured Storage v2 repository', async () => {
+    const assistant: Assistant = {
+      id: 'assistant-1',
+      name: 'Assistant',
+      prompt: 'Be helpful',
+      topics: [],
+      type: 'assistant'
+    }
+
+    await expect(new StorageV2Service().upsertAssistant(assistant, 4)).resolves.toBeUndefined()
+
+    expect(mocks.assistantRepository.upsert).toHaveBeenCalledWith(assistant, 4)
+  })
+
+  it('deletes assistants through the Storage v2 tombstone repository path', async () => {
+    mocks.assistantRepository.delete.mockResolvedValue({ deleted: true })
+
+    await expect(new StorageV2Service().deleteAssistant('assistant-1')).resolves.toEqual({ deleted: true })
+
+    expect(mocks.assistantRepository.delete).toHaveBeenCalledWith('assistant-1')
   })
 
   it('summarizes whether the current profile is ready for backup and migration', async () => {

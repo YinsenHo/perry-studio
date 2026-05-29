@@ -4068,7 +4068,7 @@
       "data_sync": {
         "auto_sync": "Auto sync",
         "current_device": "Current device",
-        "help": "Data sync uses an independent WebDAV configuration. Local cache stays on this device.",
+        "help": "Data sync refreshes local storage mirrors, then uploads a full data snapshot and lightweight change records. Restoring remote data replaces this device's data and restarts the app.",
         "interval": {
           "day_one": "Every day",
           "hour_one": "Every 1 hour",
@@ -4079,10 +4079,16 @@
         },
         "last_result": "Last result",
         "method": "Sync method",
-        "method_value": "SQLite change log + WebDAV",
+        "method_value": "Full data snapshot + WebDAV",
         "password": "Password",
         "password_placeholder": "WebDAV password or app password",
         "remote_path": "Sync directory",
+        "restore_confirm_content": "This will replace this device's data with the latest full snapshot on WebDAV and restart the app. Make sure this device is backed up first.",
+        "restore_confirm_title": "Restore remote data?",
+        "restore_latest": "Restore remote data",
+        "snapshot": {
+          "uploaded": "Snapshot {{file}} ({{size}})"
+        },
         "summary": {
           "conflicts": "Conflicts {{count}}",
           "deleted": "Deleted {{count}}",
@@ -4093,6 +4099,8 @@
         "sync_now": "Sync now",
         "title": "Data Sync",
         "toast": {
+          "restore_failed": "Restore failed: {{message}}",
+          "restore_success": "Restore started. The app will restart.",
           "sync_failed": "Sync failed: {{message}}",
           "sync_success": "Data sync completed",
           "webdav_required": "Configure the WebDAV URL first"
@@ -4604,10 +4612,10 @@
           "home_config": "Home config.json",
           "indexeddb": "Chromium IndexedDB",
           "knowledge_base": "Knowledge bases",
+          "legacy_mcp_dxt_servers": "Legacy DXT MCP server packages",
           "legacy_user_data_agents_db": "Legacy userData agents.db",
           "legacy_user_data_copilot_token": "Legacy userData Copilot token",
           "legacy_user_data_memory_db": "Legacy userData memories.db",
-          "legacy_mcp_dxt_servers": "Legacy DXT MCP server packages",
           "local_storage": "Chromium Local Storage",
           "logs": "Runtime logs",
           "mcp_dxt_servers": "DXT MCP server packages",

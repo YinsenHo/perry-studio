@@ -1,7 +1,10 @@
+import * as fs from 'node:fs'
+import fsp from 'node:fs/promises'
 import https from 'node:https'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import BackupManager from '@main/services/BackupManager'
 import { storageV2AppDataKvMirrorService } from '@main/services/storageV2/AppDataKvMirrorService'
 import { storageV2AppDataRuntimeRecoveryService } from '@main/services/storageV2/AppDataRuntimeRecoveryService'
 import type { WebDavConfig } from '@types'
@@ -27,6 +30,19 @@ type RemoteManifest = {
   version: 1
   updatedAt: number
   records: Record<string, RemoteRecordMeta>
+  latestSnapshot?: RemoteSnapshotMeta | null
+  snapshots?: Record<string, RemoteSnapshotMeta>
+}
+
+type RemoteSnapshotMeta = {
+  id: string
+  fileName: string
+  path: string
+  byteSize: number
+  createdAt: string
+  uploadedAt: number
+  deviceId: string
+  format: 'cherry-studio-direct-backup-zip'
 }
 
 export type DataSyncSummary = {
@@ -35,6 +51,9 @@ export type DataSyncSummary = {
   deleted: number
   conflicts: number
   skipped: number
+  snapshotUploaded: boolean
+  snapshotFileName: string | null
+  snapshotBytes: number
   lastSyncAt: number
 }
 
@@ -44,6 +63,9 @@ const EMPTY_SUMMARY: DataSyncSummary = {
   deleted: 0,
   conflicts: 0,
   skipped: 0,
+  snapshotUploaded: false,
+  snapshotFileName: null,
+  snapshotBytes: 0,
   lastSyncAt: 0
 }
 
@@ -65,7 +87,7 @@ function normalizeBasePath(webdavPath?: string) {
 }
 
 function makeManifest(): RemoteManifest {
-  return { version: 1, updatedAt: Date.now(), records: {} }
+  return { version: 1, updatedAt: Date.now(), records: {}, latestSnapshot: null, snapshots: {} }
 }
 
 function bufferToString(value: string | Buffer | ArrayBuffer | unknown) {
@@ -84,8 +106,45 @@ function bufferToString(value: string | Buffer | ArrayBuffer | unknown) {
   return String(value)
 }
 
+function bufferFromRemote(value: string | Buffer | ArrayBuffer | unknown) {
+  if (Buffer.isBuffer(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    return Buffer.from(value)
+  }
+
+  if (value instanceof ArrayBuffer) {
+    return Buffer.from(value)
+  }
+
+  return Buffer.from(String(value))
+}
+
+function safeFileSegment(value: string) {
+  return value.replace(/[^a-z0-9_.-]+/gi, '-').replace(/^-|-$/g, '') || 'device'
+}
+
+function snapshotFileName(deviceId: string) {
+  return `cherry-studio-pi.data-sync.${safeFileSegment(deviceId)}.zip`
+}
+
+function normalizeRemoteSnapshotPath(value: string) {
+  const normalized = path.posix.normalize(value)
+  if (normalized.startsWith('../') || normalized.startsWith('/') || normalized === '..') {
+    throw new Error('Remote data snapshot path is invalid')
+  }
+  return normalized
+}
+
 export class AppDataSyncService {
   private static instance: AppDataSyncService | null = null
+  private readonly backupManager: BackupManager
+
+  constructor(backupManager = new BackupManager()) {
+    this.backupManager = backupManager
+  }
 
   static getInstance() {
     if (!AppDataSyncService.instance) {
@@ -135,6 +194,14 @@ export class AppDataSyncService {
   private async writeJson(client: WebDAVClient, filePath: string, data: unknown) {
     await this.ensureDirectory(client, path.posix.dirname(filePath))
     await client.putFileContents(filePath, JSON.stringify(data, null, 2), { overwrite: true })
+  }
+
+  private normalizeManifest(manifest: RemoteManifest | null): RemoteManifest {
+    const nextManifest = manifest ?? makeManifest()
+    nextManifest.records = nextManifest.records ?? {}
+    nextManifest.snapshots = nextManifest.snapshots ?? {}
+    nextManifest.latestSnapshot = nextManifest.latestSnapshot ?? null
+    return nextManifest
   }
 
   private async pullRemoteRecord(client: WebDAVClient, basePath: string, meta: RemoteRecordMeta) {
@@ -188,6 +255,90 @@ export class AppDataSyncService {
     return id
   }
 
+  private async pushFullSnapshot(
+    client: WebDAVClient,
+    basePath: string,
+    db: AppDataDatabase,
+    manifest: RemoteManifest,
+    summary: DataSyncSummary
+  ) {
+    const deviceId = db.getDeviceId()
+    const fileName = snapshotFileName(deviceId)
+    const relativePath = `backups/${fileName}`
+    const remotePath = path.posix.join(basePath, relativePath)
+    const localBackupPath = await this.backupManager.backup(
+      undefined as unknown as Electron.IpcMainInvokeEvent,
+      fileName,
+      undefined,
+      false
+    )
+
+    try {
+      const stat = await fsp.stat(localBackupPath)
+      await this.ensureDirectory(client, path.posix.dirname(remotePath))
+      await client.putFileContents(remotePath, fs.createReadStream(localBackupPath), {
+        overwrite: true,
+        contentLength: stat.size
+      })
+
+      const snapshot: RemoteSnapshotMeta = {
+        id: safeFileSegment(deviceId),
+        fileName,
+        path: relativePath,
+        byteSize: stat.size,
+        createdAt: new Date(summary.lastSyncAt).toISOString(),
+        uploadedAt: summary.lastSyncAt,
+        deviceId,
+        format: 'cherry-studio-direct-backup-zip'
+      }
+
+      manifest.snapshots = {
+        ...(manifest.snapshots ?? {}),
+        [snapshot.id]: snapshot
+      }
+      manifest.latestSnapshot = snapshot
+
+      summary.snapshotUploaded = true
+      summary.snapshotFileName = fileName
+      summary.snapshotBytes = stat.size
+    } finally {
+      await fsp.rm(localBackupPath, { force: true }).catch(() => undefined)
+    }
+  }
+
+  async restoreLatestSnapshot(config: WebDavConfig) {
+    if (!config.webdavHost) {
+      throw new Error('WebDAV host is required')
+    }
+
+    const db = await getAppDataDatabase()
+    const { client, basePath } = this.createWebDavClient(config)
+    const manifestPath = path.posix.join(basePath, 'manifest.json')
+    const manifest = this.normalizeManifest(await this.readJson<RemoteManifest>(client, manifestPath))
+    const localDeviceId = db.getDeviceId()
+    const snapshots = Object.values(manifest.snapshots ?? {})
+      .filter((snapshot): snapshot is RemoteSnapshotMeta => Boolean(snapshot?.path && snapshot.fileName))
+      .sort((left, right) => right.uploadedAt - left.uploadedAt)
+    const snapshot =
+      snapshots.find((item) => item.deviceId !== localDeviceId) ?? manifest.latestSnapshot ?? snapshots[0] ?? null
+
+    if (!snapshot) {
+      throw new Error('No remote data snapshot is available')
+    }
+
+    const remotePath = path.posix.join(basePath, normalizeRemoteSnapshotPath(snapshot.path))
+    const backupContents = await client.getFileContents(remotePath, { format: 'binary' })
+    const localBackupPath = path.join(
+      process.env.TMPDIR || '/tmp',
+      'cherry-studio-pi-data-sync',
+      path.basename(snapshot.fileName)
+    )
+    await fsp.mkdir(path.dirname(localBackupPath), { recursive: true })
+    await fsp.writeFile(localBackupPath, bufferFromRemote(backupContents))
+
+    return this.backupManager.restore(undefined as unknown as Electron.IpcMainInvokeEvent, localBackupPath)
+  }
+
   async syncNow(config: WebDavConfig): Promise<DataSyncSummary> {
     if (!config.webdavHost) {
       throw new Error('WebDAV host is required')
@@ -219,7 +370,7 @@ export class AppDataSyncService {
       }
     }
     const localById = new Map(localRecords.map((record) => [recordId(record.scope, record.key), record]))
-    const manifest = (await this.readJson<RemoteManifest>(client, manifestPath)) || makeManifest()
+    const manifest = this.normalizeManifest(await this.readJson<RemoteManifest>(client, manifestPath))
     const allIds = new Set([...localById.keys(), ...Object.keys(manifest.records)])
 
     for (const id of allIds) {
@@ -301,6 +452,8 @@ export class AppDataSyncService {
       await this.setSyncState(db, `record:${id}:hash`, winner.valueHash)
       summary.conflicts += 1
     }
+
+    await this.pushFullSnapshot(client, basePath, db, manifest, summary)
 
     manifest.updatedAt = summary.lastSyncAt
     await this.writeJson(client, manifestPath, manifest)

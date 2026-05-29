@@ -147,5 +147,8 @@ export function registerAppDataIpcHandlers() {
   })
 
   ipcMain.handle(IpcChannel.DataSync_SyncNow, async (_, config: WebDavConfig) => appDataSyncService.syncNow(config))
+  ipcMain.handle(IpcChannel.DataSync_RestoreLatestSnapshot, async (_, config: WebDavConfig) =>
+    appDataSyncService.restoreLatestSnapshot(config)
+  )
   ipcMain.handle(IpcChannel.DataSync_GetStatus, async () => appDataSyncService.getStatus())
 }

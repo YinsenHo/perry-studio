@@ -1,3 +1,6 @@
+import fsp from 'node:fs/promises'
+import path from 'node:path'
+
 import type { WebDavConfig } from '@types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,6 +25,10 @@ const mocks = vi.hoisted(() => ({
   recovery: {
     projectIfLegacyAppRecordListEmpty: vi.fn()
   },
+  backupManager: {
+    backup: vi.fn(),
+    restore: vi.fn()
+  },
   webdav: {
     exists: vi.fn(),
     createDirectory: vi.fn(),
@@ -37,6 +44,10 @@ vi.mock('@logger', () => ({
       info: vi.fn()
     })
   }
+}))
+
+vi.mock('@main/services/BackupManager', () => ({
+  default: vi.fn(() => mocks.backupManager)
 }))
 
 vi.mock('webdav', () => ({
@@ -109,6 +120,12 @@ describe('AppDataSyncService', () => {
     mocks.storageV2.listSyncConflicts.mockResolvedValue([])
     mocks.storageV2.listRecords.mockResolvedValue([])
     mocks.recovery.projectIfLegacyAppRecordListEmpty.mockResolvedValue(false)
+    mocks.backupManager.backup.mockImplementation(async (_event, fileName: string) => {
+      const filePath = path.join('/tmp', fileName)
+      await fsp.writeFile(filePath, 'backup')
+      return filePath
+    })
+    mocks.backupManager.restore.mockResolvedValue(undefined)
     mocks.webdav.exists.mockResolvedValue(true)
     mocks.webdav.createDirectory.mockResolvedValue(undefined)
     mocks.webdav.putFileContents.mockResolvedValue(undefined)
@@ -266,6 +283,37 @@ describe('AppDataSyncService', () => {
     expect(mocks.webdav.putFileContents).toHaveBeenCalledWith(
       expect.stringContaining('/records/settings/theme.json'),
       expect.stringContaining('"local-hash"'),
+      { overwrite: true }
+    )
+  })
+
+  it('uploads a full data snapshot even when app records are empty', async () => {
+    mocks.webdav.getFileContents.mockImplementation(async (filePath: string) => {
+      if (filePath.endsWith('/manifest.json')) {
+        return JSON.stringify({ version: 1, updatedAt: 0, records: {} })
+      }
+      throw new Error(`Unexpected WebDAV read: ${filePath}`)
+    })
+
+    const summary = await new AppDataSyncService().syncNow(config)
+
+    expect(summary.uploaded).toBe(0)
+    expect(summary.snapshotUploaded).toBe(true)
+    expect(summary.snapshotFileName).toBe('cherry-studio-pi.data-sync.local-device.zip')
+    expect(summary.snapshotBytes).toBe(6)
+    expect(mocks.backupManager.backup).toHaveBeenCalledWith(
+      undefined,
+      'cherry-studio-pi.data-sync.local-device.zip',
+      undefined,
+      false
+    )
+    const snapshotUpload = mocks.webdav.putFileContents.mock.calls.find(([filePath]) =>
+      String(filePath).includes('/backups/cherry-studio-pi.data-sync.local-device.zip')
+    )
+    expect(snapshotUpload?.[2]).toEqual({ overwrite: true, contentLength: 6 })
+    expect(mocks.webdav.putFileContents).toHaveBeenCalledWith(
+      expect.stringContaining('/manifest.json'),
+      expect.stringContaining('"latestSnapshot"'),
       { overwrite: true }
     )
   })

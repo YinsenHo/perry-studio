@@ -2,6 +2,8 @@ import { loggerService } from '@logger'
 import store from '@renderer/store'
 import type { WebDavConfig } from '@renderer/types'
 
+import { flushStorageV2RuntimeMirrors } from './StorageV2Service'
+
 const logger = loggerService.withContext('DataSyncService')
 
 export type DataSyncSummary = {
@@ -10,6 +12,9 @@ export type DataSyncSummary = {
   deleted: number
   conflicts: number
   skipped: number
+  snapshotUploaded?: boolean
+  snapshotFileName?: string | null
+  snapshotBytes?: number
   lastSyncAt: number
 }
 
@@ -40,6 +45,7 @@ export async function syncAppDataNow(configOverride?: WebDavConfig): Promise<Dat
 
   syncing = true
   try {
+    await flushStorageV2RuntimeMirrors()
     return await window.api.dataSync.syncNow(config)
   } finally {
     syncing = false

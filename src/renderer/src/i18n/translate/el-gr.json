@@ -4068,7 +4068,7 @@
       "data_sync": {
         "auto_sync": "[to be translated]:Auto sync",
         "current_device": "[to be translated]:Current device",
-        "help": "[to be translated]:Data sync uses an independent WebDAV configuration. Local cache stays on this device.",
+        "help": "Data sync refreshes local storage mirrors, then uploads a full data snapshot and lightweight change records. Restoring remote data replaces this device's data and restarts the app.",
         "interval": {
           "day_one": "[to be translated]:Every day",
           "hour_one": "[to be translated]:Every 1 hour",
@@ -4079,10 +4079,16 @@
         },
         "last_result": "[to be translated]:Last result",
         "method": "[to be translated]:Sync method",
-        "method_value": "[to be translated]:SQLite change log + WebDAV",
+        "method_value": "Full data snapshot + WebDAV",
         "password": "[to be translated]:Password",
         "password_placeholder": "[to be translated]:WebDAV password or app password",
         "remote_path": "[to be translated]:Sync directory",
+        "restore_confirm_content": "This will replace this device's data with the latest full snapshot on WebDAV and restart the app. Make sure this device is backed up first.",
+        "restore_confirm_title": "Restore remote data?",
+        "restore_latest": "Restore remote data",
+        "snapshot": {
+          "uploaded": "Snapshot {{file}} ({{size}})"
+        },
         "summary": {
           "conflicts": "[to be translated]:Conflicts {{count}}",
           "deleted": "[to be translated]:Deleted {{count}}",
@@ -4093,6 +4099,8 @@
         "sync_now": "[to be translated]:Sync now",
         "title": "[to be translated]:Data Sync",
         "toast": {
+          "restore_failed": "Restore failed: {{message}}",
+          "restore_success": "Restore started. The app will restart.",
           "sync_failed": "[to be translated]:Sync failed: {{message}}",
           "sync_success": "[to be translated]:Data sync completed",
           "webdav_required": "[to be translated]:Configure the WebDAV URL first"

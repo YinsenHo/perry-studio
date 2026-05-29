@@ -4068,7 +4068,7 @@
       "data_sync": {
         "auto_sync": "自動同步",
         "current_device": "目前裝置",
-        "help": "資料同步使用獨立的 WebDAV 設定；本機快取只保存在目前裝置。",
+        "help": "資料同步會先刷新本機儲存鏡像，再上傳完整資料快照與輕量變更記錄；恢復遠端資料會取代目前裝置資料並重新啟動應用程式。",
         "interval": {
           "day_one": "每天",
           "hour_one": "每 1 小時",
@@ -4079,10 +4079,16 @@
         },
         "last_result": "最近結果",
         "method": "同步方式",
-        "method_value": "SQLite 變更記錄 + WebDAV",
+        "method_value": "完整資料快照 + WebDAV",
         "password": "密碼",
         "password_placeholder": "WebDAV 密碼或應用程式密碼",
         "remote_path": "同步目錄",
+        "restore_confirm_content": "將使用 WebDAV 上最近的完整快照取代本機資料，應用程式會自動重新啟動。請確認目前裝置資料已先備份。",
+        "restore_confirm_title": "恢復遠端資料？",
+        "restore_latest": "恢復遠端資料",
+        "snapshot": {
+          "uploaded": "快照 {{file}}（{{size}}）"
+        },
         "summary": {
           "conflicts": "衝突 {{count}}",
           "deleted": "刪除 {{count}}",
@@ -4093,6 +4099,8 @@
         "sync_now": "立即同步",
         "title": "資料同步",
         "toast": {
+          "restore_failed": "恢復失敗：{{message}}",
+          "restore_success": "已開始恢復，應用程式將重新啟動",
           "sync_failed": "同步失敗：{{message}}",
           "sync_success": "資料同步完成",
           "webdav_required": "請先設定 WebDAV 位址"
@@ -4604,10 +4612,10 @@
           "home_config": "Home config.json",
           "indexeddb": "Chromium IndexedDB",
           "knowledge_base": "知識庫",
+          "legacy_mcp_dxt_servers": "舊 DXT MCP 服務套件目錄",
           "legacy_user_data_agents_db": "舊 userData agents.db",
           "legacy_user_data_copilot_token": "舊 userData Copilot 權杖",
           "legacy_user_data_memory_db": "舊 userData memories.db",
-          "legacy_mcp_dxt_servers": "舊 DXT MCP 服務套件目錄",
           "local_storage": "Chromium Local Storage",
           "logs": "執行階段日誌",
           "mcp_dxt_servers": "DXT MCP 服務套件",

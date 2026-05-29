@@ -316,6 +316,7 @@ export enum IpcChannel {
   WorkbenchShortcut_Upsert = 'workbench-shortcut:upsert',
   WorkbenchShortcut_InstallHtml = 'workbench-shortcut:install-html',
   DataSync_SyncNow = 'data-sync:sync-now',
+  DataSync_RestoreLatestSnapshot = 'data-sync:restore-latest-snapshot',
   DataSync_GetStatus = 'data-sync:get-status',
 
   // Storage v2 scaffold

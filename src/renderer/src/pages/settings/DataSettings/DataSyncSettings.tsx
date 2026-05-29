@@ -13,7 +13,7 @@ import {
   setDataSyncWebdavPath,
   setDataSyncWebdavUser
 } from '@renderer/store/settings'
-import { Button, Input, Typography } from 'antd'
+import { Button, Input, Modal, Typography } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -27,6 +27,9 @@ type SyncSummary = {
   deleted: number
   conflicts: number
   skipped: number
+  snapshotUploaded?: boolean
+  snapshotFileName?: string | null
+  snapshotBytes?: number
   lastSyncAt: number
 }
 
@@ -34,6 +37,20 @@ type SyncStatus = {
   deviceId: string
   lastSummary: SyncSummary
   conflicts: unknown[]
+}
+
+function formatBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let size = value
+  let unitIndex = 0
+
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024
+    unitIndex++
+  }
+
+  return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
 }
 
 const DataSyncSettings: FC = () => {
@@ -48,6 +65,7 @@ const DataSyncSettings: FC = () => {
   const [webdavPath, setWebdavPath] = useState(dataSyncWebdavPath)
   const [syncInterval, setSyncInterval] = useState(dataSyncSyncInterval)
   const [syncing, setSyncing] = useState(false)
+  const [restoring, setRestoring] = useState(false)
   const [status, setStatus] = useState<SyncStatus | null>(null)
 
   const refreshStatus = async () => {
@@ -87,6 +105,36 @@ const DataSyncSettings: FC = () => {
     } finally {
       setSyncing(false)
     }
+  }
+
+  const restoreLatestSnapshot = () => {
+    if (!webdavHost) {
+      window.toast.warning(t('settings.data.data_sync.toast.webdav_required'))
+      return
+    }
+
+    dispatch(setDataSyncWebdavHost(webdavHost || ''))
+    dispatch(setDataSyncWebdavUser(webdavUser || ''))
+    dispatch(setDataSyncWebdavPass(webdavPass || ''))
+    dispatch(setDataSyncWebdavPath(webdavPath || '/cherry-studio-pi'))
+
+    Modal.confirm({
+      title: t('settings.data.data_sync.restore_confirm_title'),
+      content: t('settings.data.data_sync.restore_confirm_content'),
+      okText: t('settings.data.data_sync.restore_latest'),
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        setRestoring(true)
+        try {
+          await window.api.dataSync.restoreLatestSnapshot({ webdavHost, webdavUser, webdavPass, webdavPath })
+          window.toast.success(t('settings.data.data_sync.toast.restore_success'))
+        } catch (error) {
+          window.toast.error(t('settings.data.data_sync.toast.restore_failed', { message: (error as Error).message }))
+        } finally {
+          setRestoring(false)
+        }
+      }
+    })
   }
 
   const summary = status?.lastSummary
@@ -202,21 +250,26 @@ const DataSyncSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.data_sync.sync_now')}</SettingRowTitle>
-        <Button
-          type="primary"
-          icon={<SyncOutlined spin={syncing} />}
-          loading={syncing}
-          disabled={!webdavHost}
-          onClick={syncNow}>
-          {t('settings.data.data_sync.sync')}
-        </Button>
+        <HStack gap="8px">
+          <Button
+            type="primary"
+            icon={<SyncOutlined spin={syncing} />}
+            loading={syncing}
+            disabled={!webdavHost || restoring}
+            onClick={syncNow}>
+            {t('settings.data.data_sync.sync')}
+          </Button>
+          <Button loading={restoring} disabled={!webdavHost || syncing} onClick={restoreLatestSnapshot}>
+            {t('settings.data.data_sync.restore_latest')}
+          </Button>
+        </HStack>
       </SettingRow>
       {summary && summary.lastSyncAt > 0 && (
         <>
           <SettingDivider />
           <SettingRow>
             <SettingRowTitle>{t('settings.data.data_sync.last_result')}</SettingRowTitle>
-            <HStack gap="12px">
+            <HStack gap="12px" style={{ flexWrap: 'wrap' }}>
               <Typography.Text type="secondary">
                 {dayjs(summary.lastSyncAt).format('YYYY-MM-DD HH:mm:ss')}
               </Typography.Text>
@@ -232,6 +285,14 @@ const DataSyncSettings: FC = () => {
               <Typography.Text type={summary.conflicts ? 'warning' : 'secondary'}>
                 {t('settings.data.data_sync.summary.conflicts', { count: summary.conflicts })}
               </Typography.Text>
+              {summary.snapshotUploaded && (
+                <Typography.Text type="secondary">
+                  {t('settings.data.data_sync.snapshot.uploaded', {
+                    file: summary.snapshotFileName || '-',
+                    size: formatBytes(summary.snapshotBytes ?? 0)
+                  })}
+                </Typography.Text>
+              )}
             </HStack>
           </SettingRow>
         </>

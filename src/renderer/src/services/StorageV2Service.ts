@@ -516,7 +516,7 @@ export function deleteStorageV2File(fileId: string): Promise<{ deleted: boolean 
   return window.api.storageV2.deleteFile(fileId)
 }
 
-async function flushStorageV2RuntimeMirrors() {
+export async function flushStorageV2RuntimeMirrors() {
   await storageV2MirrorService.flushStrict()
   await flushStorageV2LocalStorageMirrorStrict()
   await storageV2ConversationMirrorService.flushStrict()

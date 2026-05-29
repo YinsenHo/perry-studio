@@ -329,6 +329,7 @@ export class StorageV2AgentRuntimeRecoveryService {
         (SELECT COUNT(*) FROM scheduled_tasks WHERE deleted_at IS NULL) +
         (SELECT COUNT(*) FROM task_run_logs) +
         (SELECT COUNT(*) FROM channels WHERE deleted_at IS NULL) +
+        (SELECT COUNT(*) FROM channel_task_subscriptions) +
         (
           SELECT COUNT(*)
           FROM conversations

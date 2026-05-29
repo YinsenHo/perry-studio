@@ -1,5 +1,5 @@
 import type { Client } from '@libsql/client'
-import type { ChannelRow, InsertChannelRow } from '@main/services/agents/database/schema'
+import type { ChannelRow, InsertChannelRow, InsertTaskRow, TaskRow } from '@main/services/agents/database/schema'
 
 import { storageV2SecretVaultService } from './SecretVaultService'
 import { storageV2Database } from './StorageV2Database'
@@ -21,6 +21,26 @@ type ChannelRuntimeRow = Pick<
   id: string
   createdAt?: number | string | null
   updatedAt?: number | string | null
+}
+
+type ScheduledTaskRuntimeRow = Pick<
+  TaskRow | InsertTaskRow,
+  | 'id'
+  | 'agent_id'
+  | 'name'
+  | 'prompt'
+  | 'schedule_type'
+  | 'schedule_value'
+  | 'timeout_minutes'
+  | 'next_run'
+  | 'last_run'
+  | 'last_result'
+  | 'status'
+  | 'created_at'
+  | 'updated_at'
+> & {
+  id: string
+  channel_ids?: string[] | null
 }
 
 function now() {
@@ -60,6 +80,70 @@ function cloneRecord(value: unknown): Record<string, unknown> {
 }
 
 export class StorageV2AgentRuntimeWriteService {
+  async upsertScheduledTask(task: ScheduledTaskRuntimeRow, channelIds?: string[]): Promise<void> {
+    const client = await storageV2Database.getClient()
+    const updatedAt = toIsoTimestamp(task.updated_at, now())
+    const createdAt = toIsoTimestamp(task.created_at, updatedAt)
+
+    await storageV2Database.withTransaction(client, async () => {
+      await client.execute({
+        sql: `
+          INSERT INTO scheduled_tasks (
+            id, agent_id, name, prompt, schedule_type, schedule_value, timeout_minutes,
+            next_run, last_run, last_result, status, created_at, updated_at, deleted_at, version
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 1)
+          ON CONFLICT(id) DO UPDATE SET
+            agent_id = excluded.agent_id,
+            name = excluded.name,
+            prompt = excluded.prompt,
+            schedule_type = excluded.schedule_type,
+            schedule_value = excluded.schedule_value,
+            timeout_minutes = excluded.timeout_minutes,
+            next_run = excluded.next_run,
+            last_run = excluded.last_run,
+            last_result = excluded.last_result,
+            status = excluded.status,
+            updated_at = excluded.updated_at,
+            deleted_at = NULL,
+            version = scheduled_tasks.version + 1
+        `,
+        args: [
+          task.id,
+          task.agent_id,
+          task.name,
+          task.prompt,
+          task.schedule_type,
+          task.schedule_value,
+          task.timeout_minutes ?? 2,
+          task.next_run ?? null,
+          task.last_run ?? null,
+          task.last_result ?? null,
+          task.status ?? 'active',
+          createdAt,
+          updatedAt
+        ]
+      })
+
+      await storageV2SyncLogService.recordChange({
+        client,
+        entityType: 'scheduled_task',
+        entityId: task.id,
+        payload: {
+          id: task.id,
+          agentId: task.agent_id,
+          name: task.name,
+          status: task.status ?? 'active'
+        },
+        version: await getVersion(client, 'scheduled_tasks', task.id)
+      })
+
+      if (channelIds !== undefined) {
+        await this.syncTaskChannelSubscriptions(client, task.id, channelIds, updatedAt)
+      }
+    })
+  }
+
   async upsertChannel(channel: ChannelRuntimeRow): Promise<void> {
     const client = await storageV2Database.getClient()
     const updatedAt = toIsoTimestamp(channel.updatedAt, now())
@@ -116,6 +200,74 @@ export class StorageV2AgentRuntimeWriteService {
         version: await getVersion(client, 'channels', channel.id)
       })
     })
+  }
+
+  private async syncTaskChannelSubscriptions(
+    client: Client,
+    taskId: string,
+    channelIds: string[],
+    updatedAt: string
+  ): Promise<void> {
+    const uniqueChannelIds = Array.from(new Set(channelIds.filter(Boolean)))
+    const staleRows =
+      uniqueChannelIds.length === 0
+        ? await client.execute({
+            sql: 'SELECT channel_id FROM channel_task_subscriptions WHERE task_id = ?',
+            args: [taskId]
+          })
+        : await client.execute({
+            sql: `
+              SELECT channel_id
+              FROM channel_task_subscriptions
+              WHERE task_id = ? AND channel_id NOT IN (${uniqueChannelIds.map(() => '?').join(', ')})
+            `,
+            args: [taskId, ...uniqueChannelIds]
+          })
+
+    if (uniqueChannelIds.length === 0) {
+      await client.execute({
+        sql: 'DELETE FROM channel_task_subscriptions WHERE task_id = ?',
+        args: [taskId]
+      })
+    } else {
+      await client.execute({
+        sql: `
+          DELETE FROM channel_task_subscriptions
+          WHERE task_id = ? AND channel_id NOT IN (${uniqueChannelIds.map(() => '?').join(', ')})
+        `,
+        args: [taskId, ...uniqueChannelIds]
+      })
+    }
+
+    for (const row of staleRows.rows) {
+      const channelId = typeof row.channel_id === 'string' ? row.channel_id : null
+      if (!channelId) continue
+      await storageV2SyncLogService.recordChange({
+        client,
+        entityType: 'channel_task_subscription',
+        entityId: `${channelId}:${taskId}`,
+        operation: 'delete',
+        payload: { channelId, taskId }
+      })
+    }
+
+    for (const channelId of uniqueChannelIds) {
+      await client.execute({
+        sql: `
+          INSERT INTO channel_task_subscriptions (channel_id, task_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(channel_id, task_id) DO UPDATE SET
+            updated_at = excluded.updated_at
+        `,
+        args: [channelId, taskId, updatedAt, updatedAt]
+      })
+      await storageV2SyncLogService.recordChange({
+        client,
+        entityType: 'channel_task_subscription',
+        entityId: `${channelId}:${taskId}`,
+        payload: { channelId, taskId }
+      })
+    }
   }
 
   private async prepareChannelConfig(channelId: string, rawConfig: unknown): Promise<string> {

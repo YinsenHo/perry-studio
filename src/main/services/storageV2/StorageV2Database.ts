@@ -188,6 +188,26 @@ const INTEGRITY_ISSUE_CHECKS: Array<{ id: string; label: string; sql: string }> 
     `
   },
   {
+    id: 'channel_task_subscriptions_without_channel',
+    label: 'Channel task subscriptions without channel',
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM channel_task_subscriptions s
+      LEFT JOIN channels c ON c.id = s.channel_id
+      WHERE c.id IS NULL
+    `
+  },
+  {
+    id: 'channel_task_subscriptions_without_task',
+    label: 'Channel task subscriptions without task',
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM channel_task_subscriptions s
+      LEFT JOIN scheduled_tasks t ON t.id = s.task_id
+      WHERE t.id IS NULL
+    `
+  },
+  {
     id: 'knowledge_items_without_base',
     label: 'Knowledge items without knowledge base',
     sql: `
@@ -659,6 +679,16 @@ export class StorageV2Database {
         FOREIGN KEY (session_id) REFERENCES agent_sessions(id) ON DELETE SET NULL
       );
 
+      CREATE TABLE IF NOT EXISTS channel_task_subscriptions (
+        channel_id TEXT NOT NULL,
+        task_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (channel_id, task_id),
+        FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE,
+        FOREIGN KEY (task_id) REFERENCES scheduled_tasks(id) ON DELETE CASCADE
+      );
+
       CREATE TABLE IF NOT EXISTS knowledge_bases (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -762,6 +792,7 @@ export class StorageV2Database {
       CREATE INDEX IF NOT EXISTS idx_agent_skills_agent_id ON agent_skills(agent_id);
       CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_agent_id ON scheduled_tasks(agent_id);
       CREATE INDEX IF NOT EXISTS idx_channels_agent_id ON channels(agent_id);
+      CREATE INDEX IF NOT EXISTS idx_channel_task_subscriptions_task_id ON channel_task_subscriptions(task_id);
       CREATE INDEX IF NOT EXISTS idx_knowledge_items_base_id ON knowledge_items(knowledge_base_id);
       CREATE INDEX IF NOT EXISTS idx_sync_changes_entity ON sync_changes(entity_type, entity_id);
       CREATE INDEX IF NOT EXISTS idx_migration_runs_created_at ON migration_runs(created_at);

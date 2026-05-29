@@ -17,6 +17,7 @@ const COUNTED_TABLES = [
   'scheduled_tasks',
   'task_run_logs',
   'channels',
+  'channel_task_subscriptions',
   'knowledge_bases',
   'knowledge_items',
   'kv_records',

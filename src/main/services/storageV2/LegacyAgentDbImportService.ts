@@ -32,6 +32,7 @@ export type StorageV2LegacyAgentDbImportReport = {
   taskCount: number
   taskRunLogCount: number
   channelCount: number
+  channelTaskSubscriptionCount: number
   importedAgentCount: number
   importedSessionCount: number
   importedSessionMessageCount: number
@@ -40,6 +41,7 @@ export type StorageV2LegacyAgentDbImportReport = {
   importedTaskCount: number
   importedTaskRunLogCount: number
   importedChannelCount: number
+  importedChannelTaskSubscriptionCount: number
   secretCandidateCount: number
   importedSecretCount: number
   skippedSecretCount: number
@@ -54,7 +56,8 @@ const LEGACY_TABLES = [
   'agent_skills',
   'scheduled_tasks',
   'task_run_logs',
-  'channels'
+  'channels',
+  'channel_task_subscriptions'
 ] as const
 
 const ENTITY_TYPE_BY_TABLE = {
@@ -267,6 +270,7 @@ export class StorageV2LegacyAgentDbImportService {
         taskCount: rows.scheduled_tasks.length,
         taskRunLogCount: rows.task_run_logs.length,
         channelCount: rows.channels.length,
+        channelTaskSubscriptionCount: rows.channel_task_subscriptions.length,
         importedAgentCount: dryRun ? 0 : rows.agents.length,
         importedSessionCount: dryRun ? 0 : rows.sessions.length,
         importedSessionMessageCount: dryRun ? 0 : rows.session_messages.length,
@@ -275,6 +279,7 @@ export class StorageV2LegacyAgentDbImportService {
         importedTaskCount: dryRun ? 0 : rows.scheduled_tasks.length,
         importedTaskRunLogCount: dryRun ? 0 : rows.task_run_logs.length,
         importedChannelCount: dryRun ? 0 : rows.channels.length,
+        importedChannelTaskSubscriptionCount: dryRun ? 0 : rows.channel_task_subscriptions.length,
         secretCandidateCount,
         importedSecretCount,
         skippedSecretCount: secretCandidateCount - importedSecretCount,
@@ -301,6 +306,7 @@ export class StorageV2LegacyAgentDbImportService {
       taskCount: 0,
       taskRunLogCount: 0,
       channelCount: 0,
+      channelTaskSubscriptionCount: 0,
       importedAgentCount: 0,
       importedSessionCount: 0,
       importedSessionMessageCount: 0,
@@ -309,6 +315,7 @@ export class StorageV2LegacyAgentDbImportService {
       importedTaskCount: 0,
       importedTaskRunLogCount: 0,
       importedChannelCount: 0,
+      importedChannelTaskSubscriptionCount: 0,
       secretCandidateCount: 0,
       importedSecretCount: 0,
       skippedSecretCount: 0,
@@ -373,6 +380,15 @@ export class StorageV2LegacyAgentDbImportService {
           const agentId = text(row, 'agent_id')
           const skillId = text(row, 'skill_id')
           return agentId && skillId ? `${agentId}\u001f${skillId}` : null
+        })
+        .filter((key): key is string => Boolean(key))
+    )
+    const channelTaskSubscriptionKeys = new Set(
+      rows.channel_task_subscriptions
+        .map((row) => {
+          const channelId = text(row, 'channel_id')
+          const taskId = text(row, 'task_id')
+          return channelId && taskId ? `${channelId}\u001f${taskId}` : null
         })
         .filter((key): key is string => Boolean(key))
     )
@@ -764,6 +780,38 @@ export class StorageV2LegacyAgentDbImportService {
       })
     }
 
+    for (const row of rows.channel_task_subscriptions) {
+      const channelId = text(row, 'channel_id')
+      const taskId = text(row, 'task_id')
+      if (!channelId || !taskId) continue
+      if (!channelIds.has(channelId) || !taskIds.has(taskId)) {
+        warnings.push(
+          `Skipped channel task subscription ${channelId || 'unknown'}:${taskId || 'unknown'}: missing channel or task.`
+        )
+        continue
+      }
+
+      const currentTime = now()
+      await client.execute({
+        sql: `
+          INSERT INTO channel_task_subscriptions (channel_id, task_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(channel_id, task_id) DO UPDATE SET
+            updated_at = excluded.updated_at
+        `,
+        args: [channelId, taskId, currentTime, currentTime]
+      })
+      await storageV2SyncLogService.recordChange({
+        client,
+        entityType: 'channel_task_subscription',
+        entityId: `${channelId}:${taskId}`,
+        payload: {
+          channelId,
+          taskId
+        }
+      })
+    }
+
     if (options.pruneMissing !== false) {
       if (tables.has('agents')) {
         await this.markMissingEntityRowsDeleted(client, 'agents', 'id', agentIds, { versioned: true })
@@ -785,6 +833,9 @@ export class StorageV2LegacyAgentDbImportService {
       }
       if (tables.has('task_run_logs')) {
         await this.deleteMissingTaskRunLogRows(client, taskRunLogIds)
+      }
+      if (tables.has('channel_task_subscriptions')) {
+        await this.deleteMissingChannelTaskSubscriptionRows(client, channelTaskSubscriptionKeys)
       }
     }
 
@@ -894,6 +945,50 @@ export class StorageV2LegacyAgentDbImportService {
         entityId: `${agentId}:${skillId}`,
         operation: 'delete',
         payload: { agentId, skillId }
+      })
+    }
+  }
+
+  private async deleteMissingChannelTaskSubscriptionRows(
+    client: ReturnType<typeof createClient>,
+    subscriptionKeys: Set<string>
+  ) {
+    const keysArray = Array.from(subscriptionKeys)
+    const missingRows =
+      subscriptionKeys.size === 0
+        ? await client.execute('SELECT channel_id, task_id FROM channel_task_subscriptions')
+        : await client.execute({
+            sql: `
+              SELECT channel_id, task_id
+              FROM channel_task_subscriptions
+              WHERE channel_id || char(31) || task_id NOT IN (${keysArray.map(() => '?').join(', ')})
+            `,
+            args: keysArray
+          })
+
+    if (subscriptionKeys.size === 0) {
+      await client.execute('DELETE FROM channel_task_subscriptions')
+    } else {
+      await client.execute({
+        sql: `
+          DELETE FROM channel_task_subscriptions
+          WHERE channel_id || char(31) || task_id NOT IN (${keysArray.map(() => '?').join(', ')})
+        `,
+        args: keysArray
+      })
+    }
+
+    for (const row of missingRows.rows) {
+      const channelId = text(row, 'channel_id')
+      const taskId = text(row, 'task_id')
+      if (!channelId || !taskId) continue
+
+      await storageV2SyncLogService.recordChange({
+        client,
+        entityType: 'channel_task_subscription',
+        entityId: `${channelId}:${taskId}`,
+        operation: 'delete',
+        payload: { channelId, taskId }
       })
     }
   }

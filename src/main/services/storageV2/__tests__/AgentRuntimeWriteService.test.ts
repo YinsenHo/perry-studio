@@ -99,6 +99,88 @@ describe('StorageV2AgentRuntimeWriteService', () => {
     )
   })
 
+  it('upserts scheduled tasks and syncs channel subscriptions through Storage v2 first', async () => {
+    mocks.client.execute
+      .mockResolvedValueOnce({ rows: [], columns: [], columnTypes: [] })
+      .mockResolvedValueOnce({ rows: [{ version: 7 }], columns: [], columnTypes: [] })
+      .mockResolvedValueOnce({ rows: [{ channel_id: 'channel-old' }], columns: [], columnTypes: [] })
+      .mockResolvedValue({ rows: [], columns: [], columnTypes: [] })
+
+    await new StorageV2AgentRuntimeWriteService().upsertScheduledTask(
+      {
+        id: 'task-1',
+        agent_id: 'agent-1',
+        name: 'Daily check',
+        prompt: 'Check status',
+        schedule_type: 'interval',
+        schedule_value: '30',
+        timeout_minutes: 5,
+        next_run: '2026-05-29T01:00:00.000Z',
+        last_run: null,
+        last_result: null,
+        status: 'active',
+        created_at: '2026-05-29T00:00:00.000Z',
+        updated_at: '2026-05-29T00:00:01.000Z'
+      },
+      ['channel-1', 'channel-1', 'channel-2']
+    )
+
+    expect(mocks.client.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining('INSERT INTO scheduled_tasks'),
+        args: expect.arrayContaining([
+          'task-1',
+          'agent-1',
+          'Daily check',
+          'Check status',
+          'interval',
+          '30',
+          5,
+          '2026-05-29T01:00:00.000Z',
+          'active'
+        ])
+      })
+    )
+    expect(mocks.client.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining('DELETE FROM channel_task_subscriptions'),
+        args: ['task-1', 'channel-1', 'channel-2']
+      })
+    )
+    expect(mocks.client.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining('INSERT INTO channel_task_subscriptions'),
+        args: ['channel-1', 'task-1', '2026-05-29T00:00:01.000Z', '2026-05-29T00:00:01.000Z']
+      })
+    )
+    expect(mocks.client.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining('INSERT INTO channel_task_subscriptions'),
+        args: ['channel-2', 'task-1', '2026-05-29T00:00:01.000Z', '2026-05-29T00:00:01.000Z']
+      })
+    )
+    expect(mocks.recordChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'scheduled_task',
+        entityId: 'task-1',
+        version: 7
+      })
+    )
+    expect(mocks.recordChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'channel_task_subscription',
+        entityId: 'channel-old:task-1',
+        operation: 'delete'
+      })
+    )
+    expect(mocks.recordChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'channel_task_subscription',
+        entityId: 'channel-1:task-1'
+      })
+    )
+  })
+
   it('does not persist plaintext channel secrets when safeStorage is unavailable', async () => {
     mocks.secretVault.isAvailable.mockReturnValue(false)
 

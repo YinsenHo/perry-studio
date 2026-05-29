@@ -24,12 +24,14 @@ export type StorageV2AgentLegacyProjectionReport = {
   projectedTaskCount: number
   projectedTaskRunLogCount: number
   projectedChannelCount: number
+  projectedChannelTaskSubscriptionCount: number
   skippedSessionCount: number
   skippedSessionMessageCount: number
   skippedAgentSkillCount: number
   skippedTaskCount: number
   skippedTaskRunLogCount: number
   skippedChannelCount: number
+  skippedChannelTaskSubscriptionCount: number
   restoredChannelSecretCount: number
   missingChannelSecretCount: number
   warnings: string[]
@@ -332,12 +334,14 @@ function emptyReport(agentDbPath: string): StorageV2AgentLegacyProjectionReport 
     projectedTaskCount: 0,
     projectedTaskRunLogCount: 0,
     projectedChannelCount: 0,
+    projectedChannelTaskSubscriptionCount: 0,
     skippedSessionCount: 0,
     skippedSessionMessageCount: 0,
     skippedAgentSkillCount: 0,
     skippedTaskCount: 0,
     skippedTaskRunLogCount: 0,
     skippedChannelCount: 0,
+    skippedChannelTaskSubscriptionCount: 0,
     restoredChannelSecretCount: 0,
     missingChannelSecretCount: 0,
     warnings: []
@@ -395,21 +399,23 @@ export class StorageV2AgentLegacyProjectionService {
   }
 
   private async projectRows(storageClient: Client, targetClient: Client, report: StorageV2AgentLegacyProjectionReport) {
-    const [agents, sessions, skills, agentSkills, tasks, taskRunLogs, channels] = await Promise.all([
-      readRows(storageClient, 'SELECT * FROM agents ORDER BY sort_order ASC, created_at ASC'),
-      readRows(
-        storageClient,
-        'SELECT * FROM agent_sessions WHERE deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC'
-      ),
-      readRows(storageClient, 'SELECT * FROM skills WHERE deleted_at IS NULL ORDER BY name ASC'),
-      readRows(storageClient, 'SELECT * FROM agent_skills ORDER BY agent_id ASC, skill_id ASC'),
-      readRows(
-        storageClient,
-        'SELECT * FROM scheduled_tasks WHERE deleted_at IS NULL ORDER BY next_run ASC, created_at ASC'
-      ),
-      readRows(storageClient, 'SELECT * FROM task_run_logs ORDER BY run_at ASC, id ASC'),
-      readRows(storageClient, 'SELECT * FROM channels WHERE deleted_at IS NULL ORDER BY created_at ASC')
-    ])
+    const [agents, sessions, skills, agentSkills, tasks, taskRunLogs, channels, channelTaskSubscriptions] =
+      await Promise.all([
+        readRows(storageClient, 'SELECT * FROM agents ORDER BY sort_order ASC, created_at ASC'),
+        readRows(
+          storageClient,
+          'SELECT * FROM agent_sessions WHERE deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC'
+        ),
+        readRows(storageClient, 'SELECT * FROM skills WHERE deleted_at IS NULL ORDER BY name ASC'),
+        readRows(storageClient, 'SELECT * FROM agent_skills ORDER BY agent_id ASC, skill_id ASC'),
+        readRows(
+          storageClient,
+          'SELECT * FROM scheduled_tasks WHERE deleted_at IS NULL ORDER BY next_run ASC, created_at ASC'
+        ),
+        readRows(storageClient, 'SELECT * FROM task_run_logs ORDER BY run_at ASC, id ASC'),
+        readRows(storageClient, 'SELECT * FROM channels WHERE deleted_at IS NULL ORDER BY created_at ASC'),
+        readRows(storageClient, 'SELECT * FROM channel_task_subscriptions ORDER BY channel_id ASC, task_id ASC')
+      ])
 
     const agentIds = new Set<string>()
     const visibleAgentIds = new Set<string>()
@@ -630,23 +636,20 @@ export class StorageV2AgentLegacyProjectionService {
       report.projectedTaskRunLogCount++
     }
 
+    const projectedChannelIds = new Set<string>()
     for (const row of channels) {
       const type = requiredText(row, 'type', '')
+      const channelId = requiredText(row, 'id', `${type}-${Date.now()}`)
       if (!SUPPORTED_CHANNEL_TYPES.has(type)) {
         report.skippedChannelCount++
         report.warnings.push(
-          `Skipped channel ${text(row, 'id') ?? 'unknown'} because type ${type || 'unknown'} is unsupported.`
+          `Skipped channel ${channelId || 'unknown'} because type ${type || 'unknown'} is unsupported.`
         )
         continue
       }
 
       const permissionMode = text(row, 'permission_mode')
-      const restoredConfig = await this.restoreChannelConfig(
-        type,
-        text(row, 'id') ?? type,
-        text(row, 'config_json'),
-        report
-      )
+      const restoredConfig = await this.restoreChannelConfig(type, channelId, text(row, 'config_json'), report)
       const sessionId = text(row, 'session_id')
       const agentId = text(row, 'agent_id')
 
@@ -659,7 +662,7 @@ export class StorageV2AgentLegacyProjectionService {
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         args: [
-          requiredText(row, 'id', `${type}-${Date.now()}`),
+          channelId,
           type,
           requiredText(row, 'name', type),
           agentId && visibleAgentIds.has(agentId) ? agentId : null,
@@ -672,7 +675,26 @@ export class StorageV2AgentLegacyProjectionService {
           epochMs(row.updated_at)
         ]
       })
+      projectedChannelIds.add(channelId)
       report.projectedChannelCount++
+    }
+
+    for (const row of channelTaskSubscriptions) {
+      const channelId = text(row, 'channel_id')
+      const taskId = text(row, 'task_id')
+      if (!channelId || !taskId || !projectedChannelIds.has(channelId) || !taskIds.has(taskId)) {
+        report.skippedChannelTaskSubscriptionCount++
+        continue
+      }
+
+      await targetClient.execute({
+        sql: `
+          INSERT INTO channel_task_subscriptions (channel_id, task_id)
+          VALUES (?, ?)
+        `,
+        args: [channelId, taskId]
+      })
+      report.projectedChannelTaskSubscriptionCount++
     }
 
     await this.projectSessionMessages(storageClient, targetClient, sessionIds, report)

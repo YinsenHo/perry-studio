@@ -1,4 +1,6 @@
 import { loggerService } from '@logger'
+import { storageV2AgentRuntimeTombstoneService } from '@main/services/storageV2/AgentRuntimeTombstoneService'
+import { storageV2AgentRuntimeWriteService } from '@main/services/storageV2/AgentRuntimeWriteService'
 import type { CreateTaskRequest, ListOptions, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@types'
 import { and, asc, count, desc, eq, inArray, lte, ne } from 'drizzle-orm'
 
@@ -45,6 +47,7 @@ export class TaskService extends BaseService {
     }
 
     const database = await this.getDatabase()
+    await storageV2AgentRuntimeWriteService.upsertScheduledTask(insertData, req.channel_ids ?? [])
     await database.insert(scheduledTasksTable).values(insertData)
 
     // Create channel subscriptions
@@ -148,6 +151,13 @@ export class TaskService extends BaseService {
     }
 
     const database = await this.getDatabase()
+    await storageV2AgentRuntimeWriteService.upsertScheduledTask(
+      {
+        ...existing,
+        ...updateData
+      },
+      updates.channel_ids ?? existing.channel_ids ?? []
+    )
     await database.update(scheduledTasksTable).set(updateData).where(eq(scheduledTasksTable.id, taskId))
 
     // Sync channel subscriptions if provided
@@ -159,8 +169,14 @@ export class TaskService extends BaseService {
     return this.getTaskWithChannels(taskId)
   }
 
-  async deleteTaskById(taskId: string): Promise<boolean> {
+  async deleteTaskById(taskId: string, options: { storageV2Tombstoned?: boolean } = {}): Promise<boolean> {
     const database = await this.getDatabase()
+    const existing = await this.getTaskById(taskId)
+    if (!existing) return false
+
+    if (!options.storageV2Tombstoned) {
+      await storageV2AgentRuntimeTombstoneService.tombstoneTask(taskId)
+    }
     const result = await database.delete(scheduledTasksTable).where(eq(scheduledTasksTable.id, taskId))
 
     logger.info('Task deleted', { taskId })
@@ -221,6 +237,13 @@ export class TaskService extends BaseService {
     }
 
     const database = await this.getDatabase()
+    await storageV2AgentRuntimeWriteService.upsertScheduledTask(
+      {
+        ...existing,
+        ...updateData
+      },
+      updates.channel_ids ?? existing.channel_ids ?? []
+    )
     await database
       .update(scheduledTasksTable)
       .set(updateData)
@@ -280,8 +303,14 @@ export class TaskService extends BaseService {
     }
   }
 
-  async deleteTask(agentId: string, taskId: string): Promise<boolean> {
+  async deleteTask(agentId: string, taskId: string, options: { storageV2Tombstoned?: boolean } = {}): Promise<boolean> {
     const database = await this.getDatabase()
+    const existing = await this.getTask(agentId, taskId)
+    if (!existing) return false
+
+    if (!options.storageV2Tombstoned) {
+      await storageV2AgentRuntimeTombstoneService.tombstoneTask(taskId)
+    }
     const result = await database
       .delete(scheduledTasksTable)
       .where(and(eq(scheduledTasksTable.id, taskId), eq(scheduledTasksTable.agent_id, agentId)))
@@ -314,6 +343,9 @@ export class TaskService extends BaseService {
   }
 
   async updateTaskAfterRun(taskId: string, nextRun: string | null, lastResult: string): Promise<void> {
+    const existing = await this.getTaskById(taskId)
+    if (!existing) return
+
     const now = new Date().toISOString()
     const updateData: Partial<TaskRow> = {
       last_run: now,
@@ -328,6 +360,10 @@ export class TaskService extends BaseService {
     }
 
     const database = await this.getDatabase()
+    await storageV2AgentRuntimeWriteService.upsertScheduledTask({
+      ...existing,
+      ...updateData
+    })
     await database.update(scheduledTasksTable).set(updateData).where(eq(scheduledTasksTable.id, taskId))
   }
 

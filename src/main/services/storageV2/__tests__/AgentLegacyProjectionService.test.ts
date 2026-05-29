@@ -19,12 +19,14 @@ function createReport(): StorageV2AgentLegacyProjectionReport {
     projectedTaskCount: 0,
     projectedTaskRunLogCount: 0,
     projectedChannelCount: 0,
+    projectedChannelTaskSubscriptionCount: 0,
     skippedSessionCount: 0,
     skippedSessionMessageCount: 0,
     skippedAgentSkillCount: 0,
     skippedTaskCount: 0,
     skippedTaskRunLogCount: 0,
     skippedChannelCount: 0,
+    skippedChannelTaskSubscriptionCount: 0,
     restoredChannelSecretCount: 0,
     missingChannelSecretCount: 0,
     warnings: []
@@ -167,5 +169,97 @@ describe('StorageV2AgentLegacyProjectionService', () => {
     expect(report.skippedAgentSkillCount).toBe(1)
     expect(report.skippedTaskCount).toBe(1)
     expect(report.skippedTaskRunLogCount).toBe(1)
+  })
+
+  it('projects channel task subscriptions when both task and channel are restorable', async () => {
+    type ExecuteInput = string | { sql: string; args?: unknown[] }
+
+    const storageExecute = vi.fn(async (input: ExecuteInput) => {
+      if (typeof input === 'string') return { rows: [] }
+
+      const sql = input.sql
+
+      if (sql.includes('FROM agents')) {
+        return {
+          rows: [
+            {
+              id: 'agent-1',
+              type: 'claude-code',
+              name: 'Agent',
+              deleted_at: null,
+              model_id: 'model-1',
+              created_at: '2026-05-28T00:00:00.000Z',
+              updated_at: '2026-05-29T00:00:00.000Z'
+            }
+          ]
+        }
+      }
+
+      if (sql.includes('FROM scheduled_tasks')) {
+        return {
+          rows: [
+            {
+              id: 'task-1',
+              agent_id: 'agent-1',
+              name: 'Daily task',
+              prompt: 'run',
+              schedule_type: 'once',
+              schedule_value: '2026-05-29T00:00:00.000Z',
+              status: 'active',
+              created_at: '2026-05-28T00:00:00.000Z',
+              updated_at: '2026-05-28T00:00:00.000Z'
+            }
+          ]
+        }
+      }
+
+      if (sql.includes('FROM channels')) {
+        return {
+          rows: [
+            {
+              id: 'channel-1',
+              type: 'telegram',
+              name: 'Telegram',
+              agent_id: 'agent-1',
+              config_json: '{}',
+              is_active: 1,
+              active_chat_ids_json: '[]',
+              created_at: '2026-05-28T00:00:00.000Z',
+              updated_at: '2026-05-28T00:00:00.000Z'
+            }
+          ]
+        }
+      }
+
+      if (sql.includes('FROM channel_task_subscriptions')) {
+        return {
+          rows: [
+            {
+              channel_id: 'channel-1',
+              task_id: 'task-1'
+            }
+          ]
+        }
+      }
+
+      return { rows: [] }
+    })
+    const targetExecute = vi.fn(async (_input: ExecuteInput) => ({ rows: [] }))
+    const report = createReport()
+
+    await (storageV2AgentLegacyProjectionService as any).projectRows(
+      { execute: storageExecute },
+      { execute: targetExecute },
+      report
+    )
+
+    expect(targetExecute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining('INSERT INTO channel_task_subscriptions'),
+        args: ['channel-1', 'task-1']
+      })
+    )
+    expect(report.projectedChannelTaskSubscriptionCount).toBe(1)
+    expect(report.skippedChannelTaskSubscriptionCount).toBe(0)
   })
 })

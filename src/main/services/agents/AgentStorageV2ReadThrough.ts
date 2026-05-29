@@ -484,7 +484,7 @@ export async function deleteTaskWithStorageV2Recovery(agentId: string, taskId: s
   if (!task) return false
 
   await storageV2AgentRuntimeTombstoneService.tombstoneTask(taskId)
-  const deleted = await taskService.deleteTask(agentId, taskId)
+  const deleted = await taskService.deleteTask(agentId, taskId, { storageV2Tombstoned: true })
   if (deleted) {
     await flushAgentRuntimeMutationToStorageV2({ strict: true })
   }
@@ -503,7 +503,7 @@ export async function deleteTaskByIdWithStorageV2Recovery(taskId: string): Promi
   if (!task) return false
 
   await storageV2AgentRuntimeTombstoneService.tombstoneTask(taskId)
-  const deleted = await taskService.deleteTaskById(taskId)
+  const deleted = await taskService.deleteTaskById(taskId, { storageV2Tombstoned: true })
   if (deleted) {
     await flushAgentRuntimeMutationToStorageV2({ strict: true })
   }

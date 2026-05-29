@@ -11,7 +11,11 @@ import { getAssistantMessage, getUserMessage } from '@renderer/services/Messages
 import store, { useAppSelector } from '@renderer/store'
 import { updateOneBlock, upsertManyBlocks, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
-import { cancelThrottledBlockUpdate, throttledBlockUpdate } from '@renderer/store/thunk/messageThunk'
+import {
+  cancelThrottledBlockUpdate,
+  clearTopicMessagesThunk,
+  throttledBlockUpdate
+} from '@renderer/store/thunk/messageThunk'
 import type { Topic } from '@renderer/types'
 import { ThemeMode } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
@@ -472,7 +476,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       } else {
         // Clear the topic messages to reduce memory usage
         if (currentTopic.current) {
-          store.dispatch(newMessagesActions.clearTopicMessages(currentTopic.current.id))
+          void store.dispatch(clearTopicMessagesThunk(currentTopic.current.id))
         }
 
         // Reset the topic

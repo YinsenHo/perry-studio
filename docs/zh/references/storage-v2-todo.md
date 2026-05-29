@@ -36,11 +36,11 @@
 
 ## 2. StorageService-first 写路径
 
-状态：进行中
+状态：完成
 
 - [x] Provider/模型配置从 Redux-first 切到 Storage v2 权威写入；`useProvider` / `useProviders` 已先 upsert Storage v2 provider/model，再更新 Redux/legacy mirror，删除继续先写 tombstone。
 - [x] Assistant/助手配置从 Redux-first 切到 Storage v2 权威写入；新增、复制、排序、模型、设置、topic 元数据更新和导入创建路径已先 upsert Storage v2 assistant，再更新 Redux/legacy mirror。
-- [ ] 普通会话从 Dexie-first 切到 Storage v2 conversation/message/block 权威写入。
+- [x] 普通会话从 Dexie-first 切到 Storage v2 conversation/message/block 权威写入；append/update message、block-only 更新、destructive snapshot-first 和 read-through 均已覆盖。
 - [x] 普通会话 append/update message 的 DbService 入口已先写 Storage v2 conversation/message/block，再落 Dexie legacy cache；delete/clear 既有 tombstone/snapshot-first 保护继续保留。
 - [x] 普通会话 block-only 更新入口已先写 Storage v2 message_blocks，再落 Dexie legacy cache；覆盖 updateBlocks、bulkAddBlocks 和可解析的 updateSingleBlock 路径。
 - [x] 文件上传/删除从 Dexie/filesystem-first 切到 blob/file record 权威写入。
@@ -56,7 +56,7 @@
 
 ## 3. 读取路径切换
 
-状态：进行中
+状态：完成
 
 - [x] Redux core snapshot hydrate / missing legacy persist bootstrap。
 - [x] 普通会话、文件、Dexie settings、Dexie 辅助表已具备 read-through/recovery 服务。
@@ -92,7 +92,7 @@
 
 ## 6. 完整性和审计工具
 
-状态：进行中
+状态：完成
 
 - [x] 已有 migration audit、stats、integrity、secret ref validation 基础能力。
 - [x] 扩展 migration audit，列出仍在 legacy-only 的数据路径。
@@ -106,7 +106,7 @@
 状态：进行中
 
 - [x] 已覆盖多条 destructive 操作防复活、mirror flush、read-through、backup/restore 局部测试。
-- [ ] 补 Storage v2-first 写路径测试。
+- [x] 补 Storage v2-first 写路径测试；Provider、Assistant、普通会话、文件、Agent runtime、App data/workbench 均已补 Storage v2-first 和失败阻断 legacy 写入测试。
 - [x] Provider/模型 Storage v2-first 写路径测试：renderer 写入队列覆盖连续模型变更，main StorageService 覆盖 secret vault upsert、显式 credential ref 和 provider tombstone。
 - [x] Assistant Storage v2-first 写路径测试：renderer 写入队列覆盖连续助手变更，main StorageService 覆盖 assistant upsert 和 tombstone。
 - [x] 普通会话 Storage v2-first 写路径测试：DbService 覆盖 append/update message 先 upsert Storage v2，main StorageService 覆盖 conversation/message/block API。

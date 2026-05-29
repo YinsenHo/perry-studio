@@ -1709,7 +1709,7 @@ export const cloneMessagesToNewTopicThunk =
       if (clonedBlocks.length > 0) {
         dispatch(upsertManyBlocks(clonedBlocks))
       }
-      scheduleStorageV2TopicMirror(newTopic.id)
+      await storageV2ConversationMirrorService.flushTopic(newTopic.id, () => store.getState())
 
       return true // Indicate success
     } catch (error) {

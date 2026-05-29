@@ -465,20 +465,50 @@ const cleanupFilesAfterStorageV2Mirror = async (files: FileMetadata[]) => {
   await FileManager.deleteFiles(files)
 }
 
-export const cleanupMultipleBlocks = (dispatch: AppDispatch, blockIds: string[]) => {
-  blockIds.forEach((id) => {
-    cancelThrottledBlockUpdate(id)
-  })
-
-  if (blockIds.length > 0) {
-    dispatch(removeManyBlocks(blockIds))
-  }
-}
-
 const cancelMultipleBlockUpdates = (blockIds: string[]) => {
   blockIds.forEach((id) => {
     cancelThrottledBlockUpdate(id)
   })
+}
+
+const persistMessageResetBeforeRuntimeUpdate = async (
+  topicId: string,
+  finalMessagesToSave: Message[],
+  messagesToPersist: Message[],
+  blockIdsToDelete: string[]
+) => {
+  cancelMultipleBlockUpdates(blockIdsToDelete)
+
+  if (isAgentSessionTopicId(topicId)) {
+    for (const message of messagesToPersist) {
+      await saveMessageAndBlocksToDB(
+        topicId,
+        message,
+        [],
+        finalMessagesToSave.findIndex((candidate) => candidate.id === message.id)
+      )
+    }
+
+    return
+  }
+
+  await db.transaction('rw', db.topics, db.message_blocks, async () => {
+    await db.topics.update(topicId, { messages: finalMessagesToSave })
+
+    if (blockIdsToDelete.length > 0) {
+      await db.message_blocks.bulkDelete(blockIdsToDelete)
+    }
+  })
+
+  await flushStorageV2TopicMirror(topicId, { destructive: blockIdsToDelete.length > 0 })
+}
+
+export const cleanupMultipleBlocks = (dispatch: AppDispatch, blockIds: string[]) => {
+  cancelMultipleBlockUpdates(blockIds)
+
+  if (blockIds.length > 0) {
+    dispatch(removeManyBlocks(blockIds))
+  }
 }
 
 // 新增: 通用的、非节流的函数，用于保存消息和块的更新到数据库
@@ -1115,6 +1145,7 @@ export const resendMessageThunk =
       }
 
       const resetDataList: Message[] = []
+      const newMessagesToAdd: Message[] = []
 
       if (assistantMessagesToReset.length === 0 && !userMessageToResend?.mentions?.length) {
         // 没有相关的助手消息且没有提及模型时，使用助手模型创建一条消息
@@ -1125,10 +1156,7 @@ export const resendMessageThunk =
         })
         assistantMessage.traceId = userMessageToResend.traceId
         resetDataList.push(assistantMessage)
-
-        resetDataList.forEach((message) => {
-          dispatch(newMessagesActions.addMessage({ topicId, message }))
-        })
+        newMessagesToAdd.push(assistantMessage)
       }
 
       // 处理存在相关的助手消息的情况
@@ -1172,25 +1200,25 @@ export const resendMessageThunk =
           modelId: model.id
         })
         resetDataList.push(assistantMessage)
-        dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+        newMessagesToAdd.push(assistantMessage)
       }
 
       const filesToDelete = await getFilesForBlocks(allBlockIdsToDelete)
+      const resetMessagesById = new Map(resetDataList.map((message) => [message.id, message]))
+      const finalMessagesToSave = allMessagesForTopic.map((message) => resetMessagesById.get(message.id) ?? message)
+
+      for (const message of newMessagesToAdd) {
+        if (!finalMessagesToSave.some((candidate) => candidate.id === message.id)) {
+          finalMessagesToSave.push(message)
+        }
+      }
+
+      await persistMessageResetBeforeRuntimeUpdate(topicId, finalMessagesToSave, resetDataList, allBlockIdsToDelete)
 
       messagesToUpdateInRedux.forEach((update) => dispatch(newMessagesActions.updateMessage(update)))
+      newMessagesToAdd.forEach((message) => dispatch(newMessagesActions.addMessage({ topicId, message })))
       cleanupMultipleBlocks(dispatch, allBlockIdsToDelete)
-
-      try {
-        if (allBlockIdsToDelete.length > 0) {
-          await db.message_blocks.bulkDelete(allBlockIdsToDelete)
-        }
-        const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
-        await db.topics.update(topicId, { messages: finalMessagesToSave })
-        await flushStorageV2TopicMirror(topicId, { destructive: allBlockIdsToDelete.length > 0 })
-        await cleanupFilesAfterStorageV2Mirror(filesToDelete)
-      } catch (dbError) {
-        logger.error('[resendMessageThunk] Error updating database:', dbError as Error)
-      }
+      await cleanupFilesAfterStorageV2Mirror(filesToDelete)
 
       const queue = getTopicQueue(topicId)
       for (const resetMsg of resetDataList) {
@@ -1303,6 +1331,14 @@ export const regenerateAssistantResponseThunk =
         ...(activeAgentSession?.agentSessionId ? { agentSessionId: activeAgentSession.agentSessionId } : {})
       }
 
+      const filesToDelete = await getFilesForBlocks(blockIdsToDelete)
+      const finalMessagesToSave = allMessagesForTopic.map((message) =>
+        message.id === resetAssistantMsg.id ? resetAssistantMsg : message
+      )
+
+      // 6. Persist reset message and block pruning before mutating Redux state.
+      await persistMessageResetBeforeRuntimeUpdate(topicId, finalMessagesToSave, [resetAssistantMsg], blockIdsToDelete)
+
       dispatch(
         newMessagesActions.updateMessage({
           topicId,
@@ -1311,24 +1347,8 @@ export const regenerateAssistantResponseThunk =
         })
       )
 
-      const filesToDelete = await getFilesForBlocks(blockIdsToDelete)
-
-      // 6. Remove old blocks from Redux
+      // 7. Remove old blocks from Redux after durable storage has accepted the reset.
       cleanupMultipleBlocks(dispatch, blockIdsToDelete)
-
-      // 7. Update DB: Save the reset message state within the topic and delete old blocks
-      // Fetch the current state *after* Redux updates to get the latest message list
-      // Use the selector to get the final ordered list of messages for the topic
-      const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
-
-      await db.transaction('rw', db.topics, db.message_blocks, async () => {
-        // Use the result from the selector to update the DB
-        await db.topics.update(topicId, { messages: finalMessagesToSave })
-        if (blockIdsToDelete.length > 0) {
-          await db.message_blocks.bulkDelete(blockIdsToDelete)
-        }
-      })
-      await flushStorageV2TopicMirror(topicId, { destructive: blockIdsToDelete.length > 0 })
       await cleanupFilesAfterStorageV2Mirror(filesToDelete)
 
       // 8. Add fetch/process call to the queue

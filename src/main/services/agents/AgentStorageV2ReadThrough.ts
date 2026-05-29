@@ -624,7 +624,7 @@ export async function deleteChannelWithStorageV2Recovery(channelId: string): Pro
   if (!channel) return false
 
   await storageV2AgentRuntimeTombstoneService.tombstoneChannel(channelId)
-  const deleted = await channelService.deleteChannel(channelId)
+  const deleted = await channelService.deleteChannel(channelId, { storageV2Tombstoned: true })
   if (deleted) {
     await flushAgentRuntimeMutationToStorageV2({ strict: true })
   }

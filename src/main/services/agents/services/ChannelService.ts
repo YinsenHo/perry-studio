@@ -1,5 +1,8 @@
 import { loggerService } from '@logger'
+import { storageV2AgentRuntimeTombstoneService } from '@main/services/storageV2/AgentRuntimeTombstoneService'
+import { storageV2AgentRuntimeWriteService } from '@main/services/storageV2/AgentRuntimeWriteService'
 import { and, eq, inArray } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 import { BaseService } from '../BaseService'
 import {
@@ -31,16 +34,23 @@ export class ChannelService extends BaseService {
     permissionMode?: string
   }): Promise<ChannelRow> {
     const database = await this.getDatabase()
+    const now = Date.now()
 
-    const insertData: InsertChannelRow = {
+    const insertData: InsertChannelRow & { id: string; createdAt: number; updatedAt: number } = {
+      id: uuidv4(),
       type: data.type,
       name: data.name,
       agentId: data.agentId,
+      sessionId: null,
       config: data.config,
       isActive: data.isActive ?? true,
-      permissionMode: data.permissionMode
+      activeChatIds: [],
+      permissionMode: data.permissionMode,
+      createdAt: now,
+      updatedAt: now
     }
 
+    await storageV2AgentRuntimeWriteService.upsertChannel(insertData)
     const result = await database.insert(channelsTable).values(insertData).returning()
 
     if (!result[0]) {
@@ -98,7 +108,19 @@ export class ChannelService extends BaseService {
     >
   ): Promise<ChannelRow | null> {
     const database = await this.getDatabase()
-    const result = await database.update(channelsTable).set(updates).where(eq(channelsTable.id, id)).returning()
+    const existing = await this.getChannel(id)
+    if (!existing) {
+      return null
+    }
+
+    const updateData = { ...updates, updatedAt: Date.now() }
+    const storageRow = {
+      ...existing,
+      ...updateData
+    }
+
+    await storageV2AgentRuntimeWriteService.upsertChannel(storageRow)
+    const result = await database.update(channelsTable).set(updateData).where(eq(channelsTable.id, id)).returning()
 
     if (!result[0]) {
       return null
@@ -108,8 +130,16 @@ export class ChannelService extends BaseService {
     return result[0]
   }
 
-  async deleteChannel(id: string): Promise<boolean> {
+  async deleteChannel(id: string, options: { storageV2Tombstoned?: boolean } = {}): Promise<boolean> {
     const database = await this.getDatabase()
+    const existing = await this.getChannel(id)
+    if (!existing) {
+      return false
+    }
+
+    if (!options.storageV2Tombstoned) {
+      await storageV2AgentRuntimeTombstoneService.tombstoneChannel(id)
+    }
     const result = await database.delete(channelsTable).where(eq(channelsTable.id, id)).returning()
     if (result.length > 0) {
       logger.info('Channel deleted', { channelId: id })

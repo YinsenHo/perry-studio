@@ -89,11 +89,6 @@ const scheduleStorageV2TopicMirror = (topicId: string) => {
   storageV2ConversationMirrorService.scheduleTopic(topicId, () => store.getState())
 }
 
-const flushStorageV2TopicMirror = async (topicId: string, options: { destructive?: boolean } = {}) => {
-  if (isAgentSessionTopicId(topicId)) return
-  await storageV2ConversationMirrorService.flushTopic(topicId, () => store.getState(), options)
-}
-
 const finishTopicLoading = async (topicId: string) => {
   await waitForTopicQueue(topicId)
   store.dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
@@ -492,6 +487,13 @@ const persistMessageResetBeforeRuntimeUpdate = async (
     return
   }
 
+  await storageV2ConversationMirrorService.flushTopicMessagesSnapshot(
+    topicId,
+    () => store.getState(),
+    finalMessagesToSave,
+    { destructive: blockIdsToDelete.length > 0 }
+  )
+
   await db.transaction('rw', db.topics, db.message_blocks, async () => {
     await db.topics.update(topicId, { messages: finalMessagesToSave })
 
@@ -499,8 +501,6 @@ const persistMessageResetBeforeRuntimeUpdate = async (
       await db.message_blocks.bulkDelete(blockIdsToDelete)
     }
   })
-
-  await flushStorageV2TopicMirror(topicId, { destructive: blockIdsToDelete.length > 0 })
 }
 
 export const cleanupMultipleBlocks = (dispatch: AppDispatch, blockIds: string[]) => {
@@ -1805,13 +1805,18 @@ export const removeBlocksThunk =
         const finalMessagesToSave = (selectMessagesForTopic(state, topicId) ?? []).map((candidate) =>
           candidate.id === messageId ? { ...candidate, blocks: updatedBlockIds } : candidate
         )
+        await storageV2ConversationMirrorService.flushTopicMessagesSnapshot(
+          topicId,
+          () => store.getState(),
+          finalMessagesToSave,
+          { destructive: true }
+        )
         await db.transaction('rw', db.topics, db.message_blocks, async () => {
           await db.topics.update(topicId, { messages: finalMessagesToSave })
           await db.message_blocks.bulkDelete(blockIdsToRemove)
         })
       }
 
-      await flushStorageV2TopicMirror(topicId, { destructive: true })
       dispatch(
         newMessagesActions.updateMessage({
           topicId,

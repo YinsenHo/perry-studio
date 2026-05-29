@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   filesGet: vi.fn(),
   fetchStorageV2TopicMessages: vi.fn(),
   messageBlocksAnyOf: vi.fn(),
+  messageBlocksToArray: vi.fn(),
   messageBlocksWhere: vi.fn(),
   topicsGet: vi.fn()
 }))
@@ -34,7 +35,8 @@ describe('StorageV2ConversationMirrorService', () => {
     vi.clearAllMocks()
     originalApi = window.api
     mocks.fetchStorageV2TopicMessages.mockResolvedValue(null)
-    mocks.messageBlocksAnyOf.mockResolvedValue([])
+    mocks.messageBlocksToArray.mockResolvedValue([])
+    mocks.messageBlocksAnyOf.mockReturnValue({ toArray: mocks.messageBlocksToArray })
     mocks.messageBlocksWhere.mockReturnValue({ anyOf: mocks.messageBlocksAnyOf })
   })
 
@@ -170,6 +172,84 @@ describe('StorageV2ConversationMirrorService', () => {
         id: 'topic-1',
         messages: [],
         blocks: []
+      })
+    )
+  })
+
+  it('persists an explicit topic snapshot without stale deleted blocks', async () => {
+    const syncConversation = vi.fn().mockResolvedValue({ messageCount: 1, blockCount: 1 })
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        storageV2: {
+          syncConversation
+        }
+      }
+    })
+
+    mocks.messageBlocksToArray.mockResolvedValue([
+      {
+        id: 'block-keep',
+        messageId: 'message-1',
+        type: 'main_text',
+        content: 'keep'
+      },
+      {
+        id: 'block-delete',
+        messageId: 'message-1',
+        type: 'main_text',
+        content: 'delete'
+      }
+    ])
+
+    const messages = [
+      {
+        id: 'message-1',
+        role: 'user',
+        assistantId: 'assistant-1',
+        topicId: 'topic-1',
+        blocks: ['block-keep'],
+        createdAt: '2026-01-01T00:00:00.000Z'
+      }
+    ]
+    const state = {
+      assistants: {
+        assistants: [
+          {
+            id: 'assistant-1',
+            topics: [
+              {
+                id: 'topic-1',
+                assistantId: 'assistant-1',
+                name: 'Snapshot',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z',
+                messages: []
+              }
+            ]
+          }
+        ]
+      }
+    }
+
+    const { storageV2ConversationMirrorService } = await import('../StorageV2ConversationMirrorService')
+
+    await storageV2ConversationMirrorService.flushTopicMessagesSnapshot('topic-1', () => state, messages as any, {
+      destructive: true
+    })
+
+    expect(syncConversation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'topic-1',
+        messages,
+        blocks: [
+          {
+            id: 'block-keep',
+            messageId: 'message-1',
+            type: 'main_text',
+            content: 'keep'
+          }
+        ]
       })
     )
   })

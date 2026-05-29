@@ -109,23 +109,34 @@ class DbService implements MessageDataSource {
     )
   }
 
-  private async flushRegularTopicMirror(
-    topicId: string | undefined,
-    options: { destructive?: boolean } = {}
-  ): Promise<void> {
-    if (!topicId || isAgentSessionTopicId(topicId)) return
+  private async getRegularTopicSnapshot(
+    topicId: string,
+    buildMessages: (messages: Message[]) => Message[]
+  ): Promise<{ topic: { id: string; messages: Message[] }; messages: Message[] } | null> {
+    if (isAgentSessionTopicId(topicId)) return null
 
-    await storageV2ConversationMirrorService.flushTopic(topicId, () => this.getState(), options)
+    const topic = await this.dexieSource.getRawTopic(topicId)
+    if (!topic) return null
+
+    return {
+      topic,
+      messages: buildMessages(topic.messages ?? [])
+    }
   }
 
-  private async flushRegularTopicMirrors(
-    topicIds: Iterable<string | undefined>,
-    options: { destructive?: boolean } = {}
+  private async persistRegularTopicMessagesBeforeDestructiveMutation(
+    snapshot: { topic: { id: string; messages: Message[] }; messages: Message[] } | null
   ): Promise<void> {
-    await storageV2ConversationMirrorService.flushTopics(
-      Array.from(topicIds).filter((topicId) => topicId && !isAgentSessionTopicId(topicId)),
+    if (!snapshot) return
+
+    await storageV2ConversationMirrorService.flushTopicMessagesSnapshot(
+      snapshot.topic.id,
       () => this.getState(),
-      options
+      snapshot.messages,
+      {
+        topic: snapshot.topic,
+        destructive: true
+      }
     )
   }
 
@@ -188,15 +199,22 @@ class DbService implements MessageDataSource {
 
   async deleteMessage(topicId: string, messageId: string): Promise<void> {
     const source = this.getDataSource(topicId)
+    await this.persistRegularTopicMessagesBeforeDestructiveMutation(
+      await this.getRegularTopicSnapshot(topicId, (messages) => messages.filter((message) => message.id !== messageId))
+    )
     const filesToDelete = await source.deleteMessage(topicId, messageId)
-    await this.flushRegularTopicMirror(topicId, { destructive: true })
     await this.cleanupFilesAfterConversationMirror(filesToDelete)
   }
 
   async deleteMessages(topicId: string, messageIds: string[]): Promise<void> {
     const source = this.getDataSource(topicId)
+    const messageIdsToDelete = new Set(messageIds)
+    await this.persistRegularTopicMessagesBeforeDestructiveMutation(
+      await this.getRegularTopicSnapshot(topicId, (messages) =>
+        messages.filter((message) => !messageIdsToDelete.has(message.id))
+      )
+    )
     const filesToDelete = await source.deleteMessages(topicId, messageIds)
-    await this.flushRegularTopicMirror(topicId, { destructive: true })
     await this.cleanupFilesAfterConversationMirror(filesToDelete)
   }
 
@@ -243,8 +261,20 @@ class DbService implements MessageDataSource {
     // Similar limitation as updateBlocks
     // Default to Dexie since agent blocks can't be deleted individually
     const topicIds = await storageV2ConversationMirrorService.findTopicIdsForBlockIds(blockIds, () => this.getState())
+    const blockIdsToDelete = new Set(blockIds)
+
+    for (const topicId of topicIds) {
+      await this.persistRegularTopicMessagesBeforeDestructiveMutation(
+        await this.getRegularTopicSnapshot(topicId, (messages) =>
+          messages.map((message) => ({
+            ...message,
+            blocks: (message.blocks ?? []).filter((blockId) => !blockIdsToDelete.has(blockId))
+          }))
+        )
+      )
+    }
+
     const filesToDelete = await this.dexieSource.deleteBlocks(blockIds)
-    await this.flushRegularTopicMirrors(topicIds, { destructive: true })
     await this.cleanupFilesAfterConversationMirror(filesToDelete)
   }
 
@@ -252,8 +282,10 @@ class DbService implements MessageDataSource {
 
   async clearMessages(topicId: string): Promise<void> {
     const source = this.getDataSource(topicId)
+    await this.persistRegularTopicMessagesBeforeDestructiveMutation(
+      await this.getRegularTopicSnapshot(topicId, () => [])
+    )
     const filesToDelete = await source.clearMessages(topicId)
-    await this.flushRegularTopicMirror(topicId, { destructive: true })
     await this.cleanupFilesAfterConversationMirror(filesToDelete)
   }
 

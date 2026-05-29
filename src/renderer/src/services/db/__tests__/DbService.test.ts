@@ -7,9 +7,11 @@ const mocks = vi.hoisted(() => ({
   dexieDeleteMessage: vi.fn(),
   dexieDeleteMessages: vi.fn(),
   dexieClearMessages: vi.fn(),
+  dexieGetRawTopic: vi.fn(),
   findTopicIdsForBlockIds: vi.fn(),
   flushTopic: vi.fn(),
   flushTopics: vi.fn(),
+  flushTopicMessagesSnapshot: vi.fn(),
   getState: vi.fn()
 }))
 
@@ -18,7 +20,8 @@ vi.mock('../DexieMessageDataSource', () => ({
     deleteBlocks: mocks.dexieDeleteBlocks,
     deleteMessage: mocks.dexieDeleteMessage,
     deleteMessages: mocks.dexieDeleteMessages,
-    clearMessages: mocks.dexieClearMessages
+    clearMessages: mocks.dexieClearMessages,
+    getRawTopic: mocks.dexieGetRawTopic
   }))
 }))
 
@@ -38,6 +41,7 @@ vi.mock('@renderer/services/StorageV2ConversationMirrorService', () => ({
   storageV2ConversationMirrorService: {
     findTopicIdsForBlockIds: mocks.findTopicIdsForBlockIds,
     flushTopic: mocks.flushTopic,
+    flushTopicMessagesSnapshot: mocks.flushTopicMessagesSnapshot,
     flushTopics: mocks.flushTopics
   }
 }))
@@ -68,46 +72,85 @@ describe('DbService destructive file cleanup ordering', () => {
     mocks.getState.mockReturnValue({})
     mocks.deleteFiles.mockResolvedValue(undefined)
     mocks.flushTopic.mockResolvedValue(undefined)
+    mocks.flushTopicMessagesSnapshot.mockResolvedValue(undefined)
     mocks.flushTopics.mockResolvedValue(undefined)
   })
 
-  it('cleans message files only after the destructive conversation mirror flush', async () => {
+  it('persists the final message snapshot before deleting legacy message rows', async () => {
     const files = [{ id: 'file-1', ext: '.png' }]
+    const topic = {
+      id: 'topic-1',
+      messages: [
+        { id: 'message-1', blocks: ['block-1'] },
+        { id: 'message-2', blocks: ['block-2'] }
+      ]
+    }
+    mocks.dexieGetRawTopic.mockResolvedValue(topic)
     mocks.dexieDeleteMessage.mockResolvedValue(files)
 
     const { dbService } = await import('../DbService')
 
     await dbService.deleteMessage('topic-1', 'message-1')
 
+    expect(mocks.flushTopicMessagesSnapshot).toHaveBeenCalledWith(
+      'topic-1',
+      expect.any(Function),
+      [{ id: 'message-2', blocks: ['block-2'] }],
+      { topic, destructive: true }
+    )
     expect(mocks.dexieDeleteMessage).toHaveBeenCalledWith('topic-1', 'message-1')
-    expect(mocks.flushTopic).toHaveBeenCalledWith('topic-1', expect.any(Function), { destructive: true })
     expect(mocks.deleteFiles).toHaveBeenCalledWith(files)
-    expect(mocks.flushTopic.mock.invocationCallOrder[0]).toBeLessThan(mocks.deleteFiles.mock.invocationCallOrder[0])
+    expect(mocks.flushTopicMessagesSnapshot.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.dexieDeleteMessage.mock.invocationCallOrder[0]
+    )
+    expect(mocks.dexieDeleteMessage.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.deleteFiles.mock.invocationCallOrder[0]
+    )
   })
 
-  it('keeps message files when the destructive conversation mirror flush fails', async () => {
+  it('keeps legacy rows and files when the pre-delete Storage v2 snapshot fails', async () => {
     const files = [{ id: 'file-1', ext: '.png' }]
+    mocks.dexieGetRawTopic.mockResolvedValue({
+      id: 'topic-1',
+      messages: [{ id: 'message-1', blocks: ['block-1'] }]
+    })
     mocks.dexieDeleteMessage.mockResolvedValue(files)
-    mocks.flushTopic.mockRejectedValue(new Error('storage busy'))
+    mocks.flushTopicMessagesSnapshot.mockRejectedValue(new Error('storage busy'))
 
     const { dbService } = await import('../DbService')
 
     await expect(dbService.deleteMessage('topic-1', 'message-1')).rejects.toThrow('storage busy')
 
+    expect(mocks.dexieDeleteMessage).not.toHaveBeenCalled()
     expect(mocks.deleteFiles).not.toHaveBeenCalled()
   })
 
-  it('cleans block files only after all affected topics are mirrored', async () => {
+  it('persists affected topic snapshots before deleting legacy block rows', async () => {
     const files = [{ id: 'file-1', ext: '.png' }]
     mocks.findTopicIdsForBlockIds.mockResolvedValue(new Set(['topic-1']))
+    const topic = {
+      id: 'topic-1',
+      messages: [{ id: 'message-1', blocks: ['block-1', 'block-2'] }]
+    }
+    mocks.dexieGetRawTopic.mockResolvedValue(topic)
     mocks.dexieDeleteBlocks.mockResolvedValue(files)
 
     const { dbService } = await import('../DbService')
 
     await dbService.deleteBlocks(['block-1'])
 
-    expect(mocks.flushTopics).toHaveBeenCalledWith(['topic-1'], expect.any(Function), { destructive: true })
+    expect(mocks.flushTopicMessagesSnapshot).toHaveBeenCalledWith(
+      'topic-1',
+      expect.any(Function),
+      [{ id: 'message-1', blocks: ['block-2'] }],
+      { topic, destructive: true }
+    )
     expect(mocks.deleteFiles).toHaveBeenCalledWith(files)
-    expect(mocks.flushTopics.mock.invocationCallOrder[0]).toBeLessThan(mocks.deleteFiles.mock.invocationCallOrder[0])
+    expect(mocks.flushTopicMessagesSnapshot.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.dexieDeleteBlocks.mock.invocationCallOrder[0]
+    )
+    expect(mocks.dexieDeleteBlocks.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.deleteFiles.mock.invocationCallOrder[0]
+    )
   })
 })

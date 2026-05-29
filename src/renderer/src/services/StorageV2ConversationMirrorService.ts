@@ -25,6 +25,11 @@ type ConversationSnapshot = {
   blocks: MessageBlock[]
 }
 
+type TopicSnapshotMetadata = Partial<Omit<Topic, 'messages'>> & {
+  id: string
+  messages?: Message[]
+}
+
 type MirrorScheduleOptions = {
   destructive?: boolean
 }
@@ -94,6 +99,35 @@ function buildFallbackTopic(topicId: string, messages: Message[]): TopicOwner | 
       updatedAt,
       messages: []
     }
+  }
+}
+
+function buildTopicOwnerFromMetadata(topicId: string, topic: TopicSnapshotMetadata | undefined, messages: Message[]) {
+  if (!topic) return buildFallbackTopic(topicId, messages)
+
+  const firstMessage = messages[0]
+  const lastMessage = messages[messages.length - 1] ?? firstMessage
+  const assistantId =
+    typeof topic.assistantId === 'string' && topic.assistantId ? topic.assistantId : firstMessage?.assistantId
+
+  if (!assistantId) return buildFallbackTopic(topicId, messages)
+
+  const createdAt = topic.createdAt ?? firstMessage?.createdAt ?? new Date().toISOString()
+  const updatedAt = topic.updatedAt ?? lastMessage?.updatedAt ?? lastMessage?.createdAt ?? createdAt
+  const title = (topic as Record<string, any>).title
+
+  return {
+    assistantId,
+    sortOrder: getTopicSortOrder({ ...topic, messages: [] } as Omit<Topic, 'messages'> & { messages: [] }),
+    topic: {
+      ...topic,
+      id: topic.id || topicId,
+      assistantId,
+      name: typeof topic.name === 'string' ? topic.name : typeof title === 'string' ? title : topicId,
+      createdAt,
+      updatedAt,
+      messages: []
+    } as Topic
   }
 }
 
@@ -242,6 +276,95 @@ class StorageV2ConversationMirrorService {
       this.throwPendingDestructiveError(topicIdList)
       await this.flushStrict()
     }
+  }
+
+  async flushTopicMessagesSnapshot(
+    topicId: string | undefined,
+    getState: StateGetter,
+    messages: Message[],
+    options: MirrorScheduleOptions & { topic?: TopicSnapshotMetadata } = {}
+  ) {
+    if (this.suspended) return
+    if (!topicId) return
+
+    await this.flush()
+
+    if (!window.api?.storageV2) {
+      throw new Error('Storage v2 API unavailable while persisting conversation snapshot')
+    }
+
+    const activeMessageIds = messages
+      .map((message) => message.id)
+      .filter((messageId): messageId is string => typeof messageId === 'string' && messageId.length > 0)
+    const activeBlockIds = new Set(
+      messages
+        .flatMap((message) => message.blocks ?? [])
+        .filter((blockId): blockId is string => typeof blockId === 'string' && blockId.length > 0)
+    )
+    const blocks =
+      activeMessageIds.length > 0 && activeBlockIds.size > 0
+        ? (await db.message_blocks.where('messageId').anyOf(activeMessageIds).toArray()).filter((block) =>
+            activeBlockIds.has(block.id)
+          )
+        : []
+
+    await this.flushTopicSnapshot(topicId, getState, {
+      topic: options.topic,
+      messages,
+      blocks
+    })
+  }
+
+  async flushTopicSnapshot(
+    topicId: string | undefined,
+    getState: StateGetter,
+    input: {
+      topic?: TopicSnapshotMetadata
+      messages: Message[]
+      blocks: MessageBlock[]
+    }
+  ) {
+    if (this.suspended) return
+    if (!topicId) return
+
+    await this.flush()
+
+    if (!window.api?.storageV2) {
+      throw new Error('Storage v2 API unavailable while persisting conversation snapshot')
+    }
+
+    const state = getState()
+    const owner = findTopicOwner(state, topicId) ?? buildTopicOwnerFromMetadata(topicId, input.topic, input.messages)
+
+    if (!owner) {
+      throw new Error(`Cannot persist Storage v2 conversation snapshot for ${topicId}: missing assistant owner`)
+    }
+
+    const conversation: ConversationSnapshot = {
+      assistantId: owner.assistantId,
+      sortOrder: owner.sortOrder,
+      topic: stripTopicMessages(owner.topic),
+      messages: cloneJson(input.messages),
+      blocks: cloneJson(input.blocks)
+    }
+    const files = collectFilesFromBlocks(conversation.blocks)
+
+    for (const fileId of files.keys()) {
+      const persistedFile = await db.files.get(fileId)
+      if (persistedFile) {
+        files.set(fileId, persistedFile)
+      }
+    }
+
+    await this.mirrorConversations([conversation], Array.from(files.values()))
+
+    const snapshotJson = JSON.stringify(conversation)
+    this.lastTopicSnapshotJson.set(topicId, snapshotJson)
+    this.pendingTopicIds.delete(topicId)
+    this.pendingDestructiveTopicIds.delete(topicId)
+    this.lastError = null
+
+    logger.debug(`Persisted conversation snapshot ${topicId} to Storage v2`)
   }
 
   async findTopicIdsForBlockIds(blockIds: Iterable<string | undefined>, getState: StateGetter): Promise<Set<string>> {

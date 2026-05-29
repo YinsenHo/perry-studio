@@ -257,30 +257,34 @@ export const TopicManager = {
   async clearTopicMessages(id: string): Promise<void> {
     // 暂存需要删除的文件信息
     let filesToDelete: FileMetadata[] = []
+    const topic = await db.topics.get(id)
+
+    if (!topic || !topic.messages || topic.messages.length === 0) {
+      return
+    }
 
     try {
+      const blockIds = topic.messages.flatMap((message) => message.blocks || [])
+
+      if (blockIds.length > 0) {
+        const blocks = await db.message_blocks.where('id').anyOf(blockIds).toArray()
+
+        filesToDelete = blocks
+          .filter(
+            (block): block is ImageMessageBlock | FileMessageBlock =>
+              block.type === MessageBlockType.IMAGE || block.type === MessageBlockType.FILE
+          )
+          .map((block) => block.file)
+          .filter((file) => file !== undefined)
+      }
+
+      await storageV2ConversationMirrorService.flushTopicMessagesSnapshot(id, () => store.getState(), [], {
+        topic,
+        destructive: true
+      })
+
       await db.transaction('rw', [db.topics, db.message_blocks], async () => {
-        const topic = await db.topics.get(id)
-
-        if (!topic || !topic.messages || topic.messages.length === 0) {
-          return
-        }
-
-        const blockIds = topic.messages.flatMap((message) => message.blocks || [])
-
         if (blockIds.length > 0) {
-          // 删除 block 之前先从 DB 里找出来
-          const blocks = await db.message_blocks.where('id').anyOf(blockIds).toArray()
-
-          // 提取文件元数据
-          filesToDelete = blocks
-            .filter(
-              (block): block is ImageMessageBlock | FileMessageBlock =>
-                block.type === MessageBlockType.IMAGE || block.type === MessageBlockType.FILE
-            )
-            .map((block) => block.file)
-            .filter((file) => file !== undefined)
-
           await db.message_blocks.bulkDelete(blockIds)
         }
 
@@ -290,8 +294,6 @@ export const TopicManager = {
       logger.error(`Failed to clear database records for topic ${id}:`, dbError as Error)
       throw dbError
     }
-
-    await storageV2ConversationMirrorService.flushTopic(id, () => store.getState(), { destructive: true })
 
     if (filesToDelete.length > 0) {
       await safeDeleteFiles(filesToDelete)

@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   sessionService: {
     createSession: vi.fn(),
     getSession: vi.fn(),
+    listSessions: vi.fn(),
     updateSession: vi.fn(),
     reorderSessions: vi.fn(),
     deleteSession: vi.fn()
@@ -24,6 +25,11 @@ const mocks = vi.hoisted(() => ({
     createTask: vi.fn(),
     getTask: vi.fn(),
     getTaskById: vi.fn(),
+    getTaskLogs: vi.fn(),
+    getDueTasks: vi.fn(),
+    hasActiveTasks: vi.fn(),
+    listTasks: vi.fn(),
+    listAllTasks: vi.fn(),
     updateTask: vi.fn(),
     updateTaskById: vi.fn(),
     updateTaskAfterRun: vi.fn(),
@@ -35,16 +41,21 @@ const mocks = vi.hoisted(() => ({
   channelService: {
     createChannel: vi.fn(),
     getChannel: vi.fn(),
+    listChannels: vi.fn(),
     updateChannel: vi.fn(),
     deleteChannel: vi.fn()
   },
   recovery: {
     projectIfAgentListMissingRows: vi.fn(),
     projectIfAgentMissing: vi.fn(),
+    projectIfSessionListEmpty: vi.fn(),
     projectIfSessionMissing: vi.fn(),
     projectIfSessionMissingById: vi.fn(),
     projectIfSessionMessagesEmpty: vi.fn(),
+    projectIfTaskListEmpty: vi.fn(),
+    projectIfTaskLogsEmpty: vi.fn(),
     projectIfTaskMissing: vi.fn(),
+    projectIfChannelListEmpty: vi.fn(),
     projectIfChannelMissing: vi.fn()
   },
   mirror: {
@@ -116,7 +127,16 @@ import {
   deleteSessionWithStorageV2Recovery,
   deleteTaskByIdWithStorageV2Recovery,
   deleteTaskWithStorageV2Recovery,
+  getAgentSessionHistoryWithStorageV2Recovery,
+  getDueTasksWithStorageV2Recovery,
+  getTaskLogsWithStorageV2Recovery,
+  hasActiveTasksWithStorageV2Recovery,
   listAgentsWithStorageV2Recovery,
+  listAllSessionsWithStorageV2Recovery,
+  listAllTasksWithStorageV2Recovery,
+  listChannelsWithStorageV2Recovery,
+  listSessionsWithStorageV2Recovery,
+  listTasksWithStorageV2Recovery,
   logTaskRunWithStorageV2Recovery,
   persistAgentMessageExchangeWithStorageV2Recovery,
   reorderAgentsWithStorageV2Recovery,
@@ -143,10 +163,14 @@ describe('AgentStorageV2ReadThrough mutation wrappers', () => {
     mocks.tombstone.tombstoneChannel.mockResolvedValue(undefined)
     mocks.recovery.projectIfAgentListMissingRows.mockResolvedValue(false)
     mocks.recovery.projectIfAgentMissing.mockResolvedValue(false)
+    mocks.recovery.projectIfSessionListEmpty.mockResolvedValue(false)
     mocks.recovery.projectIfSessionMissing.mockResolvedValue(false)
     mocks.recovery.projectIfSessionMissingById.mockResolvedValue(false)
     mocks.recovery.projectIfSessionMessagesEmpty.mockResolvedValue(false)
+    mocks.recovery.projectIfTaskListEmpty.mockResolvedValue(false)
+    mocks.recovery.projectIfTaskLogsEmpty.mockResolvedValue(false)
     mocks.recovery.projectIfTaskMissing.mockResolvedValue(false)
+    mocks.recovery.projectIfChannelListEmpty.mockResolvedValue(false)
     mocks.recovery.projectIfChannelMissing.mockResolvedValue(false)
     vi.mocked(agentMessageRepository.findRowsByPayloadMessageIds).mockResolvedValue([])
     vi.mocked(agentMessageRepository.listRowsForSession).mockResolvedValue([])
@@ -166,6 +190,93 @@ describe('AgentStorageV2ReadThrough mutation wrappers', () => {
 
     expect(mocks.recovery.projectIfAgentListMissingRows).toHaveBeenCalledWith('agent-list-missing-rows')
     expect(mocks.agentService.listAgents).toHaveBeenCalledTimes(2)
+  })
+
+  it('projects Storage v2 runtime rows for empty session, task, task log, due task, and channel lists', async () => {
+    mocks.sessionService.listSessions
+      .mockResolvedValueOnce({ sessions: [], total: 0 })
+      .mockResolvedValueOnce({ sessions: [{ id: 'session-1' }], total: 1 })
+      .mockResolvedValueOnce({ sessions: [], total: 0 })
+      .mockResolvedValueOnce({ sessions: [{ id: 'session-all' }], total: 1 })
+    mocks.taskService.listTasks
+      .mockResolvedValueOnce({ tasks: [], total: 0 })
+      .mockResolvedValueOnce({ tasks: [{ id: 'task-1' }], total: 1 })
+    mocks.taskService.listAllTasks
+      .mockResolvedValueOnce({ tasks: [], total: 0 })
+      .mockResolvedValueOnce({ tasks: [{ id: 'task-all' }], total: 1 })
+    mocks.taskService.getTaskLogs
+      .mockResolvedValueOnce({ logs: [], total: 0 })
+      .mockResolvedValueOnce({ logs: [{ id: 1 }], total: 1 })
+    mocks.taskService.getDueTasks.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'due-task' }])
+    mocks.taskService.hasActiveTasks.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    mocks.channelService.listChannels.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'channel-1' }])
+    mocks.recovery.projectIfSessionListEmpty.mockResolvedValue(true)
+    mocks.recovery.projectIfTaskListEmpty.mockResolvedValue(true)
+    mocks.recovery.projectIfTaskLogsEmpty.mockResolvedValue(true)
+    mocks.recovery.projectIfChannelListEmpty.mockResolvedValue(true)
+
+    await expect(listSessionsWithStorageV2Recovery('agent-1', { limit: 10 })).resolves.toEqual({
+      sessions: [{ id: 'session-1' }],
+      total: 1
+    })
+    await expect(listAllSessionsWithStorageV2Recovery({ limit: 10 })).resolves.toEqual({
+      sessions: [{ id: 'session-all' }],
+      total: 1
+    })
+    await expect(listTasksWithStorageV2Recovery('agent-1', { includeHeartbeat: true })).resolves.toEqual({
+      tasks: [{ id: 'task-1' }],
+      total: 1
+    })
+    await expect(listAllTasksWithStorageV2Recovery({ limit: 10 })).resolves.toEqual({
+      tasks: [{ id: 'task-all' }],
+      total: 1
+    })
+    await expect(getTaskLogsWithStorageV2Recovery('task-1', { limit: 5 })).resolves.toEqual({
+      logs: [{ id: 1 }],
+      total: 1
+    })
+    await expect(getDueTasksWithStorageV2Recovery()).resolves.toEqual([{ id: 'due-task' }])
+    await expect(hasActiveTasksWithStorageV2Recovery()).resolves.toBe(true)
+    await expect(listChannelsWithStorageV2Recovery({ agentId: 'agent-1', type: 'telegram' })).resolves.toEqual([
+      { id: 'channel-1' }
+    ])
+
+    expect(mocks.recovery.projectIfSessionListEmpty).toHaveBeenCalledWith('agent-1', 'agent-session-list-empty')
+    expect(mocks.recovery.projectIfSessionListEmpty).toHaveBeenCalledWith(undefined, 'agent-session-list-all-empty')
+    expect(mocks.recovery.projectIfTaskListEmpty).toHaveBeenCalledWith(
+      { agentId: 'agent-1', includeHeartbeat: true },
+      'agent-task-list-empty'
+    )
+    expect(mocks.recovery.projectIfTaskListEmpty).toHaveBeenCalledWith({}, 'agent-task-list-all-empty')
+    expect(mocks.recovery.projectIfTaskLogsEmpty).toHaveBeenCalledWith('task-1', 'agent-task-logs-empty')
+    expect(mocks.recovery.projectIfTaskListEmpty).toHaveBeenCalledWith(
+      { includeHeartbeat: true },
+      'agent-due-task-list-empty'
+    )
+    expect(mocks.recovery.projectIfTaskListEmpty).toHaveBeenCalledWith(
+      { includeHeartbeat: true },
+      'agent-active-task-list-empty'
+    )
+    expect(mocks.recovery.projectIfChannelListEmpty).toHaveBeenCalledWith(
+      { agentId: 'agent-1', type: 'telegram' },
+      'agent-channel-list-empty'
+    )
+  })
+
+  it('projects Storage v2 agent session history when the legacy history cache is empty', async () => {
+    const recoveredHistory = [{ id: 1, role: 'assistant' }]
+    vi.mocked(agentMessageRepository.getSessionHistory)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(recoveredHistory as any)
+    mocks.recovery.projectIfSessionMessagesEmpty.mockResolvedValueOnce(true)
+
+    await expect(getAgentSessionHistoryWithStorageV2Recovery('session-1')).resolves.toEqual(recoveredHistory)
+
+    expect(mocks.recovery.projectIfSessionMessagesEmpty).toHaveBeenCalledWith(
+      'session-1',
+      'agent-message-history-empty'
+    )
+    expect(agentMessageRepository.getSessionHistory).toHaveBeenCalledTimes(2)
   })
 
   it('flushes the Storage v2 agent mirror after destructive writes', async () => {

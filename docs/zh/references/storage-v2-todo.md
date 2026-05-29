@@ -62,7 +62,7 @@
 - [x] 普通会话、文件、Dexie settings、Dexie 辅助表已具备 read-through/recovery 服务。
 - [x] Agent/app-data runtime 已具备 legacy 为空时的 read-through/projection。
 - [x] 会话列表、消息搜索、导出、知识库引用读取继续检查 read-through 覆盖；TopicManager 已覆盖 legacy topic 缺失时从 Storage v2 恢复会话/列表/消息，上层导出继续经 TopicManager 取消息，历史搜索启动前会 hydrate Storage v2 会话，知识库文件引用继续经 FileManager 单文件投影恢复。
-- [ ] Agent list/session/history/task/channel 增加更多路径变化场景验证。
+- [x] Agent list/session/history/task/channel 增加更多路径变化场景验证；AgentStorageV2ReadThrough / AgentRuntimeRecovery 已覆盖 agent/session/task/channel 列表、session history、task logs/due/active task、缺失实体和 tombstone 防复活路径。
 - [x] App data list/get/cache/workbench 增加更多冲突和 tombstone 场景验证；AppDataIpc/AppDataKvMirror/AppDataSync 已覆盖 get/list read-through、非空列表 merge、Storage v2 新 tombstone 防 legacy 复活、legacy tombstone 防旧 Storage v2 回灌、cache null、workbench shortcut tombstone/merge 和 sync conflict 列表。
 - [x] 文件列表、单文件、blob 投影验证旧路径缺失时的体验；FileManager/FileRecovery 已覆盖空 legacy file 表、部分缺失 file 表和单文件缺失时从 Storage v2 list/get/project 恢复。
 - [x] localStorage/Redux 缺失时不得用空状态覆盖 Storage v2：启动镜像保持 non-pruning，并增加空 runtime snapshot 回归测试。

@@ -132,4 +132,20 @@ describe('AppDataMigrationService', () => {
     expect(fs.readFileSync(path.join(newPath, 'Data', 'agents.db'), 'utf-8')).toBe('active-agent-data')
     expect(fs.readFileSync(path.join(newPath, 'Local Storage', 'leveldb'), 'utf-8')).toBe('local-storage')
   })
+
+  it('rejects custom app data paths inside the active Storage v2 data root', async () => {
+    const activeDataRoot = path.join(oldPath, 'Data')
+    const nestedAppDataPath = path.join(activeDataRoot, 'nested-user-data')
+    fs.mkdirSync(activeDataRoot, { recursive: true })
+    fs.writeFileSync(path.join(activeDataRoot, 'main.db'), 'live-main-db')
+
+    mocks.storageV2DataRootService.resolveDataRoot.mockReturnValue({ dataRoot: activeDataRoot })
+
+    await expect(service.copyUserData(oldPath, nestedAppDataPath)).rejects.toThrow(
+      'New app data path cannot be inside the active Storage v2 data root'
+    )
+
+    expect(fs.existsSync(nestedAppDataPath)).toBe(false)
+    expect(mocks.storageV2Database.createSnapshot).not.toHaveBeenCalled()
+  })
 })

@@ -51,7 +51,7 @@
 - [x] Agent create/update/reorder 已先写 Storage v2 `agents`，再写 `agents.db` runtime cache；delete 路径保留 Storage v2 tombstone-first，服务层也防止绕过 wrapper 直接删 legacy；Agent 配置同步继承到 session 时也先写 Storage v2 session。
 - [x] Agent session create/update/reorder 已先写 Storage v2 `agent_sessions` 和对应 `agent_session` conversation metadata，再写 `agents.db` runtime cache；delete 路径保留 Storage v2 tombstone-first，服务层也防止绕过 wrapper 直接删 legacy。
 - [x] Agent session message history 已先写 Storage v2 `agent_session` conversation/message/block，再写 `session_messages` runtime cache；新增消息会先生成 legacy-compatible 数字 ID，保证 Storage v2 message/block 与后续删除恢复路径继续对齐。
-- [ ] App data/workbench/sync state 从 `app.db` first 切到 Storage v2 first。
+- [x] App data/workbench/sync state 从 `app.db` first 切到 Storage v2 first；IPC 和 AppDataDatabase 直写入口均先写 Storage v2 record/cache/workbench shortcut/sync state/conflict，再写 `app.db` runtime cache。
 - [ ] destructive 操作统一先写 tombstone，再更新 legacy/UI。
 
 ## 3. 读取路径切换
@@ -117,6 +117,7 @@
 - [x] Agent runtime agent Storage v2-first 写路径测试：AgentService 覆盖 create/reorder 先写 Storage v2、失败阻断 legacy、继承同步 session 先写 Storage v2；AgentRuntimeWriteService 覆盖 agent upsert/reorder 和 sync log。
 - [x] Agent runtime session Storage v2-first 写路径测试：SessionService 覆盖 create/update/reorder 先写 Storage v2、失败阻断 legacy、服务层 delete tombstone-first；AgentRuntimeWriteService 覆盖 agent session 和 conversation metadata upsert/reorder。
 - [x] Agent runtime session message Storage v2-first 写路径测试：AgentMessageRepository 覆盖新增/更新消息先写 Storage v2 conversation/message/block、失败阻断 legacy。
+- [x] App data Storage v2-first 写路径测试：AppDataIpcService 覆盖 record/cache/workbench shortcut 先写 Storage v2；AppDataDatabase 覆盖直写 record 先写 Storage v2、失败阻断 app.db。
 - [ ] 补恢复到空 legacy runtime 的 read-through 测试。
 - [ ] 补路径变化后不丢数据的集成测试。
 - [ ] 补 secret vault 不可用、safeStorage 不可用的降级测试。

@@ -159,12 +159,12 @@ export class AppDataSyncService {
 
   private async applyRemoteRecord(db: AppDataDatabase, record: AppDataRecord) {
     await storageV2AppDataKvMirrorService.upsertRecordSnapshot(record)
-    await db.applyRemoteRecord(record)
+    await db.applyRemoteRecord(record, { storageV2Mirrored: true })
   }
 
   private async setSyncState(db: AppDataDatabase, id: string, value: unknown) {
     await storageV2AppDataKvMirrorService.upsertSyncState(id, value)
-    await db.setSyncState(id, value)
+    await db.setSyncState(id, value, { storageV2Mirrored: true })
   }
 
   private async getSyncState<T = unknown>(db: AppDataDatabase, id: string): Promise<T | null> {
@@ -184,7 +184,7 @@ export class AppDataSyncService {
   ) {
     const id = `${input.scope}:${input.key}:${Date.now()}`
     await storageV2AppDataKvMirrorService.upsertSyncConflict(id, input)
-    await db.createConflict({ ...input, id })
+    await db.createConflict({ ...input, id }, { storageV2Mirrored: true })
     return id
   }
 

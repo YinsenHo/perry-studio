@@ -7,7 +7,14 @@ const mocks = vi.hoisted(() => ({
     executeMultiple: vi.fn()
   },
   storageV2: {
+    deleteCache: vi.fn(),
+    deleteRecord: vi.fn(),
     getSyncState: vi.fn(),
+    upsertCache: vi.fn(),
+    upsertRecord: vi.fn(),
+    upsertRecordSnapshot: vi.fn(),
+    upsertSyncConflict: vi.fn(),
+    upsertWorkbenchShortcut: vi.fn(),
     upsertSyncState: vi.fn()
   }
 }))
@@ -39,7 +46,14 @@ describe('AppDataDatabase', () => {
     vi.clearAllMocks()
     mocks.client.executeMultiple.mockResolvedValue(undefined)
     mocks.client.execute.mockResolvedValue({ rows: [], columns: [], columnTypes: [] })
+    mocks.storageV2.deleteCache.mockResolvedValue(undefined)
+    mocks.storageV2.deleteRecord.mockResolvedValue(undefined)
     mocks.storageV2.getSyncState.mockResolvedValue(null)
+    mocks.storageV2.upsertCache.mockResolvedValue(undefined)
+    mocks.storageV2.upsertRecord.mockResolvedValue(undefined)
+    mocks.storageV2.upsertRecordSnapshot.mockResolvedValue(undefined)
+    mocks.storageV2.upsertSyncConflict.mockResolvedValue(undefined)
+    mocks.storageV2.upsertWorkbenchShortcut.mockResolvedValue(undefined)
     mocks.storageV2.upsertSyncState.mockResolvedValue(undefined)
   })
 
@@ -89,5 +103,48 @@ describe('AppDataDatabase', () => {
     expect(db.getDeviceId()).toBe('legacy-device')
     expect(mocks.storageV2.getSyncState).not.toHaveBeenCalled()
     expect(mocks.storageV2.upsertSyncState).toHaveBeenCalledWith('device-id', 'legacy-device')
+  })
+
+  it('writes app records to Storage v2 before updating app.db directly', async () => {
+    const events: string[] = []
+    mocks.storageV2.upsertRecord.mockImplementation(async () => {
+      events.push('storage-v2')
+    })
+    mocks.client.execute.mockImplementation(async (input: string | { sql: string; args?: unknown[] }) => {
+      const sql = typeof input === 'string' ? input : input.sql
+      if (sql.includes('SELECT value FROM sync_state')) {
+        return { rows: [{ value: JSON.stringify('legacy-device') }], columns: [], columnTypes: [] }
+      }
+      events.push('legacy')
+      return { rows: [], columns: [], columnTypes: [] }
+    })
+
+    const db = await AppDataDatabase.getInstance()
+    await db.setRecord('settings', 'theme', { mode: 'dark' }, 1760000000000)
+
+    expect(events).toEqual(['storage-v2', 'legacy'])
+    expect(mocks.storageV2.upsertRecord).toHaveBeenCalledWith('settings', 'theme', { mode: 'dark' }, 1760000000000)
+  })
+
+  it('does not update app.db directly when the Storage v2 app record write fails', async () => {
+    mocks.client.execute.mockImplementation(async (input: string | { sql: string; args?: unknown[] }) => {
+      const sql = typeof input === 'string' ? input : input.sql
+      if (sql.includes('SELECT value FROM sync_state')) {
+        return { rows: [{ value: JSON.stringify('legacy-device') }], columns: [], columnTypes: [] }
+      }
+      return { rows: [], columns: [], columnTypes: [] }
+    })
+    mocks.storageV2.upsertRecord.mockRejectedValueOnce(new Error('storage unavailable'))
+
+    const db = await AppDataDatabase.getInstance()
+    await expect(db.setRecord('settings', 'theme', { mode: 'dark' }, 1760000000000)).rejects.toThrow(
+      'storage unavailable'
+    )
+
+    const appRecordWrites = mocks.client.execute.mock.calls.filter(([input]) => {
+      const sql = typeof input === 'string' ? input : input.sql
+      return sql.includes('INSERT INTO app_records')
+    })
+    expect(appRecordWrites).toHaveLength(0)
   })
 })

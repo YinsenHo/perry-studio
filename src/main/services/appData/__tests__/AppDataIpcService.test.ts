@@ -215,7 +215,9 @@ describe('AppDataIpcService', () => {
 
     expect(events).toEqual(['storage-v2', 'legacy'])
     expect(mocks.storageV2.upsertRecord).toHaveBeenCalledWith('settings', 'theme', { mode: 'dark' }, 1760000000000)
-    expect(mocks.db.setRecord).toHaveBeenCalledWith('settings', 'theme', { mode: 'dark' }, 1760000000000)
+    expect(mocks.db.setRecord).toHaveBeenCalledWith('settings', 'theme', { mode: 'dark' }, 1760000000000, undefined, {
+      storageV2Mirrored: true
+    })
   })
 
   it('writes app record tombstones to Storage v2 before updating the legacy app database', async () => {
@@ -236,7 +238,9 @@ describe('AppDataIpcService', () => {
 
     expect(events).toEqual(['storage-v2', 'legacy'])
     expect(mocks.storageV2.deleteRecord).toHaveBeenCalledWith('settings', 'theme', 1760000000001)
-    expect(mocks.db.deleteRecord).toHaveBeenCalledWith('settings', 'theme', 1760000000001)
+    expect(mocks.db.deleteRecord).toHaveBeenCalledWith('settings', 'theme', 1760000000001, {
+      storageV2Mirrored: true
+    })
   })
 
   it('projects Storage v2 app records before returning an empty legacy list', async () => {
@@ -392,7 +396,9 @@ describe('AppDataIpcService', () => {
 
     expect(events).toEqual(['storage-v2', 'legacy'])
     expect(mocks.storageV2.upsertCache).toHaveBeenCalledWith('minapp', 'tab-1', { active: true }, 60_000, 1760000000100)
-    expect(mocks.db.setCache).toHaveBeenCalledWith('minapp', 'tab-1', { active: true }, 60_000, 1760000000100)
+    expect(mocks.db.setCache).toHaveBeenCalledWith('minapp', 'tab-1', { active: true }, 60_000, 1760000000100, {
+      storageV2Mirrored: true
+    })
   })
 
   it('writes cache tombstones to Storage v2 before deleting the legacy app cache row', async () => {
@@ -413,7 +419,7 @@ describe('AppDataIpcService', () => {
 
     expect(events).toEqual(['storage-v2', 'legacy'])
     expect(mocks.storageV2.deleteCache).toHaveBeenCalledWith('minapp', 'tab-1', 1760000000101)
-    expect(mocks.db.deleteCache).toHaveBeenCalledWith('minapp', 'tab-1')
+    expect(mocks.db.deleteCache).toHaveBeenCalledWith('minapp', 'tab-1', { storageV2Mirrored: true })
   })
 
   it('does not resurrect deleted workbench shortcuts from Storage v2', async () => {
@@ -542,7 +548,8 @@ describe('AppDataIpcService', () => {
       expect.objectContaining({ id: 'shortcut-generated', name: 'Docs', updatedAt: 1760000000200 })
     )
     expect(mocks.db.upsertWorkbenchShortcut).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'shortcut-generated', name: 'Docs', updatedAt: 1760000000200 })
+      expect.objectContaining({ id: 'shortcut-generated', name: 'Docs', updatedAt: 1760000000200 }),
+      { storageV2Mirrored: true }
     )
   })
 
@@ -574,7 +581,8 @@ describe('AppDataIpcService', () => {
       expect.objectContaining({ id: 'html-shortcut', filePath: '/tmp/artifact.html' })
     )
     expect(mocks.db.upsertWorkbenchShortcut).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'html-shortcut', filePath: '/tmp/artifact.html' })
+      expect.objectContaining({ id: 'html-shortcut', filePath: '/tmp/artifact.html' }),
+      { storageV2Mirrored: true }
     )
   })
 })

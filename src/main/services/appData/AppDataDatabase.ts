@@ -51,6 +51,10 @@ export type AppDataCacheEntry<T = unknown> = {
   expiresAt?: number | null
 }
 
+type StorageV2WriteOptions = {
+  storageV2Mirrored?: boolean
+}
+
 type Row = Record<string, any>
 
 const DB_NAME = 'app.db'
@@ -254,7 +258,7 @@ export class AppDataDatabase {
       return null
     })
     if (storageDeviceId) {
-      await this.setSyncState('device-id', storageDeviceId)
+      await this.setSyncState('device-id', storageDeviceId, { storageV2Mirrored: true })
       return storageDeviceId
     }
 
@@ -262,7 +266,7 @@ export class AppDataDatabase {
     await storageV2AppDataKvMirrorService.upsertSyncState('device-id', id).catch((error) => {
       logger.warn('Failed to mirror generated app data device id to Storage v2', error as Error)
     })
-    await this.setSyncState('device-id', id)
+    await this.setSyncState('device-id', id, { storageV2Mirrored: true })
     return id
   }
 
@@ -316,7 +320,18 @@ export class AppDataDatabase {
     return result.rows.map((row) => toRecord(row as Row))
   }
 
-  async setRecord(scope: string, key: string, value: unknown, updatedAt = now(), deviceId = this.getDeviceId()) {
+  async setRecord(
+    scope: string,
+    key: string,
+    value: unknown,
+    updatedAt = now(),
+    deviceId = this.getDeviceId(),
+    options: StorageV2WriteOptions = {}
+  ) {
+    if (!options.storageV2Mirrored) {
+      await storageV2AppDataKvMirrorService.upsertRecord(scope, key, value, updatedAt)
+    }
+
     const client = await this.getClient()
     const serialized = JSON.stringify(value ?? null)
     const valueHash = hashValue(value)
@@ -339,7 +354,11 @@ export class AppDataDatabase {
     return { scope, key, value, valueHash, updatedAt, deletedAt: null, deviceId, version: 1 } satisfies AppDataRecord
   }
 
-  async applyRemoteRecord(record: AppDataRecord) {
+  async applyRemoteRecord(record: AppDataRecord, options: StorageV2WriteOptions = {}) {
+    if (!options.storageV2Mirrored) {
+      await storageV2AppDataKvMirrorService.upsertRecordSnapshot(record)
+    }
+
     const client = await this.getClient()
     await client.execute({
       sql: `
@@ -366,7 +385,11 @@ export class AppDataDatabase {
     })
   }
 
-  async deleteRecord(scope: string, key: string, deletedAt = now()) {
+  async deleteRecord(scope: string, key: string, deletedAt = now(), options: StorageV2WriteOptions = {}) {
+    if (!options.storageV2Mirrored) {
+      await storageV2AppDataKvMirrorService.deleteRecord(scope, key, deletedAt)
+    }
+
     const valueHash = hashValue(null, deletedAt)
     const client = await this.getClient()
 
@@ -386,7 +409,18 @@ export class AppDataDatabase {
     })
   }
 
-  async setCache(namespace: string, key: string, value: unknown, ttlMs?: number, updatedAt = now()) {
+  async setCache(
+    namespace: string,
+    key: string,
+    value: unknown,
+    ttlMs?: number,
+    updatedAt = now(),
+    options: StorageV2WriteOptions = {}
+  ) {
+    if (!options.storageV2Mirrored) {
+      await storageV2AppDataKvMirrorService.upsertCache(namespace, key, value, ttlMs, updatedAt)
+    }
+
     const client = await this.getClient()
     await client.execute({
       sql: `
@@ -433,7 +467,11 @@ export class AppDataDatabase {
     }
   }
 
-  async deleteCache(namespace: string, key: string) {
+  async deleteCache(namespace: string, key: string, options: StorageV2WriteOptions = {}) {
+    if (!options.storageV2Mirrored) {
+      await storageV2AppDataKvMirrorService.deleteCache(namespace, key)
+    }
+
     const client = await this.getClient()
     await client.execute({ sql: 'DELETE FROM app_cache WHERE namespace = ? AND key = ?', args: [namespace, key] })
   }
@@ -445,7 +483,11 @@ export class AppDataDatabase {
     return row ? (parseJson(row.value, null) as T) : null
   }
 
-  async setSyncState(id: string, value: unknown) {
+  async setSyncState(id: string, value: unknown, options: StorageV2WriteOptions = {}) {
+    if (!options.storageV2Mirrored) {
+      await storageV2AppDataKvMirrorService.upsertSyncState(id, value)
+    }
+
     const client = await this.getClient()
     await client.execute({
       sql: `
@@ -459,16 +501,23 @@ export class AppDataDatabase {
     })
   }
 
-  async createConflict(input: {
-    id?: string
-    scope: string
-    key: string
-    localRecord?: AppDataRecord
-    remoteRecord: AppDataRecord
-    baseHash?: string | null
-  }) {
+  async createConflict(
+    input: {
+      id?: string
+      scope: string
+      key: string
+      localRecord?: AppDataRecord
+      remoteRecord: AppDataRecord
+      baseHash?: string | null
+    },
+    options: StorageV2WriteOptions = {}
+  ) {
     const client = await this.getClient()
     const id = input.id ?? `${input.scope}:${input.key}:${now()}`
+
+    if (!options.storageV2Mirrored) {
+      await storageV2AppDataKvMirrorService.upsertSyncConflict(id, input)
+    }
 
     await client.execute({
       sql: `
@@ -501,9 +550,13 @@ export class AppDataDatabase {
     return result.rows
   }
 
-  async upsertWorkbenchShortcut(shortcut: WorkbenchShortcutInput) {
+  async upsertWorkbenchShortcut(shortcut: WorkbenchShortcutInput, options: StorageV2WriteOptions = {}) {
     const client = await this.getClient()
     const fullShortcut = createWorkbenchShortcutRecord(shortcut)
+
+    if (!options.storageV2Mirrored) {
+      await storageV2AppDataKvMirrorService.upsertWorkbenchShortcut(fullShortcut)
+    }
 
     await client.execute({
       sql: `
@@ -531,7 +584,14 @@ export class AppDataDatabase {
       ]
     })
 
-    await this.setRecord('workbench.shortcuts', fullShortcut.id, fullShortcut, fullShortcut.updatedAt)
+    await this.setRecord(
+      'workbench.shortcuts',
+      fullShortcut.id,
+      fullShortcut,
+      fullShortcut.updatedAt,
+      this.getDeviceId(),
+      options
+    )
 
     return fullShortcut
   }

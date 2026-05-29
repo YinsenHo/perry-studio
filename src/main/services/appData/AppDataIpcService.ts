@@ -41,7 +41,7 @@ export function registerAppDataIpcHandlers() {
     const db = await getAppDataDatabase()
     const updatedAt = Date.now()
     await storageV2AppDataKvMirrorService.upsertRecord(scope, key, value, updatedAt)
-    const record = await db.setRecord(scope, key, value, updatedAt)
+    const record = await db.setRecord(scope, key, value, updatedAt, undefined, { storageV2Mirrored: true })
     return record
   })
 
@@ -49,7 +49,7 @@ export function registerAppDataIpcHandlers() {
     const db = await getAppDataDatabase()
     const deletedAt = Date.now()
     await storageV2AppDataKvMirrorService.deleteRecord(scope, key, deletedAt)
-    await db.deleteRecord(scope, key, deletedAt)
+    await db.deleteRecord(scope, key, deletedAt, { storageV2Mirrored: true })
   })
 
   ipcMain.handle(IpcChannel.AppData_List, async (_, scope?: string, includeDeleted?: boolean) => {
@@ -85,14 +85,14 @@ export function registerAppDataIpcHandlers() {
     const db = await getAppDataDatabase()
     const updatedAt = Date.now()
     await storageV2AppDataKvMirrorService.upsertCache(namespace, key, value, ttlMs, updatedAt)
-    await db.setCache(namespace, key, value, ttlMs, updatedAt)
+    await db.setCache(namespace, key, value, ttlMs, updatedAt, { storageV2Mirrored: true })
   })
 
   ipcMain.handle(IpcChannel.AppCache_Delete, async (_, namespace: string, key: string) => {
     const db = await getAppDataDatabase()
     const deletedAt = Date.now()
     await storageV2AppDataKvMirrorService.deleteCache(namespace, key, deletedAt)
-    await db.deleteCache(namespace, key)
+    await db.deleteCache(namespace, key, { storageV2Mirrored: true })
   })
 
   ipcMain.handle(IpcChannel.WorkbenchShortcut_List, async () => {
@@ -134,7 +134,7 @@ export function registerAppDataIpcHandlers() {
     const db = await getAppDataDatabase()
     const savedShortcut = createWorkbenchShortcutRecord(shortcut, Date.now())
     await storageV2AppDataKvMirrorService.upsertWorkbenchShortcut(savedShortcut)
-    await db.upsertWorkbenchShortcut(savedShortcut)
+    await db.upsertWorkbenchShortcut(savedShortcut, { storageV2Mirrored: true })
     return savedShortcut
   })
 
@@ -142,7 +142,7 @@ export function registerAppDataIpcHandlers() {
     const db = await getAppDataDatabase()
     const installed = await db.prepareHtmlArtifactShortcut(input, Date.now())
     await storageV2AppDataKvMirrorService.upsertWorkbenchShortcut(installed)
-    await db.upsertWorkbenchShortcut(installed)
+    await db.upsertWorkbenchShortcut(installed, { storageV2Mirrored: true })
     return installed
   })
 

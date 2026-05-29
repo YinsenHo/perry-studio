@@ -15,7 +15,7 @@ const STORAGE_FORMAT = 'cherry-studio-pi-storage'
 const STORAGE_VERSION = 2
 const STORAGE_APP_ID = 'cherry-studio-pi'
 const STORAGE_PRODUCT_NAME = 'Cherry Studio Pi'
-const COMPATIBLE_STORAGE_APP_IDS = new Set([STORAGE_APP_ID, 'perry-studio', 'cherry-studio'])
+const MANAGED_STORAGE_APP_IDS = new Set([STORAGE_APP_ID, 'perry-studio', 'cherry-studio'])
 
 type DataRootConfigEntry = {
   app?: string
@@ -117,19 +117,9 @@ function getConfiguredDataRoots(): string[] {
 
   const activeRoots = config.dataRoots
     .filter((entry) => entry.active !== false)
-    .filter((entry) => !entry.app || COMPATIBLE_STORAGE_APP_IDS.has(entry.app))
+    .filter((entry) => entry.app === STORAGE_APP_ID)
     .map((entry) => entry.path)
   return activeRoots.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
-}
-
-function getLegacyDataRoots(): string[] {
-  const appDataRoot = app.getPath('appData')
-  const names = ['Cherry Studio Pi', 'CherryStudioPi', 'Perry Studio', 'PerryStudio', 'Cherry Studio', 'CherryStudio']
-
-  return names.flatMap((name) => {
-    const userDataRoot = path.join(appDataRoot, name)
-    return [path.join(userDataRoot, 'Data'), path.join(`${userDataRoot}Dev`, 'Data')]
-  })
 }
 
 function readManifest(dataRoot: string): StorageV2Manifest | null {
@@ -162,17 +152,12 @@ export class StorageV2DataRootService {
 
     makeCandidate(getDefaultDataPath(), 'current-user-data', candidatesByPath)
 
-    for (const legacyRoot of getLegacyDataRoots()) {
-      makeCandidate(legacyRoot, 'legacy-user-data', candidatesByPath)
-    }
-
     const candidates = Array.from(candidatesByPath.values())
     const selected =
       candidates.find((candidate) => candidate.source === 'env') ??
       candidates.find((candidate) => candidate.hasManifest) ??
       candidates.find((candidate) => candidate.source === 'config' && candidate.hasLegacyData) ??
       candidates.find((candidate) => candidate.source === 'current-user-data' && candidate.hasLegacyData) ??
-      candidates.find((candidate) => candidate.source === 'legacy-user-data' && candidate.hasLegacyData) ??
       candidates.find((candidate) => candidate.source === 'config' && candidate.exists) ??
       candidates.find((candidate) => candidate.source === 'current-user-data')!
 
@@ -301,7 +286,8 @@ export class StorageV2DataRootService {
       }
 
       if (
-        (!entry.app || COMPATIBLE_STORAGE_APP_IDS.has(entry.app)) &&
+        entry.app &&
+        MANAGED_STORAGE_APP_IDS.has(entry.app) &&
         (entry.profileId ?? 'default') === manifest.profileId
       ) {
         return {

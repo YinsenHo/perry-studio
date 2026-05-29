@@ -64,7 +64,7 @@ describe('StorageV2DataRootService', () => {
     vi.mocked(fs.renameSync).mockReturnValue(undefined as never)
   })
 
-  it('prefers a legacy user data root with real data when the renamed current root is empty', async () => {
+  it('ignores renamed legacy user data roots when the current root is empty', async () => {
     vi.mocked(fs.existsSync).mockImplementation(
       (candidate) => String(candidate) === '/mock/appData/Perry Studio/Data/agents.db'
     )
@@ -72,11 +72,11 @@ describe('StorageV2DataRootService', () => {
     const { StorageV2DataRootService } = await import('../DataRootService')
     const info = new StorageV2DataRootService().resolveDataRoot()
 
-    expect(info.dataRoot).toBe('/mock/appData/Perry Studio/Data')
-    expect(info.source).toBe('legacy-user-data')
+    expect(info.dataRoot).toBe('/mock/appData/Cherry Studio Pi/Data')
+    expect(info.source).toBe('current-user-data')
   })
 
-  it('keeps a renamed legacy Storage v2 data root active instead of creating an empty current root', async () => {
+  it('creates the current root even when a renamed legacy Storage v2 root exists', async () => {
     const legacyRoot = '/mock/appData/Perry Studio/Data'
     const currentRoot = '/mock/appData/Cherry Studio Pi/Data'
     vi.mocked(fs.existsSync).mockImplementation((candidate) =>
@@ -86,10 +86,10 @@ describe('StorageV2DataRootService', () => {
     const { StorageV2DataRootService } = await import('../DataRootService')
     const info = new StorageV2DataRootService().ensureDataRoot()
 
-    expect(info.dataRoot).toBe(legacyRoot)
-    expect(info.source).toBe('legacy-user-data')
-    expect(fs.mkdirSync).toHaveBeenCalledWith(legacyRoot, { recursive: true })
-    expect(fs.mkdirSync).not.toHaveBeenCalledWith(currentRoot, { recursive: true })
+    expect(info.dataRoot).toBe(currentRoot)
+    expect(info.source).toBe('current-user-data')
+    expect(fs.mkdirSync).toHaveBeenCalledWith(currentRoot, { recursive: true })
+    expect(fs.mkdirSync).not.toHaveBeenCalledWith(legacyRoot, { recursive: true })
 
     const configWrite = vi
       .mocked(fs.writeFileSync)
@@ -100,7 +100,7 @@ describe('StorageV2DataRootService', () => {
     expect(nextConfig.dataRoots).toEqual([
       expect.objectContaining({
         app: 'cherry-studio-pi',
-        path: legacyRoot,
+        path: currentRoot,
         active: true
       })
     ])
@@ -120,7 +120,7 @@ describe('StorageV2DataRootService', () => {
     expect(info.source).toBe('current-user-data')
   })
 
-  it('treats a Storage v2 main database as existing data even when the manifest is missing', async () => {
+  it('does not discover a renamed legacy Storage v2 main database without a current manifest', async () => {
     vi.mocked(fs.existsSync).mockImplementation(
       (candidate) => String(candidate) === '/mock/appData/Perry Studio/Data/main.db'
     )
@@ -128,11 +128,11 @@ describe('StorageV2DataRootService', () => {
     const { StorageV2DataRootService } = await import('../DataRootService')
     const info = new StorageV2DataRootService().resolveDataRoot()
 
-    expect(info.dataRoot).toBe('/mock/appData/Perry Studio/Data')
-    expect(info.source).toBe('legacy-user-data')
+    expect(info.dataRoot).toBe('/mock/appData/Cherry Studio Pi/Data')
+    expect(info.source).toBe('current-user-data')
   })
 
-  it('treats default Notes and Workspace directories as real data root assets', async () => {
+  it('does not discover default Notes and Workspace directories from renamed legacy roots', async () => {
     vi.mocked(fs.existsSync).mockImplementation((candidate) =>
       [
         '/mock/appData/Perry Studio/Data/Notes',
@@ -157,8 +157,8 @@ describe('StorageV2DataRootService', () => {
     const { StorageV2DataRootService } = await import('../DataRootService')
     const info = new StorageV2DataRootService().resolveDataRoot()
 
-    expect(info.dataRoot).toBe('/mock/appData/Perry Studio/Data')
-    expect(info.source).toBe('legacy-user-data')
+    expect(info.dataRoot).toBe('/mock/appData/Cherry Studio Pi/Data')
+    expect(info.source).toBe('current-user-data')
   })
 
   it('prefers an existing Storage v2 manifest over legacy data candidates', async () => {
@@ -204,7 +204,7 @@ describe('StorageV2DataRootService', () => {
     expect(info.source).toBe('config')
   })
 
-  it('accepts active configured roots written by legacy Perry Studio builds', async () => {
+  it('ignores active configured roots written by legacy Perry Studio builds', async () => {
     const configPath = '/mock/home/.cherrystudio/config/config.json'
     vi.mocked(fs.existsSync).mockImplementation((candidate) =>
       [configPath, '/mock/perry-custom-root', '/mock/perry-custom-root/main.db'].includes(String(candidate))
@@ -229,8 +229,8 @@ describe('StorageV2DataRootService', () => {
     const { StorageV2DataRootService } = await import('../DataRootService')
     const info = new StorageV2DataRootService().resolveDataRoot()
 
-    expect(info.dataRoot).toBe('/mock/perry-custom-root')
-    expect(info.source).toBe('config')
+    expect(info.dataRoot).toBe('/mock/appData/Cherry Studio Pi/Data')
+    expect(info.source).toBe('current-user-data')
   })
 
   it('does not let an empty configured root shadow real data in the current root', async () => {
@@ -292,12 +292,10 @@ describe('StorageV2DataRootService', () => {
 
     expect(info.dataRoot).toBe(currentRoot)
     expect(info.source).toBe('current-user-data')
-    expect(info.candidates).toEqual(
+    expect(info.candidates).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          path: oldUsernameRoot,
-          source: 'config',
-          exists: false
+          path: oldUsernameRoot
         })
       ])
     )

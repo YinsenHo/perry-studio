@@ -6,7 +6,7 @@ import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import ImportMenuOptions from '@renderer/pages/settings/DataSettings/ImportMenuSettings'
-import { Database, FileText, FolderCog, FolderInput, FolderOpen } from 'lucide-react'
+import { FileText, FolderCog, FolderInput, FolderOpen } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,7 +24,6 @@ import NutstoreSettings from './NutstoreSettings'
 import ObsidianSettings from './ObsidianSettings'
 import S3Settings from './S3Settings'
 import SiyuanSettings from './SiyuanSettings'
-import StorageV2Settings from './StorageV2Settings'
 import WebDavSettings from './WebDavSettings'
 import YuqueSettings from './YuqueSettings'
 
@@ -36,7 +35,6 @@ const DataSettings: FC = () => {
   const menuItems = [
     { key: 'divider_0', isDivider: true, text: t('settings.data.divider.basic') },
     { key: 'data', title: t('settings.data.data.title'), icon: <FolderCog size={16} /> },
-    { key: 'storage_v2', title: t('settings.data.storage_v2.menu'), icon: <Database size={16} /> },
     { key: 'divider_1', isDivider: true, text: t('settings.data.divider.cloud_storage') },
     { key: 'local_backup', title: t('settings.data.local.title'), icon: <FolderCog size={16} /> },
     { key: 'webdav', title: t('settings.data.webdav.title'), icon: <CloudSyncOutlined style={{ fontSize: 16 }} /> },
@@ -109,7 +107,6 @@ const DataSettings: FC = () => {
       </MenuList>
       <SettingContainer theme={theme} style={{ display: 'flex', flex: 1, height: '100%' }}>
         {menu === 'data' && <BasicDataSettings />}
-        {menu === 'storage_v2' && <StorageV2Settings />}
         {menu === 'webdav' && <WebDavSettings />}
         {menu === 'data_sync' && <DataSyncSettings />}
         {menu === 'nutstore' && <NutstoreSettings />}

@@ -44,7 +44,6 @@ import { initWebviewHotkeys } from './services/WebviewService'
 import { runAsyncFunction } from './utils'
 import { isOvmsSupported } from './services/OvmsManager'
 import { environmentDependencyService } from './services/EnvironmentDependencyService'
-import { storageV2StartupSeedService } from './services/storageV2/StartupSeedService'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -221,24 +220,6 @@ if (!app.requestSingleInstanceLock()) {
     initSelectionService()
 
     void runAsyncFunction(async () => {
-      try {
-        const seedReport = await storageV2StartupSeedService.seedFromLegacyRuntimeDatabases()
-        logger.info('Storage v2 startup seed completed', {
-          agentDb: seedReport.agent.sourceDbPath,
-          appDb: seedReport.appData.sourceDbPath,
-          agents: seedReport.agent.importedAgentCount,
-          agentSessions: seedReport.agent.importedSessionCount,
-          agentMessages: seedReport.agent.importedSessionMessageCount,
-          appRecords: seedReport.appData.importedRecordCount,
-          appCache: seedReport.appData.importedCacheCount,
-          warningCount: seedReport.agent.warnings.length + seedReport.appData.warnings.length
-        })
-      } catch (error) {
-        logger.warn('Storage v2 startup seed failed (non-fatal)', {
-          error: error instanceof Error ? error.message : String(error)
-        })
-      }
-
       // Initialize built-in skills and agents (sequential to avoid SQLITE_BUSY)
       // TODO: v2 lifecycle
       await bootstrapBuiltinAgents()

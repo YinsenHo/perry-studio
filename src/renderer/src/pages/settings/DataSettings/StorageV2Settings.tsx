@@ -162,6 +162,7 @@ const AUDIT_ITEM_LABEL_KEYS: Record<string, string> = {
   'mcp-oauth-legacy': 'settings.data.storage_v2.audit_items.mcp_oauth_legacy',
   memory: 'settings.data.storage_v2.audit_items.memory',
   notes: 'settings.data.storage_v2.audit_items.notes',
+  'obsidian-config': 'settings.data.storage_v2.audit_items.obsidian_config',
   'openclaw-config': 'settings.data.storage_v2.audit_items.openclaw_config',
   'openclaw-legacy-config': 'settings.data.storage_v2.audit_items.openclaw_legacy_config',
   'ovms-config': 'settings.data.storage_v2.audit_items.ovms_config',

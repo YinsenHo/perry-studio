@@ -4613,6 +4613,7 @@
           "mcp_oauth_legacy": "MCP OAuth token directory",
           "memory": "Memory database",
           "notes": "Default notes directory",
+          "obsidian_config": "Obsidian vault registry",
           "openclaw_config": "OpenClaw config",
           "openclaw_legacy_config": "Legacy OpenClaw config",
           "ovms_config": "OVMS model config",

@@ -4613,6 +4613,7 @@
           "mcp_oauth_legacy": "MCP OAuth 權杖目錄",
           "memory": "Memory 資料庫",
           "notes": "預設筆記目錄",
+          "obsidian_config": "Obsidian Vault 登錄表",
           "openclaw_config": "OpenClaw 設定",
           "openclaw_legacy_config": "舊 OpenClaw 設定",
           "ovms_config": "OVMS 模型設定",

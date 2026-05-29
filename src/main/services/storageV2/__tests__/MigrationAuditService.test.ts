@@ -35,6 +35,7 @@ describe('StorageV2MigrationAuditService', () => {
     vi.mocked(app.getPath).mockImplementation((key: string) => {
       if (key === 'userData') return '/mock/current-user-data'
       if (key === 'home') return '/mock/home'
+      if (key === 'appData') return '/mock/app-data'
       return ''
     })
     mocks.dataRootService.resolveDataRoot.mockReturnValue({
@@ -69,6 +70,13 @@ describe('StorageV2MigrationAuditService', () => {
     expect(itemPath('code-tools-bin')).toBe('/mock/home/.cherrystudio/bin')
     expect(itemPath('code-tools-install')).toBe('/mock/home/.cherrystudio/install')
     expect(itemPath('openclaw-config')).toBe('/mock/home/.openclaw/openclaw.json')
+    expect(itemPath('obsidian-config')).toBe(
+      process.platform === 'win32'
+        ? '/mock/app-data/obsidian/obsidian.json'
+        : process.platform === 'darwin'
+          ? '/mock/home/Library/Application Support/obsidian/obsidian.json'
+          : '/mock/home/.config/obsidian/obsidian.json'
+    )
     expect(itemPath('ovms-config')).toBe('/mock/home/.cherrystudio/ovms/ovms/models/config.json')
     expect(itemPath('trace-cache')).toBe('/mock/home/.cherrystudio/trace')
     expect(itemPath('logs')).toBe('/mock/current-user-data/logs')

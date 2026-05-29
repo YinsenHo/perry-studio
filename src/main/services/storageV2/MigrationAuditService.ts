@@ -67,6 +67,19 @@ function isSameOrInside(childPath: string, parentPath: string) {
   return Boolean(relativePath && !relativePath.startsWith('..') && !path.isAbsolute(relativePath))
 }
 
+function getObsidianConfigPath(homePath: string) {
+  if (process.platform === 'win32') {
+    return path.join(app.getPath('appData'), 'obsidian', 'obsidian.json')
+  }
+
+  if (process.platform === 'darwin') {
+    return path.join(homePath, 'Library', 'Application Support', 'obsidian', 'obsidian.json')
+  }
+
+  const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(homePath, '.config')
+  return path.join(xdgConfigHome, 'obsidian', 'obsidian.json')
+}
+
 async function collectStats(targetPath: string): Promise<PathStats> {
   const stats = await fs.stat(targetPath)
 
@@ -371,6 +384,13 @@ export class StorageV2MigrationAuditService {
         coverage: 'cache',
         risk: 'low',
         notes: 'Bun/npm global install tree for managed CLI tools; rebuildable from runtime settings.'
+      }),
+      auditPath('obsidian-config', 'Obsidian vault registry', getObsidianConfigPath(homePath), {
+        category: 'external-projection',
+        coverage: 'covered',
+        risk: 'low',
+        notes:
+          'Third-party Obsidian vault registry. Cherry Studio Pi mirrors the selected default vault setting, but external vault contents remain outside Storage v2 backups.'
       }),
       auditPath(
         'openclaw-legacy-config',

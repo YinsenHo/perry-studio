@@ -33,6 +33,7 @@ on:
         type: boolean
 
 permissions:
+  actions: read
   contents: write
 
 concurrency:
@@ -100,9 +101,52 @@ jobs:
             git push origin "$TAG"
           fi
 
+  preflight:
+    name: Release preflight
+    needs: prepare
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check Windows signing prerequisites
+        if: github.event_name == 'push' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'windows'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHERRY_CERT_PATH: ${{ secrets.CHERRY_CERT_PATH }}
+          CHERRY_CERT_KEY: ${{ secrets.CHERRY_CERT_KEY }}
+          CHERRY_CERT_CSP: ${{ secrets.CHERRY_CERT_CSP }}
+        run: |
+          missing=()
+          for name in CHERRY_CERT_PATH CHERRY_CERT_KEY CHERRY_CERT_CSP; do
+            if [ -z "${!name}" ]; then
+              missing+=("$name")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing Windows signing secrets: %s\n' "${missing[*]}"
+            printf 'Grant CherryHQ organization secrets to this repository or add repo-level secrets before running a Windows release.\n'
+            exit 1
+          fi
+
+          runner_count="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runners" \
+            --jq '[.runners[] | select(.status == "online" and ([.labels[].name] | index("windows-signing")))] | length')"
+
+          if [ "${runner_count:-0}" = "0" ]; then
+            printf 'No online self-hosted runner with label windows-signing is available to %s.\n' "$GITHUB_REPOSITORY"
+            printf 'Grant the CherryHQ windows-signing runner group to this repository before running a Windows release.\n'
+            exit 1
+          fi
+
+      - name: Skip Windows signing preflight
+        if: github.event_name != 'push' && github.event.inputs.platform != 'all' && github.event.inputs.platform != 'windows'
+        run: echo "Windows release was not requested."
+
   build:
     name: Build ${{ matrix.platform }}
-    needs: prepare
+    needs:
+      - prepare
+      - preflight
     runs-on: ${{ matrix.os }}
 
     strategy:

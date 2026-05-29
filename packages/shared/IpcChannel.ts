@@ -321,6 +321,7 @@ export enum IpcChannel {
   // Storage v2 scaffold
   StorageV2_GetDataRoot = 'storage-v2:get-data-root',
   StorageV2_HealthCheck = 'storage-v2:health-check',
+  StorageV2_GetHealthSummary = 'storage-v2:get-health-summary',
   StorageV2_CreateSnapshot = 'storage-v2:create-snapshot',
   StorageV2_CreateBackup = 'storage-v2:create-backup',
   StorageV2_ValidateBackup = 'storage-v2:validate-backup',

@@ -114,6 +114,23 @@ export type StorageV2BackupValidation = {
   metadata: Record<string, any> | null
 }
 
+export type StorageV2HealthSummary = {
+  generatedAt: string
+  status: 'blocked' | 'ready' | 'warning'
+  canBackup: boolean
+  canMigrate: boolean
+  dataRoot: string
+  issueCount: number
+  warningCount: number
+  checks: Array<{
+    id: string
+    label: string
+    status: 'error' | 'ok' | 'warning'
+    message: string
+    values?: Record<string, number | string>
+  }>
+}
+
 export type StorageV2RestoreBackupResult = {
   backupPath: string
   dataRoot: string
@@ -177,6 +194,10 @@ export function getStorageV2DataRoot() {
 
 export function getStorageV2Health() {
   return window.api.storageV2.healthCheck()
+}
+
+export function getStorageV2HealthSummary(): Promise<StorageV2HealthSummary> {
+  return window.api.storageV2.getHealthSummary()
 }
 
 export function getStorageV2MigrationAudit() {

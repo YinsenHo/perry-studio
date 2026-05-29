@@ -35,6 +35,25 @@ export type StorageV2HealthCheck = {
   quickCheck: string
 }
 
+export type StorageV2HealthSummaryCheck = {
+  id: string
+  label: string
+  status: 'error' | 'ok' | 'warning'
+  message: string
+  values?: Record<string, number | string>
+}
+
+export type StorageV2HealthSummary = {
+  generatedAt: string
+  status: 'blocked' | 'ready' | 'warning'
+  canBackup: boolean
+  canMigrate: boolean
+  dataRoot: string
+  issueCount: number
+  warningCount: number
+  checks: StorageV2HealthSummaryCheck[]
+}
+
 export type StorageV2IntegrityIssue = {
   id: string
   label: string

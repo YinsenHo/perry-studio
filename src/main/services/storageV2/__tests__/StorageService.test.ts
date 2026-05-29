@@ -166,6 +166,27 @@ describe('StorageV2Service', () => {
     mocks.fileRepository.get.mockResolvedValue(null)
     mocks.fileRepository.list.mockResolvedValue([])
     mocks.knowledgeRepository.listBases.mockResolvedValue([])
+    mocks.dataRootService.resolveDataRoot.mockReturnValue({ dataRoot: '/mock/Data', candidates: [] })
+    mocks.database.healthCheck.mockResolvedValue({ ok: true, quickCheck: 'ok' })
+    mocks.database.integrityReport.mockResolvedValue({
+      ok: true,
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      quickCheck: 'ok',
+      integrityCheck: 'ok',
+      foreignKeyIssueCount: 0,
+      issues: []
+    })
+    mocks.migrationAuditService.runAudit.mockResolvedValue({
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      userDataPath: '/mock/userData',
+      dataRoot: '/mock/Data',
+      items: [],
+      warnings: []
+    })
+    mocks.statisticsService.getStats.mockResolvedValue({
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      counts: { settings: 1 }
+    })
   })
 
   it('strictly flushes main-process config and agent mirrors before snapshots', async () => {
@@ -308,6 +329,45 @@ describe('StorageV2Service', () => {
     await expect(service.projectFilesToLegacyRuntime()).resolves.toEqual(projectionReport)
     expect(mocks.fileRepository.get).toHaveBeenCalledWith('file-1')
     expect(mocks.fileProjectionService.projectToLegacyRuntime).toHaveBeenCalled()
+  })
+
+  it('summarizes whether the current profile is ready for backup and migration', async () => {
+    mocks.migrationAuditService.runAudit.mockResolvedValue({
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      userDataPath: '/mock/userData',
+      dataRoot: '/mock/Data',
+      items: [
+        {
+          id: 'legacy-user-data-agents-db',
+          label: 'Legacy agents.db',
+          path: '/mock/userData/agents.db',
+          exists: true,
+          sizeBytes: 128,
+          coverage: 'legacy-only',
+          actionRequired: true
+        }
+      ],
+      warnings: ['Legacy-only data paths were detected.']
+    })
+
+    const summary = await new StorageV2Service().getHealthSummary()
+
+    expect(summary).toMatchObject({
+      status: 'warning',
+      canBackup: true,
+      canMigrate: false,
+      dataRoot: '/mock/Data',
+      issueCount: 0,
+      warningCount: 2
+    })
+    expect(summary.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'storage_health', status: 'ok' }),
+        expect.objectContaining({ id: 'integrity', status: 'ok' }),
+        expect.objectContaining({ id: 'legacy_only_paths', status: 'warning', values: { count: 1 } }),
+        expect.objectContaining({ id: 'audit_warnings', status: 'warning', values: { count: 1 } })
+      ])
+    )
   })
 
   it('restores localStorage MCP provider tokens from secret refs in core snapshots', async () => {

@@ -4687,6 +4687,24 @@
         "health": "健康状态",
         "health_failed": "异常",
         "health_ok": "正常",
+        "health_summary": {
+          "backup_blocked": "备份受阻",
+          "backup_ready": "可备份",
+          "checks": {
+            "audit_warnings": "迁移审计有 {{count}} 条提示需要确认",
+            "integrity": "完整性检查有 {{count}} 个问题，foreign_key={{foreignKeyIssueCount}}",
+            "legacy_only_paths": "有 {{count}} 个 legacy-only 路径需要在最终迁移前处理",
+            "record_coverage": "Storage v2 当前有 {{count}} 条记录",
+            "storage_health": "存储健康检查：{{quickCheck}}"
+          },
+          "migration_blocked": "迁移需处理",
+          "migration_ready": "可迁移",
+          "status_blocked": "阻塞",
+          "status_ready": "就绪",
+          "status_warning": "需关注",
+          "summary": "{{issueCount}} 个阻塞，{{warningCount}} 个提醒",
+          "title": "迁移/备份就绪度"
+        },
         "history": {
           "dry_run": "演练",
           "empty": "暂无迁移记录",

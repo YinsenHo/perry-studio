@@ -10,6 +10,7 @@ import {
   createStorageV2Snapshot,
   getStorageV2DataRoot,
   getStorageV2Health,
+  getStorageV2HealthSummary,
   getStorageV2IntegrityReport,
   getStorageV2MigrationAudit,
   getStorageV2Stats,
@@ -17,6 +18,7 @@ import {
   restoreStorageV2Backup,
   runLegacyMigrationToStorageV2,
   type StorageV2BackupValidation,
+  type StorageV2HealthSummary,
   type StorageV2LegacyMigrationReport,
   type StorageV2MigrationRun,
   type StorageV2RestoreBackupResult,
@@ -297,6 +299,25 @@ const BACKUP_WARNING_LABEL_KEYS: Record<string, string> = {
     'settings.data.storage_v2.backup_restore.warnings.undecryptable_secret_vault_entries',
   unknown_copied_directories: 'settings.data.storage_v2.backup_restore.warnings.unknown_copied_directories'
 }
+const HEALTH_SUMMARY_CHECK_LABEL_KEYS: Record<string, string> = {
+  audit_warnings: 'settings.data.storage_v2.health_summary.checks.audit_warnings',
+  integrity: 'settings.data.storage_v2.health_summary.checks.integrity',
+  legacy_only_paths: 'settings.data.storage_v2.health_summary.checks.legacy_only_paths',
+  record_coverage: 'settings.data.storage_v2.health_summary.checks.record_coverage',
+  storage_health: 'settings.data.storage_v2.health_summary.checks.storage_health'
+}
+
+const HEALTH_SUMMARY_STATUS_KEYS: Record<StorageV2HealthSummary['status'], string> = {
+  blocked: 'settings.data.storage_v2.health_summary.status_blocked',
+  ready: 'settings.data.storage_v2.health_summary.status_ready',
+  warning: 'settings.data.storage_v2.health_summary.status_warning'
+}
+
+const HEALTH_SUMMARY_STATUS_COLORS: Record<StorageV2HealthSummary['status'], string> = {
+  blocked: 'error',
+  ready: 'success',
+  warning: 'warning'
+}
 
 function asRecord(value: unknown): Record<string, any> {
   return value && typeof value === 'object' ? (value as Record<string, any>) : {}
@@ -331,6 +352,7 @@ const StorageV2Settings: FC = () => {
   const [loadingAction, setLoadingAction] = useState<LoadingAction>(null)
   const [dataRoot, setDataRoot] = useState<StorageV2DataRootInfo | null>(null)
   const [health, setHealth] = useState<StorageV2Health | null>(null)
+  const [healthSummary, setHealthSummary] = useState<StorageV2HealthSummary | null>(null)
   const [audit, setAudit] = useState<StorageV2MigrationAudit | null>(null)
   const [stats, setStats] = useState<StorageV2Stats | null>(null)
   const [integrityReport, setIntegrityReport] = useState<StorageV2IntegrityReport | null>(null)
@@ -348,22 +370,48 @@ const StorageV2Settings: FC = () => {
       }
 
       try {
-        const [nextDataRoot, nextAudit, nextHealth, nextStats, nextMigrationRuns, nextAutoHydrateEnabled] =
-          await Promise.all([
-            getStorageV2DataRoot(),
-            getStorageV2MigrationAudit(),
-            getStorageV2Health().catch((error) => ({
-              ok: false,
-              quickCheck: (error as Error).message
-            })),
-            getStorageV2Stats(),
-            listStorageV2MigrationRuns(8),
-            getStorageV2AutoHydrateEnabled().catch(() => false)
-          ])
+        const [
+          nextDataRoot,
+          nextAudit,
+          nextHealth,
+          nextHealthSummary,
+          nextStats,
+          nextMigrationRuns,
+          nextAutoHydrateEnabled
+        ] = await Promise.all([
+          getStorageV2DataRoot(),
+          getStorageV2MigrationAudit(),
+          getStorageV2Health().catch((error) => ({
+            ok: false,
+            quickCheck: (error as Error).message
+          })),
+          getStorageV2HealthSummary().catch((error) => ({
+            generatedAt: new Date().toISOString(),
+            status: 'blocked' as const,
+            canBackup: false,
+            canMigrate: false,
+            dataRoot: '',
+            issueCount: 1,
+            warningCount: 0,
+            checks: [
+              {
+                id: 'storage_health',
+                label: 'Storage health',
+                status: 'error' as const,
+                message: getErrorMessage(error),
+                values: { message: getErrorMessage(error) }
+              }
+            ]
+          })),
+          getStorageV2Stats(),
+          listStorageV2MigrationRuns(8),
+          getStorageV2AutoHydrateEnabled().catch(() => false)
+        ])
 
         setDataRoot(nextDataRoot as StorageV2DataRootInfo)
         setAudit(nextAudit as StorageV2MigrationAudit)
         setHealth(nextHealth as StorageV2Health)
+        setHealthSummary(nextHealthSummary)
         setStats(nextStats as StorageV2Stats)
         setMigrationRuns(nextMigrationRuns)
         setAutoHydrateEnabled(nextAutoHydrateEnabled)
@@ -577,6 +625,10 @@ const StorageV2Settings: FC = () => {
   }, [lastReport, t])
 
   const healthOk = Boolean(health?.ok)
+  const healthSummaryChecks = useMemo(
+    () => (healthSummary?.checks ?? []).filter((check) => check.status !== 'ok'),
+    [healthSummary]
+  )
   const dataRootPath = dataRoot?.dataRoot
   const sourceLabel = dataRoot?.source
     ? t(SOURCE_LABEL_KEYS[dataRoot.source] ?? 'settings.data.storage_v2.sources.unknown')
@@ -600,6 +652,50 @@ const StorageV2Settings: FC = () => {
             </Typography.Text>
           </HStack>
         </SettingRow>
+        {healthSummary && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.data.storage_v2.health_summary.title')}</SettingRowTitle>
+              <HealthSummaryInline>
+                <Tag color={HEALTH_SUMMARY_STATUS_COLORS[healthSummary.status]}>
+                  {t(HEALTH_SUMMARY_STATUS_KEYS[healthSummary.status])}
+                </Tag>
+                <Tag color={healthSummary.canBackup ? 'success' : 'error'}>
+                  {t(
+                    healthSummary.canBackup
+                      ? 'settings.data.storage_v2.health_summary.backup_ready'
+                      : 'settings.data.storage_v2.health_summary.backup_blocked'
+                  )}
+                </Tag>
+                <Tag color={healthSummary.canMigrate ? 'success' : 'warning'}>
+                  {t(
+                    healthSummary.canMigrate
+                      ? 'settings.data.storage_v2.health_summary.migration_ready'
+                      : 'settings.data.storage_v2.health_summary.migration_blocked'
+                  )}
+                </Tag>
+                <Typography.Text type="secondary">
+                  {t('settings.data.storage_v2.health_summary.summary', {
+                    issueCount: healthSummary.issueCount,
+                    warningCount: healthSummary.warningCount
+                  })}
+                </Typography.Text>
+              </HealthSummaryInline>
+            </SettingRow>
+            {healthSummaryChecks.length > 0 && (
+              <HealthSummaryChecks>
+                {healthSummaryChecks.map((check) => (
+                  <Typography.Text key={check.id} type={check.status === 'error' ? 'danger' : 'warning'}>
+                    {HEALTH_SUMMARY_CHECK_LABEL_KEYS[check.id]
+                      ? t(HEALTH_SUMMARY_CHECK_LABEL_KEYS[check.id], check.values)
+                      : check.message}
+                  </Typography.Text>
+                ))}
+              </HealthSummaryChecks>
+            )}
+          </>
+        )}
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.data.storage_v2.data_root')}</SettingRowTitle>
@@ -954,6 +1050,22 @@ const PathInline = styled.div`
 
 const ManifestInline = styled(Space)`
   max-width: min(680px, 62vw);
+`
+
+const HealthSummaryInline = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  max-width: min(680px, 62vw);
+`
+
+const HealthSummaryChecks = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
 `
 
 const ActionGrid = styled.div`

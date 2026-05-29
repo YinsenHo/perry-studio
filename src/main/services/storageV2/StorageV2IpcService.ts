@@ -11,6 +11,7 @@ export function registerStorageV2IpcHandlers() {
 
   ipcMain.handle(IpcChannel.StorageV2_GetDataRoot, () => storageV2Service.getDataRoot())
   ipcMain.handle(IpcChannel.StorageV2_HealthCheck, () => storageV2Service.healthCheck())
+  ipcMain.handle(IpcChannel.StorageV2_GetHealthSummary, () => storageV2Service.getHealthSummary())
   ipcMain.handle(IpcChannel.StorageV2_CreateSnapshot, (_event, reason?: string) =>
     storageV2Service.createSnapshot(reason)
   )

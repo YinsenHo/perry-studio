@@ -85,7 +85,7 @@
 - [x] 扩展 migration audit，列出仍在 legacy-only 的数据路径。
 - [x] 扩展 integrity report：补齐 message block blob、头像 blob、孤儿 blob、blob ref_count、孤儿 secret vault entry 检查；已有 message/block/file/blob file/secret ref 检查继续保留。
 - [x] 增加 backup validation 对新增目录和表的兼容检查。
-- [ ] 增加“当前 profile 是否可安全迁移/备份”的 health summary。
+- [x] 增加“当前 profile 是否可安全迁移/备份”的 health summary，并在设置页展示备份/迁移就绪度。
 - [ ] 设置页显示 data root、最近备份、mirror pending、失败重试队列。
 
 ## 7. 测试补齐

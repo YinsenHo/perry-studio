@@ -4687,6 +4687,24 @@
         "health": "Health",
         "health_failed": "Failed",
         "health_ok": "OK",
+        "health_summary": {
+          "backup_blocked": "Backup blocked",
+          "backup_ready": "Backup ready",
+          "checks": {
+            "audit_warnings": "{{count}} migration audit warning(s) need review",
+            "integrity": "Integrity report has {{count}} issue(s), foreign_key={{foreignKeyIssueCount}}",
+            "legacy_only_paths": "{{count}} legacy-only path(s) need handling before final migration",
+            "record_coverage": "Storage v2 currently has {{count}} record(s)",
+            "storage_health": "Storage health check: {{quickCheck}}"
+          },
+          "migration_blocked": "Migration needs attention",
+          "migration_ready": "Migration ready",
+          "status_blocked": "Blocked",
+          "status_ready": "Ready",
+          "status_warning": "Needs attention",
+          "summary": "{{issueCount}} blocker(s), {{warningCount}} warning(s)",
+          "title": "Migration/Backup Readiness"
+        },
         "history": {
           "dry_run": "Dry run",
           "empty": "No migration records yet",

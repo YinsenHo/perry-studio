@@ -27,6 +27,7 @@ import {
   storageV2ProviderRepository,
   storageV2SettingsRepository
 } from './StorageV2Repositories'
+import type { StorageV2HealthSummaryCheck } from './types'
 
 export type StorageV2CoreSnapshotOptions = {
   includeSecrets?: boolean
@@ -104,6 +105,10 @@ function deleteNestedValue(root: Record<string, any>, path: readonly string[]) {
 
 function isSensitiveHeaderName(headerName: string) {
   return /(authorization|cookie|token|secret|api[-_]?key|x[-_].*key)/i.test(headerName)
+}
+
+function countStorageV2StatsRecords(counts: Record<string, number>) {
+  return Object.values(counts).reduce((total, count) => total + (Number.isFinite(count) ? count : 0), 0)
 }
 
 async function restoreMcpStateSecrets(
@@ -519,6 +524,134 @@ export class StorageV2Service {
 
   async getIntegrityReport() {
     return storageV2Database.integrityReport()
+  }
+
+  async getHealthSummary() {
+    const checks: StorageV2HealthSummaryCheck[] = []
+    const dataRootInfo = this.getDataRoot()
+
+    try {
+      const health = await this.healthCheck()
+      checks.push({
+        id: 'storage_health',
+        label: 'Storage health',
+        status: health.ok ? 'ok' : 'error',
+        message: health.ok ? 'Storage quick_check passed.' : `Storage quick_check failed: ${health.quickCheck}`,
+        values: {
+          quickCheck: health.quickCheck
+        }
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      checks.push({
+        id: 'storage_health',
+        label: 'Storage health',
+        status: 'error',
+        message: `Storage health check failed: ${message}`,
+        values: { message }
+      })
+    }
+
+    try {
+      const integrity = await this.getIntegrityReport()
+      checks.push({
+        id: 'integrity',
+        label: 'Integrity',
+        status: integrity.ok ? 'ok' : 'error',
+        message: integrity.ok
+          ? 'Storage integrity report is clean.'
+          : `Storage integrity report has ${integrity.issues.length} issue(s).`,
+        values: {
+          count: integrity.issues.length,
+          foreignKeyIssueCount: integrity.foreignKeyIssueCount
+        }
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      checks.push({
+        id: 'integrity',
+        label: 'Integrity',
+        status: 'error',
+        message: `Storage integrity report failed: ${message}`,
+        values: { message }
+      })
+    }
+
+    try {
+      const audit = await this.getMigrationAudit()
+      const legacyOnlyCount = audit.items.filter(
+        (item) => item.exists && item.coverage === 'legacy-only' && item.actionRequired
+      ).length
+      checks.push({
+        id: 'legacy_only_paths',
+        label: 'Legacy-only paths',
+        status: legacyOnlyCount > 0 ? 'warning' : 'ok',
+        message:
+          legacyOnlyCount > 0
+            ? `${legacyOnlyCount} legacy-only path(s) need handling before final migration.`
+            : 'No action-required legacy-only paths were detected.',
+        values: { count: legacyOnlyCount }
+      })
+      checks.push({
+        id: 'audit_warnings',
+        label: 'Audit warnings',
+        status: audit.warnings.length > 0 ? 'warning' : 'ok',
+        message:
+          audit.warnings.length > 0
+            ? `${audit.warnings.length} migration audit warning(s) need review.`
+            : 'Migration audit has no warnings.',
+        values: { count: audit.warnings.length }
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      checks.push({
+        id: 'audit_warnings',
+        label: 'Audit warnings',
+        status: 'error',
+        message: `Migration audit failed: ${message}`,
+        values: { message }
+      })
+    }
+
+    try {
+      const stats = await this.getStats()
+      const recordCount = countStorageV2StatsRecords(stats.counts)
+      checks.push({
+        id: 'record_coverage',
+        label: 'Record coverage',
+        status: recordCount > 0 ? 'ok' : 'warning',
+        message:
+          recordCount > 0
+            ? `Storage v2 contains ${recordCount} record(s).`
+            : 'Storage v2 has no records yet; run migration before relying on backup or restore.',
+        values: { count: recordCount }
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      checks.push({
+        id: 'record_coverage',
+        label: 'Record coverage',
+        status: 'warning',
+        message: `Storage v2 stats failed: ${message}`,
+        values: { message }
+      })
+    }
+
+    const issueCount = checks.filter((check) => check.status === 'error').length
+    const warningCount = checks.filter((check) => check.status === 'warning').length
+    const legacyOnlyCheck = checks.find((check) => check.id === 'legacy_only_paths')
+    const status = issueCount > 0 ? 'blocked' : warningCount > 0 ? 'warning' : 'ready'
+
+    return {
+      generatedAt: new Date().toISOString(),
+      status,
+      canBackup: issueCount === 0,
+      canMigrate: issueCount === 0 && legacyOnlyCheck?.status !== 'warning',
+      dataRoot: dataRootInfo.dataRoot,
+      issueCount,
+      warningCount,
+      checks
+    }
   }
 
   async getCoreSnapshot(options: StorageV2CoreSnapshotOptions = {}) {

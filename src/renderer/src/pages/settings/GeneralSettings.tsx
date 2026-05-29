@@ -8,7 +8,10 @@ import { useEnableDeveloperMode, useSettings } from '@renderer/hooks/useSettings
 import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
 import { storageV2ConversationMirrorService } from '@renderer/services/StorageV2ConversationMirrorService'
-import { scheduleStorageV2LocalStorageMirror } from '@renderer/services/StorageV2LocalStorageSnapshot'
+import {
+  flushStorageV2LocalStorageMirror,
+  scheduleStorageV2LocalStorageMirror
+} from '@renderer/services/StorageV2LocalStorageSnapshot'
 import type { RootState } from '@renderer/store'
 import store, { useAppDispatch } from '@renderer/store'
 import { updateAssistant, updateDefaultAssistant } from '@renderer/store/assistants'
@@ -114,6 +117,7 @@ const GeneralSettings: FC = () => {
     dispatch(setLanguage(value))
     localStorage.setItem('language', value)
     scheduleStorageV2LocalStorageMirror()
+    await flushStorageV2LocalStorageMirror()
     void window.api.setLanguage(value)
     await i18n.changeLanguage(value)
 
@@ -125,7 +129,7 @@ const GeneralSettings: FC = () => {
       )
       dispatch(updateDefaultAssistant({ assistant: { ...defaultAssistant, name: newName, topics: updatedTopics } }))
       dispatch(updateAssistant({ id: defaultAssistant.id, name: newName, topics: updatedTopics }))
-      storageV2ConversationMirrorService.scheduleTopics(
+      await storageV2ConversationMirrorService.flushTopics(
         updatedTopics.map((topic) => topic.id),
         () => store.getState()
       )

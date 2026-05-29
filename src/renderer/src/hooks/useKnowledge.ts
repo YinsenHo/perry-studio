@@ -6,7 +6,10 @@ import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import { storageV2DexieTableMirrorService } from '@renderer/services/StorageV2DexieTableMirrorService'
 import { storageV2DexieTableRecoveryService } from '@renderer/services/StorageV2DexieTableRecoveryService'
 import { storageV2MirrorService } from '@renderer/services/StorageV2MirrorService'
-import { persistStorageV2ReduxSlice } from '@renderer/services/StorageV2ReduxSliceService'
+import {
+  persistStorageV2PartialReduxSnapshot,
+  persistStorageV2ReduxSlice
+} from '@renderer/services/StorageV2ReduxSliceService'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch } from '@renderer/store'
 import {
@@ -416,7 +419,9 @@ export const useKnowledge = (baseId: string) => {
 
 export const useKnowledgeBases = () => {
   const dispatch = useDispatch()
-  const bases = useSelector((state: RootState) => state.knowledge.bases)
+  const knowledgeState = useSelector((state: RootState) => state.knowledge)
+  const assistantsState = useSelector((state: RootState) => state.assistants)
+  const bases = knowledgeState.bases
   const { assistants, updateAssistants } = useAssistants()
   const { presets, setAssistantPresets } = useAssistantPresets()
 
@@ -458,6 +463,23 @@ export const useKnowledgeBases = () => {
         }
       }
       return agent
+    })
+
+    const nextKnowledgeState = {
+      ...knowledgeState,
+      bases: bases.filter((candidate) => candidate.id !== baseId)
+    }
+    const nextAssistantsState = {
+      ...assistantsState,
+      assistants: _assistants,
+      presets: _presets
+    }
+
+    await persistStorageV2PartialReduxSnapshot({
+      redux: {
+        knowledge: nextKnowledgeState
+      },
+      assistants: nextAssistantsState
     })
 
     storageV2MirrorService.pauseRuntimeMirroring()

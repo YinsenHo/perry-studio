@@ -1,3 +1,4 @@
+import type { Provider } from '@types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -58,6 +59,7 @@ const mocks = vi.hoisted(() => ({
     set: vi.fn()
   },
   providerRepository: {
+    delete: vi.fn(),
     list: vi.fn(),
     listCredentialRefs: vi.fn(),
     upsert: vi.fn()
@@ -162,6 +164,8 @@ describe('StorageV2Service', () => {
     mocks.agentDbMirrorService.flushStrict.mockResolvedValue(undefined)
     mocks.providerRepository.list.mockResolvedValue([])
     mocks.providerRepository.listCredentialRefs.mockResolvedValue(new Map())
+    mocks.providerRepository.upsert.mockResolvedValue({ skippedSecret: false })
+    mocks.providerRepository.delete.mockResolvedValue({ deleted: true })
     mocks.assistantRepository.list.mockResolvedValue([])
     mocks.conversationRepository.list.mockResolvedValue([])
     mocks.fileRepository.get.mockResolvedValue(null)
@@ -347,6 +351,58 @@ describe('StorageV2Service', () => {
     await expect(service.projectFilesToLegacyRuntime()).resolves.toEqual(projectionReport)
     expect(mocks.fileRepository.get).toHaveBeenCalledWith('file-1')
     expect(mocks.fileProjectionService.projectToLegacyRuntime).toHaveBeenCalled()
+  })
+
+  it('stores provider API keys in the secret vault before upserting provider metadata', async () => {
+    const provider: Provider = {
+      id: 'provider-1',
+      type: 'openai',
+      name: 'OpenAI',
+      apiKey: 'sk-test',
+      apiHost: 'https://api.openai.com',
+      models: []
+    }
+    mocks.secretVault.setSecret.mockResolvedValue('storage-v2://secret/provider/provider-1/apiKey')
+    mocks.providerRepository.upsert.mockResolvedValue({ skippedSecret: false })
+
+    await expect(new StorageV2Service().upsertProvider(provider, 2)).resolves.toEqual({ skippedSecret: false })
+
+    expect(mocks.secretVault.setSecret).toHaveBeenCalledWith('provider', 'provider-1', 'apiKey', 'sk-test')
+    expect(mocks.providerRepository.upsert).toHaveBeenCalledWith(
+      provider,
+      2,
+      'storage-v2://secret/provider/provider-1/apiKey'
+    )
+  })
+
+  it('uses explicit provider credential refs without rewriting secrets', async () => {
+    const provider: Provider = {
+      id: 'provider-1',
+      type: 'openai',
+      name: 'OpenAI',
+      apiKey: 'sk-test',
+      apiHost: 'https://api.openai.com',
+      models: []
+    }
+
+    await expect(
+      new StorageV2Service().upsertProvider(provider, 3, 'storage-v2://secret/provider/provider-1/apiKey')
+    ).resolves.toEqual({ skippedSecret: false })
+
+    expect(mocks.secretVault.setSecret).not.toHaveBeenCalled()
+    expect(mocks.providerRepository.upsert).toHaveBeenCalledWith(
+      provider,
+      3,
+      'storage-v2://secret/provider/provider-1/apiKey'
+    )
+  })
+
+  it('deletes providers through the Storage v2 tombstone repository path', async () => {
+    mocks.providerRepository.delete.mockResolvedValue({ deleted: true })
+
+    await expect(new StorageV2Service().deleteProvider('provider-1')).resolves.toEqual({ deleted: true })
+
+    expect(mocks.providerRepository.delete).toHaveBeenCalledWith('provider-1')
   })
 
   it('summarizes whether the current profile is ready for backup and migration', async () => {

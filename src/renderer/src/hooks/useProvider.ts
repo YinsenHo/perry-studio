@@ -3,8 +3,11 @@ import { isNotSupportTextDeltaModel } from '@renderer/config/models'
 import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
 import { getDefaultProvider } from '@renderer/services/AssistantService'
 import { deleteStorageV2Provider } from '@renderer/services/StorageV2EntityDeleteService'
+import {
+  mutateStorageV2ProviderFirst,
+  upsertStorageV2ProviderList
+} from '@renderer/services/StorageV2ProviderWriteService'
 import { flushStorageV2ReduxMirror } from '@renderer/services/StorageV2ReduxMirrorFlush'
-import { persistStorageV2PartialReduxSnapshot } from '@renderer/services/StorageV2ReduxSliceService'
 import { type RootState, useAppDispatch, useAppSelector, useAppStore } from '@renderer/store'
 import {
   addModel,
@@ -19,6 +22,7 @@ import type { Assistant, Model, Provider } from '@renderer/types'
 import { isSystemProvider } from '@renderer/types'
 import { withoutTrailingSlash } from '@renderer/utils/api'
 import { isNewApiProvider } from '@renderer/utils/provider'
+import { uniqBy } from 'lodash'
 import { useCallback, useMemo } from 'react'
 
 import { useDefaultModel } from './useAssistant'
@@ -66,27 +70,15 @@ const selectAllProvidersWithCherryAI = createSelector(selectProviders, (provider
   [...providers, CHERRYAI_PROVIDER].map(normalizeProvider)
 )
 
-function removeModelsFromLlmState(llmState: RootState['llm'], providerId: string, modelIds: Set<string>) {
-  return {
-    ...llmState,
-    providers: llmState.providers.map((provider) =>
-      provider.id === providerId
-        ? {
-            ...provider,
-            models: provider.models.filter((model) => !modelIds.has(model.id))
-          }
-        : provider
-    )
-  }
-}
-
 export function useProviders() {
   const providers: Provider[] = useAppSelector(selectEnabledProviders)
   const dispatch = useAppDispatch()
+  const reduxStore = useAppStore()
 
   return {
     providers: providers || [],
-    addProvider: (provider: Provider) => {
+    addProvider: async (provider: Provider) => {
+      await upsertStorageV2ProviderList([provider, ...reduxStore.getState().llm.providers])
       dispatch(addProvider(provider))
       flushProviderMirror('llm-add-provider')
     },
@@ -95,11 +87,16 @@ export function useProviders() {
       dispatch(removeProvider(provider))
       await flushProviderMirror('llm-remove-provider', { strict: true })
     },
-    updateProvider: (updates: Partial<Provider> & { id: string }) => {
+    updateProvider: async (updates: Partial<Provider> & { id: string }) => {
+      await mutateStorageV2ProviderFirst(updates.id, reduxStore.getState().llm.providers, (provider) => ({
+        ...provider,
+        ...updates
+      }))
       dispatch(updateProvider(updates))
       flushProviderMirror('llm-update-provider')
     },
-    updateProviders: (providers: Provider[]) => {
+    updateProviders: async (providers: Provider[]) => {
+      await upsertStorageV2ProviderList(providers)
       dispatch(updateProviders(providers))
       flushProviderMirror('llm-update-providers')
     }
@@ -125,7 +122,7 @@ export function useProvider(id: string) {
   const reduxStore = useAppStore()
 
   const handleAddModel = useCallback(
-    (model: Model) => {
+    async (model: Model) => {
       let processedModel = { ...model, supported_text_delta: !isNotSupportTextDeltaModel(model) }
 
       if (isNewApiProvider(provider)) {
@@ -138,10 +135,15 @@ export function useProvider(id: string) {
         }
       }
 
+      await mutateStorageV2ProviderFirst(id, reduxStore.getState().llm.providers, (provider) => ({
+        ...provider,
+        models: uniqBy(provider.models.concat(processedModel), 'id'),
+        enabled: true
+      }))
       dispatch(addModel({ providerId: id, model: processedModel }))
       flushProviderMirror('llm-add-model')
     },
-    [dispatch, id, provider]
+    [dispatch, id, provider, reduxStore]
   )
 
   const persistModelDeletes = useCallback(
@@ -149,13 +151,10 @@ export function useProvider(id: string) {
       const modelIds = new Set(models.map((model) => model.id))
       if (modelIds.size === 0) return
 
-      const llmState = reduxStore.getState().llm
-      const providerInState = llmState.providers.find((provider) => provider.id === id)
-      if (!providerInState) return
-
-      await persistStorageV2PartialReduxSnapshot({
-        llm: removeModelsFromLlmState(llmState, id, modelIds)
-      })
+      await mutateStorageV2ProviderFirst(id, reduxStore.getState().llm.providers, (provider) => ({
+        ...provider,
+        models: provider.models.filter((model) => !modelIds.has(model.id))
+      }))
     },
     [id, reduxStore]
   )
@@ -185,14 +184,22 @@ export function useProvider(id: string) {
   return {
     provider,
     models: provider?.models ?? [],
-    updateProvider: (updates: Partial<Provider>) => {
+    updateProvider: async (updates: Partial<Provider>) => {
+      await mutateStorageV2ProviderFirst(id, reduxStore.getState().llm.providers, (provider) => ({
+        ...provider,
+        ...updates
+      }))
       dispatch(updateProvider({ id, ...updates }))
       flushProviderMirror('llm-update-provider')
     },
     addModel: handleAddModel,
     removeModel: handleRemoveModel,
     removeModels: handleRemoveModels,
-    updateModel: (model: Model) => {
+    updateModel: async (model: Model) => {
+      await mutateStorageV2ProviderFirst(id, reduxStore.getState().llm.providers, (provider) => ({
+        ...provider,
+        models: provider.models.map((providerModel) => (providerModel.id === model.id ? model : providerModel))
+      }))
       dispatch(updateModel({ providerId: id, model }))
       flushProviderMirror('llm-update-model')
     }

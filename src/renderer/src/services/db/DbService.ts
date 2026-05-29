@@ -80,7 +80,7 @@ class DbService implements MessageDataSource {
   private resolveMessageTopicId(messageId: string): string | undefined {
     const state = store.getState()
 
-    const parentMessage = state.messages.entities[messageId]
+    const parentMessage = state.messages?.entities?.[messageId]
     if (parentMessage) {
       return parentMessage.topicId
     }
@@ -152,6 +152,23 @@ class DbService implements MessageDataSource {
       pruneMissingBlocks: options.pruneMissingBlocks,
       topic: options.topic
     })
+  }
+
+  private async upsertRegularMessageBlocksBeforeMutation(blocks: MessageBlock[]): Promise<void> {
+    const blocksByMessageId = new Map<string, MessageBlock[]>()
+
+    for (const block of blocks) {
+      if (!block.messageId) continue
+      const messageBlocks = blocksByMessageId.get(block.messageId) ?? []
+      messageBlocks.push(block)
+      blocksByMessageId.set(block.messageId, messageBlocks)
+    }
+
+    for (const [messageId, messageBlocks] of blocksByMessageId) {
+      await storageV2ConversationMirrorService.upsertMessageBlocksFirst(messageId, messageBlocks, {
+        pruneMissing: false
+      })
+    }
   }
 
   private async cleanupFilesAfterConversationMirror(files: void | FileMetadata[]): Promise<void> {
@@ -301,6 +318,7 @@ class DbService implements MessageDataSource {
     }
 
     if (regularBlocks.length > 0) {
+      await this.upsertRegularMessageBlocksBeforeMutation(regularBlocks)
       await this.dexieSource.updateBlocks(regularBlocks)
       this.scheduleRegularTopicMirrors(regularTopicIds)
       storageV2ConversationMirrorService.scheduleMessages(unresolvedRegularMessageIds, () => this.getState())
@@ -402,12 +420,17 @@ class DbService implements MessageDataSource {
     }
 
     // Default to Dexie for regular blocks
+    await this.upsertRegularMessageBlocksBeforeMutation([{ ...existingBlock, ...updates } as MessageBlock])
     await this.dexieSource.updateSingleBlock(blockId, updates)
     this.scheduleRegularTopicMirror(topicId)
   }
 
   async bulkAddBlocks(blocks: MessageBlock[]): Promise<void> {
     // For bulk add operations, default to Dexie since agent blocks use persistExchange
+    const regularBlocks = blocks.filter(
+      (block) => !isAgentSessionTopicId(this.resolveMessageTopicId(block.messageId) ?? '')
+    )
+    await this.upsertRegularMessageBlocksBeforeMutation(regularBlocks)
     await this.dexieSource.bulkAddBlocks(blocks)
     storageV2ConversationMirrorService.scheduleMessages(
       blocks.map((block) => block.messageId),

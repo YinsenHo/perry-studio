@@ -440,6 +440,33 @@ class StorageV2ConversationMirrorService {
     }
   }
 
+  async upsertMessageBlocksFirst(
+    messageId: string | undefined,
+    blocks: MessageBlock[],
+    options: { pruneMissing?: boolean } = {}
+  ) {
+    if (this.suspended) return
+    if (!messageId || blocks.length === 0) return
+
+    await this.flush()
+
+    const storageV2 = window.api?.storageV2
+    if (typeof storageV2?.upsertMessageBlocks !== 'function') {
+      throw new Error('Storage v2 direct message block write API unavailable')
+    }
+
+    const normalizedBlocks = blocks.map((block, blockIndex) => ({
+      ...block,
+      id: getMirrorBlockId(messageId, block, blockIndex),
+      messageId
+    }))
+
+    await storageV2.upsertMessageBlocks(messageId, normalizedBlocks, {
+      pruneMissing: Boolean(options.pruneMissing)
+    })
+    await this.mirrorFiles(Array.from(collectFilesFromBlocks(normalizedBlocks).values()))
+  }
+
   async findTopicIdsForBlockIds(blockIds: Iterable<string | undefined>, getState: StateGetter): Promise<Set<string>> {
     const topicIds = new Set<string>()
     if (this.suspended) return topicIds

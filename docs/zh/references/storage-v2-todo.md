@@ -32,7 +32,7 @@
 - [ ] 用户资产必须进入 Storage v2 或 backup/restore。
 - [ ] 可重建缓存明确标记为 cache，不参与恢复承诺。
 - [ ] 外部工具投影必须有 Storage v2 权威副本，本地文件可重建。
-- [ ] 重点复查 OVMS、CodeTools/OpenCode、Obsidian、trace/dev logs、OCR/tesseract、notes/external path。
+- [x] 重点复查 OVMS、CodeTools/OpenCode、Obsidian、trace/dev logs、OCR/tesseract、notes/external path；目前均已进入 audit 分类，OVMS / unknown external content 仍保留后续 authority 决策。
 
 ## 2. StorageService-first 写路径
 

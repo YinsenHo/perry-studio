@@ -120,7 +120,7 @@
 - [x] Agent runtime session message Storage v2-first 写路径测试：AgentMessageRepository 覆盖新增/更新消息先写 Storage v2 conversation/message/block、失败阻断 legacy。
 - [x] App data Storage v2-first 写路径测试：AppDataIpcService 覆盖 record/cache/workbench shortcut 先写 Storage v2；AppDataDatabase 覆盖直写 record 先写 Storage v2、失败阻断 app.db。
 - [x] 补恢复到空 legacy runtime 的 read-through 测试；普通会话 TopicManager、Storage v2 conversation hydration、文件投影、Dexie settings/辅助表、Redux snapshot bootstrap 已覆盖空或缺失 legacy runtime 的恢复路径。
-- [ ] 补路径变化后不丢数据的集成测试。
+- [x] 补路径变化后不丢数据的集成测试；DataRootService 覆盖应用更名后当前 root 为空但旧 Perry/Cherry root 有数据时继续使用旧 Storage v2 data root、注册 active root 且不创建空 current root，Workbench artifact 路径恢复测试继续覆盖恢复后 `file://` 重写。
 - [ ] 补 secret vault 不可用、safeStorage 不可用的降级测试。
 - [ ] 最后跑 `pnpm typecheck`、Storage v2 相关 test、关键 renderer test。
 

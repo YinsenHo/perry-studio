@@ -200,6 +200,45 @@ describe('StorageV2AppDataKvMirrorService', () => {
     )
   })
 
+  it('marks sensitive app record fields unavailable instead of storing plaintext when safeStorage is unavailable', async () => {
+    const { client, execute } = createMockClient()
+    vi.spyOn(storageV2SyncLogService, 'recordChange').mockResolvedValue(undefined)
+    vi.spyOn(storageV2Database, 'getClient').mockResolvedValue(client)
+    vi.spyOn(storageV2Database, 'withTransaction').mockImplementation(async (_client, fn) => fn())
+    vi.spyOn(storageV2SecretVaultService, 'isAvailable').mockReturnValue(false)
+    const setSecret = vi.spyOn(storageV2SecretVaultService, 'setSecret')
+
+    await new StorageV2AppDataKvMirrorService().upsertRecord(
+      'agent-tools',
+      'github',
+      {
+        apiKey: 'secret-value',
+        nested: {
+          clientSecret: 'nested-secret'
+        },
+        endpoint: 'https://example.com'
+      },
+      1760000000000
+    )
+
+    const insertCall = execute.mock.calls.find(
+      ([input]) => typeof input !== 'string' && input.sql.includes('INSERT INTO kv_records')
+    )
+    expect(insertCall).toBeTruthy()
+    const args = (insertCall![0] as { args: unknown[] }).args
+    const storedValue = JSON.parse(args[2] as string)
+    expect(storedValue).toEqual({
+      apiKeySecretUnavailable: true,
+      nested: {
+        clientSecretSecretUnavailable: true
+      },
+      endpoint: 'https://example.com'
+    })
+    expect(JSON.stringify(storedValue)).not.toContain('secret-value')
+    expect(JSON.stringify(storedValue)).not.toContain('nested-secret')
+    expect(setSecret).not.toHaveBeenCalled()
+  })
+
   it('mirrors cache deletes as kv tombstones', async () => {
     const { client, execute } = createMockClient()
     const recordChange = vi.spyOn(storageV2SyncLogService, 'recordChange').mockResolvedValue(undefined)

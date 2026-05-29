@@ -384,6 +384,22 @@ describe('StorageV2Service', () => {
     )
   })
 
+  it('does not upsert provider metadata with plaintext credentials when the secret vault write fails', async () => {
+    const provider: Provider = {
+      id: 'provider-1',
+      type: 'openai',
+      name: 'OpenAI',
+      apiKey: 'sk-test',
+      apiHost: 'https://api.openai.com',
+      models: []
+    }
+    mocks.secretVault.setSecret.mockRejectedValue(new Error('safeStorage unavailable'))
+
+    await expect(new StorageV2Service().upsertProvider(provider, 2)).rejects.toThrow('safeStorage unavailable')
+
+    expect(mocks.providerRepository.upsert).not.toHaveBeenCalled()
+  })
+
   it('uses explicit provider credential refs without rewriting secrets', async () => {
     const provider: Provider = {
       id: 'provider-1',

@@ -313,6 +313,36 @@ describe('StorageV2BackupService.validateBackup', () => {
     )
   })
 
+  it('warns without decrypting backup secrets when safeStorage is unavailable', async () => {
+    const secretRef = 'storage-v2://secret/provider/provider-1/apiKey'
+    await createBackupValidationDb(path.join(backupPath, 'main.db'), secretRef)
+    fs.writeFileSync(
+      path.join(backupPath, 'secrets', 'vault.json'),
+      JSON.stringify({
+        version: 1,
+        secrets: {
+          'provider:provider-1:apiKey': {
+            encrypted: Buffer.from('encrypted-on-this-device').toString('base64'),
+            encoding: 'electron-safe-storage',
+            updatedAt: '2026-01-01T00:00:00.000Z'
+          }
+        }
+      })
+    )
+    mocks.safeStorage.isEncryptionAvailable.mockReturnValue(false)
+
+    const validation = await new StorageV2BackupService().validateBackup(backupPath)
+
+    expect(validation.ok).toBe(true)
+    expect(validation.undecryptableSecretVaultEntryCount).toBe(0)
+    expect(mocks.safeStorage.decryptString).not.toHaveBeenCalled()
+    expect(validation.warnings).toContainEqual(
+      expect.objectContaining({
+        id: 'secret_vault_decrypt_unavailable'
+      })
+    )
+  })
+
   it('checks copied directory metadata and current schema compatibility', async () => {
     await createBackupValidationDb(path.join(backupPath, 'main.db'))
     fs.writeFileSync(

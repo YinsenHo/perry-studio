@@ -59,6 +59,37 @@ describe('StorageV2SecretVaultService', () => {
     expect(Object.keys(vault.secrets)).toEqual(['provider:provider%201%2Falpha:api%20key'])
   })
 
+  it('does not create a vault entry when safeStorage encryption is unavailable', async () => {
+    mocks.safeStorage.isEncryptionAvailable.mockReturnValue(false)
+
+    await expect(storageV2SecretVaultService.setSecret('provider', 'provider-1', 'apiKey', 'token')).rejects.toThrow(
+      'Electron safeStorage encryption is not available'
+    )
+
+    expect(mocks.safeStorage.encryptString).not.toHaveBeenCalled()
+    await expect(fs.access(path.join(dataRoot, 'secrets', 'vault.json'))).rejects.toThrow()
+  })
+
+  it('returns null without reading the vault when safeStorage encryption is unavailable', async () => {
+    mocks.safeStorage.isEncryptionAvailable.mockReturnValue(false)
+
+    await expect(storageV2SecretVaultService.getSecret('storage-v2://secret/provider/provider-1/apiKey')).resolves.toBe(
+      null
+    )
+
+    expect(mocks.dataRootService.ensureDataRoot).not.toHaveBeenCalled()
+    expect(mocks.safeStorage.decryptString).not.toHaveBeenCalled()
+  })
+
+  it('treats undecryptable secret values as unavailable instead of throwing', async () => {
+    const secretRef = await storageV2SecretVaultService.setSecret('provider', 'provider-1', 'apiKey', 'token')
+    mocks.safeStorage.decryptString.mockImplementation(() => {
+      throw new Error('different keychain')
+    })
+
+    await expect(storageV2SecretVaultService.getSecret(secretRef)).resolves.toBeNull()
+  })
+
   it('prunes vault secrets that are no longer referenced by Storage v2 records', async () => {
     await storageV2SecretVaultService.setSecret('provider', 'keep', 'apiKey', 'keep-token')
     const dropRef = await storageV2SecretVaultService.setSecret('provider', 'drop', 'apiKey', 'drop-token')

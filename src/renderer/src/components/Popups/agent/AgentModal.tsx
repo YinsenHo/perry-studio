@@ -19,15 +19,14 @@ import type {
   BaseAgentForm,
   CreateSessionForm,
   PermissionMode,
-  Tool,
   UpdateAgentForm
 } from '@renderer/types'
-import { AgentConfigurationSchema, isAgentType } from '@renderer/types'
+import { isAgentType } from '@renderer/types'
 import { parseKeyValueString, serializeKeyValueString } from '@renderer/utils/env'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getAnthropicSupportedProviders } from '@renderer/utils/provider'
 import {
   buildCherryStudioPiAgentInstructions,
-  CHERRY_STUDIO_PI_AGENT_FALLBACK_NAME,
   isDefaultCherryStudioPiAgentInstructions,
   isLegacyAgentDefaultInstructions
 } from '@shared/agents/pi/constants'
@@ -39,48 +38,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import { type AgentWithTools, buildAgentForm, parseAgentModalConfiguration } from './agentForm'
+
 const { TextArea } = Input
 
 const logger = loggerService.withContext('AddAgentPopup')
 
-type AgentWithTools = AgentEntity & { tools?: Tool[] }
 type WizardStep = 'identity' | 'instructions' | 'model' | 'capabilities'
 
 const CREATE_STEPS: WizardStep[] = ['identity', 'instructions', 'model', 'capabilities']
-
-const DEFAULT_CREATE_CONFIGURATION = AgentConfigurationSchema.parse({
-  permission_mode: 'bypassPermissions',
-  max_turns: 100,
-  env_vars: {},
-  soul_enabled: true,
-  scheduler_enabled: false,
-  scheduler_type: 'interval',
-  heartbeat_enabled: true,
-  heartbeat_interval: 30
-})
-
-const getInitialAgentInstructions = (existing?: AgentWithTools): string => {
-  const name = existing?.name ?? CHERRY_STUDIO_PI_AGENT_FALLBACK_NAME
-  const instructions = existing?.instructions?.trim()
-
-  if (!instructions || isLegacyAgentDefaultInstructions(instructions)) {
-    return buildCherryStudioPiAgentInstructions(name)
-  }
-
-  return instructions
-}
-
-const buildAgentForm = (existing?: AgentWithTools): BaseAgentForm => ({
-  type: existing?.type ?? 'claude-code',
-  name: existing?.name ?? CHERRY_STUDIO_PI_AGENT_FALLBACK_NAME,
-  description: existing?.description,
-  instructions: getInitialAgentInstructions(existing),
-  model: existing?.model ?? '',
-  accessible_paths: existing?.accessible_paths ? [...existing.accessible_paths] : [],
-  allowed_tools: existing?.allowed_tools ? [...existing.allowed_tools] : [],
-  mcps: existing?.mcps ? [...existing.mcps] : [],
-  configuration: AgentConfigurationSchema.parse(existing?.configuration ?? DEFAULT_CREATE_CONFIGURATION)
-})
 
 interface ShowParams {
   agent?: AgentWithTools
@@ -183,7 +149,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
 
   const onSoulModeChange = useCallback((checked: boolean) => {
     setForm((prev) => {
-      const prevConfig = AgentConfigurationSchema.parse(prev.configuration ?? {})
+      const prevConfig = parseAgentModalConfiguration(prev.configuration)
       return {
         ...prev,
         configuration: {
@@ -197,7 +163,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
 
   const onPermissionModeChange = useCallback((value: PermissionMode) => {
     setForm((prev) => {
-      const parsedConfiguration = AgentConfigurationSchema.parse(prev.configuration ?? {})
+      const parsedConfiguration = parseAgentModalConfiguration(prev.configuration)
       if (parsedConfiguration.permission_mode === value) {
         if (!prev.configuration) {
           return {
@@ -267,7 +233,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     setForm((prev) => ({
       ...prev,
       configuration: {
-        ...AgentConfigurationSchema.parse(prev.configuration ?? {}),
+        ...parseAgentModalConfiguration(prev.configuration),
         env_vars: parsed
       }
     }))
@@ -337,36 +303,55 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
 
     loadingRef.current = true
 
-    if (!isAgentType(form.type)) {
-      window.toast.error(t('agent.add.error.invalid_agent'))
-      loadingRef.current = false
-      return
-    }
-    if (!form.name.trim()) {
-      window.toast.error(t('agent.add.error.name_required', 'Name is required'))
-      loadingRef.current = false
-      return
-    }
-    if (!form.model) {
-      window.toast.error(t('error.model.not_exists'))
-      loadingRef.current = false
-      return
-    }
-
-    if (isWin && !gitBashPathInfo.path) {
-      window.toast.error(t('agent.gitBash.error.required', 'Git Bash path is required on Windows'))
-      loadingRef.current = false
-      return
-    }
-
-    if (isEditing(agent)) {
-      if (!agent) {
-        loadingRef.current = false
-        throw new Error('Agent is required for editing mode')
+    try {
+      if (!isAgentType(form.type)) {
+        window.toast.error(t('agent.add.error.invalid_agent'))
+        return
+      }
+      if (!form.name.trim()) {
+        window.toast.error(t('agent.add.error.name_required', 'Name is required'))
+        return
+      }
+      if (!form.model) {
+        window.toast.error(t('error.model.not_exists'))
+        return
       }
 
-      const updatePayload = {
-        id: agent.id,
+      if (isWin && !gitBashPathInfo.path) {
+        window.toast.error(t('agent.gitBash.error.required', 'Git Bash path is required on Windows'))
+        return
+      }
+
+      if (isEditing(agent)) {
+        if (!agent) {
+          window.toast.error(t('agent.update.error.failed'))
+          return
+        }
+
+        const updatePayload = {
+          id: agent.id,
+          name: form.name,
+          description: form.description,
+          instructions: form.instructions,
+          model: form.model,
+          accessible_paths: [...form.accessible_paths],
+          allowed_tools: [...form.allowed_tools],
+          configuration: form.configuration ? { ...form.configuration } : undefined
+        } satisfies UpdateAgentForm
+
+        const result = await updateAgent(updatePayload)
+        if (result) {
+          logger.debug('Updated agent', result)
+          afterSubmit?.(result)
+        } else {
+          logger.error('Update failed.')
+        }
+        setOpen(false)
+        return
+      }
+
+      const newAgent = {
+        type: form.type,
         name: form.name,
         description: form.description,
         instructions: form.instructions,
@@ -374,39 +359,20 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
         accessible_paths: [...form.accessible_paths],
         allowed_tools: [...form.allowed_tools],
         configuration: form.configuration ? { ...form.configuration } : undefined
-      } satisfies UpdateAgentForm
+      } satisfies AddAgentForm
+      const result = await addAgent(newAgent)
 
-      const result = await updateAgent(updatePayload)
-      if (result) {
-        logger.debug('Updated agent', result)
-        afterSubmit?.(result)
-      } else {
-        logger.error('Update failed.')
+      if (!result.success) {
+        return
       }
+      setCreatedAgent(result.data)
+      afterSubmit?.(result.data)
+    } catch (error) {
+      logger.error('Failed to submit agent form', error as Error)
+      window.toast.error(formatErrorMessageWithPrefix(error, t('agent.add.error.failed')))
+    } finally {
       loadingRef.current = false
-      setOpen(false)
-      return
     }
-
-    const newAgent = {
-      type: form.type,
-      name: form.name,
-      description: form.description,
-      instructions: form.instructions,
-      model: form.model,
-      accessible_paths: [...form.accessible_paths],
-      allowed_tools: [...form.allowed_tools],
-      configuration: form.configuration ? { ...form.configuration } : undefined
-    } satisfies AddAgentForm
-    const result = await addAgent(newAgent)
-
-    if (!result.success) {
-      loadingRef.current = false
-      throw result.error
-    }
-    setCreatedAgent(result.data)
-    afterSubmit?.(result.data)
-    loadingRef.current = false
   }, [
     form.type,
     form.model,

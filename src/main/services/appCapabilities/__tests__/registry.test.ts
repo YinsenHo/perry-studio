@@ -57,4 +57,34 @@ describe('AppCapabilityRegistry', () => {
       })
     ])
   })
+
+  it('expands common Chinese product intents before scoring', () => {
+    const registry = new AppCapabilityRegistry()
+    registry.register(capability({ id: 'settings.read' }))
+    registry.register(
+      capability({
+        id: 'storage.backup.create',
+        domain: 'storage',
+        kind: 'command',
+        title: 'Create local backup',
+        description: 'Create a local backup',
+        risk: 'write',
+        tags: ['backup', 'data']
+      })
+    )
+    registry.register(
+      capability({
+        id: 'paintings.image.generate',
+        domain: 'paintings',
+        kind: 'command',
+        title: 'Generate image',
+        description: 'Generate an image',
+        risk: 'external',
+        tags: ['image', 'drawing']
+      })
+    )
+
+    expect(registry.search({ query: '创建一个本地备份' }).map((item) => item.id)[0]).toBe('storage.backup.create')
+    expect(registry.search({ query: '帮我画图' }).map((item) => item.id)[0]).toBe('paintings.image.generate')
+  })
 })

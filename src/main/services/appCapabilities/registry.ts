@@ -13,6 +13,36 @@ const tokenize = (value: string) =>
     .map((part) => part.trim())
     .filter(Boolean)
 
+const QUERY_EXPANSIONS: Array<[RegExp, string[]]> = [
+  [/备份|备份一下|保存数据/, ['backup', 'storage', 'create', 'data']],
+  [/恢复|还原/, ['restore', 'backup', 'storage']],
+  [/设置|配置|偏好/, ['settings', 'preferences', 'configuration']],
+  [/语言/, ['language', 'settings']],
+  [/主题|外观/, ['theme', 'display', 'settings']],
+  [/知识库|知识|检索|搜索资料|rag/i, ['knowledge', 'rag', 'search']],
+  [/笔记|文档|markdown/i, ['notes', 'markdown']],
+  [/绘图|画图|生图|图片生成|图像生成/, ['paintings', 'image', 'generate', 'drawing']],
+  [/智能体|agent/i, ['agents', 'agent']],
+  [/任务|定时|计划/, ['tasks', 'schedule']],
+  [/会话|对话/, ['sessions', 'conversations', 'chat']],
+  [/模型|model/i, ['models', 'llm']],
+  [/文件/, ['files', 'storage']],
+  [/打开|跳转|进入/, ['open', 'navigate']],
+  [/创建|新建/, ['create', 'new']],
+  [/删除|移除/, ['delete', 'remove']],
+  [/列表|列出|查看/, ['list', 'read']]
+]
+
+const expandQueryTerms = (query: string) => {
+  const expanded = new Set(tokenize(query))
+  for (const [pattern, additions] of QUERY_EXPANSIONS) {
+    if (pattern.test(query)) {
+      additions.forEach((term) => expanded.add(term))
+    }
+  }
+  return Array.from(expanded)
+}
+
 export class AppCapabilityRegistry {
   private readonly capabilities = new Map<string, AppCapabilityDefinition>()
 
@@ -47,7 +77,7 @@ export class AppCapabilityRegistry {
       return this.list(options).slice(0, limit)
     }
 
-    const terms = tokenize(query)
+    const terms = expandQueryTerms(query)
     return Array.from(this.capabilities.values())
       .filter((capability) => this.matchesListOptions(capability, options))
       .map((capability) => ({

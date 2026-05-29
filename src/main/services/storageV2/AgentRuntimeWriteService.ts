@@ -4,8 +4,10 @@ import type {
   InsertChannelRow,
   InsertSessionRow,
   InsertTaskRow,
+  InsertTaskRunLogRow,
   SessionRow,
-  TaskRow
+  TaskRow,
+  TaskRunLogRow
 } from '@main/services/agents/database/schema'
 
 import { storageV2SecretVaultService } from './SecretVaultService'
@@ -49,6 +51,12 @@ type ScheduledTaskRuntimeRow = Pick<
   id: string
   channel_ids?: string[] | null
 }
+
+type TaskRunLogInsert = Omit<InsertTaskRunLogRow, 'id'>
+
+type TaskRunLogUpdate = Partial<
+  Pick<TaskRunLogRow | InsertTaskRunLogRow, 'status' | 'result' | 'error' | 'duration_ms' | 'session_id'>
+>
 
 type AgentRuntimeRow = {
   id: string
@@ -151,6 +159,16 @@ function normalizeJson(value: unknown, fallback: unknown) {
 
 function normalizeValue<T>(value: unknown, fallback: T): T | unknown {
   return parseJson(value) ?? fallback
+}
+
+function toNumericId(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'bigint') return Number(value)
+  if (typeof value === 'string' && value) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
 }
 
 function buildAgentSessionCurrentConfig(session: AgentSessionRuntimeRow): Record<string, unknown> {
@@ -427,6 +445,113 @@ export class StorageV2AgentRuntimeWriteService {
         })
       }
     }
+  }
+
+  async createTaskRunLog(log: TaskRunLogInsert): Promise<number> {
+    const client = await storageV2Database.getClient()
+    let logId: number | null = null
+
+    await storageV2Database.withTransaction(client, async () => {
+      const result = await client.execute({
+        sql: `
+          INSERT INTO task_run_logs (task_id, session_id, run_at, duration_ms, status, result_json, error, version)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+        `,
+        args: [
+          log.task_id,
+          log.session_id ?? null,
+          log.run_at,
+          log.duration_ms ?? 0,
+          log.status,
+          normalizeJson(log.result, null),
+          log.error ?? null
+        ]
+      })
+      logId = toNumericId(result.lastInsertRowid)
+
+      if (logId == null) {
+        const idResult = await client.execute('SELECT last_insert_rowid() AS id')
+        logId = toNumericId(idResult.rows[0]?.id)
+      }
+
+      if (logId == null) {
+        throw new Error('Failed to create Storage v2 task run log')
+      }
+
+      await storageV2SyncLogService.recordChange({
+        client,
+        entityType: 'task_run_log',
+        entityId: String(logId),
+        payload: {
+          id: logId,
+          taskId: log.task_id,
+          status: log.status
+        },
+        version: await getVersion(client, 'task_run_logs', String(logId))
+      })
+    })
+
+    if (logId == null) {
+      throw new Error('Failed to create Storage v2 task run log')
+    }
+
+    return logId
+  }
+
+  async updateTaskRunLog(logId: number, updates: TaskRunLogUpdate): Promise<void> {
+    const client = await storageV2Database.getClient()
+    const setClauses: string[] = []
+    const args: Array<string | number | null> = []
+
+    const addField = (column: string, value: string | number | null) => {
+      setClauses.push(`${column} = ?`)
+      args.push(value)
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updates, 'session_id')) {
+      addField('session_id', updates.session_id ?? null)
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'duration_ms')) {
+      addField('duration_ms', updates.duration_ms ?? 0)
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'status') && updates.status !== undefined) {
+      addField('status', updates.status)
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'result')) {
+      addField('result_json', normalizeJson(updates.result, null))
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'error')) {
+      addField('error', updates.error ?? null)
+    }
+
+    if (setClauses.length === 0) return
+
+    await storageV2Database.withTransaction(client, async () => {
+      const result = await client.execute({
+        sql: `
+          UPDATE task_run_logs
+          SET ${setClauses.join(', ')}, version = version + 1
+          WHERE id = ?
+        `,
+        args: [...args, logId]
+      })
+
+      if (Number(result.rowsAffected ?? 0) === 0) {
+        throw new Error(`Storage v2 task run log not found: ${logId}`)
+      }
+
+      await storageV2SyncLogService.recordChange({
+        client,
+        entityType: 'task_run_log',
+        entityId: String(logId),
+        payload: {
+          id: logId,
+          status: updates.status,
+          sessionId: updates.session_id
+        },
+        version: await getVersion(client, 'task_run_logs', String(logId))
+      })
+    })
   }
 
   async upsertScheduledTask(task: ScheduledTaskRuntimeRow, channelIds?: string[]): Promise<void> {

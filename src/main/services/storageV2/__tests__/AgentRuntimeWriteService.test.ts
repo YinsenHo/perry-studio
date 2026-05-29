@@ -304,6 +304,76 @@ describe('StorageV2AgentRuntimeWriteService', () => {
     )
   })
 
+  it('creates task run logs through Storage v2 and returns the generated id', async () => {
+    mocks.client.execute
+      .mockResolvedValueOnce({ rows: [], columns: [], columnTypes: [], lastInsertRowid: 42n })
+      .mockResolvedValueOnce({ rows: [{ version: 5 }], columns: [], columnTypes: [] })
+
+    await expect(
+      new StorageV2AgentRuntimeWriteService().createTaskRunLog({
+        task_id: 'task-1',
+        session_id: null,
+        run_at: '2026-05-29T00:00:00.000Z',
+        duration_ms: 0,
+        status: 'running',
+        result: null,
+        error: null
+      })
+    ).resolves.toBe(42)
+
+    expect(mocks.client.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining('INSERT INTO task_run_logs'),
+        args: ['task-1', null, '2026-05-29T00:00:00.000Z', 0, 'running', JSON.stringify(null), null]
+      })
+    )
+    expect(mocks.recordChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'task_run_log',
+        entityId: '42',
+        payload: expect.objectContaining({
+          id: 42,
+          taskId: 'task-1',
+          status: 'running'
+        }),
+        version: 5
+      })
+    )
+  })
+
+  it('updates task run logs through Storage v2 before legacy cache updates', async () => {
+    mocks.client.execute
+      .mockResolvedValueOnce({ rows: [], columns: [], columnTypes: [], rowsAffected: 1 })
+      .mockResolvedValueOnce({ rows: [{ version: 6 }], columns: [], columnTypes: [] })
+
+    await new StorageV2AgentRuntimeWriteService().updateTaskRunLog(42, {
+      session_id: 'session-1',
+      duration_ms: 123,
+      status: 'success',
+      result: 'Completed',
+      error: null
+    })
+
+    expect(mocks.client.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining('UPDATE task_run_logs'),
+        args: ['session-1', 123, 'success', JSON.stringify('Completed'), null, 42]
+      })
+    )
+    expect(mocks.recordChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'task_run_log',
+        entityId: '42',
+        payload: expect.objectContaining({
+          id: 42,
+          status: 'success',
+          sessionId: 'session-1'
+        }),
+        version: 6
+      })
+    )
+  })
+
   it('does not persist plaintext channel secrets when safeStorage is unavailable', async () => {
     mocks.secretVault.isAvailable.mockReturnValue(false)
 

@@ -371,8 +371,12 @@ export class TaskService extends BaseService {
 
   async logTaskRun(log: Omit<InsertTaskRunLogRow, 'id'>): Promise<number> {
     const database = await this.getDatabase()
-    const result = await database.insert(taskRunLogsTable).values(log).returning({ id: taskRunLogsTable.id })
-    return result[0].id
+    const storageLogId = await storageV2AgentRuntimeWriteService.createTaskRunLog(log)
+    const result = await database
+      .insert(taskRunLogsTable)
+      .values({ id: storageLogId, ...log })
+      .returning({ id: taskRunLogsTable.id })
+    return result[0]?.id ?? storageLogId
   }
 
   async updateTaskRunLog(
@@ -380,6 +384,7 @@ export class TaskService extends BaseService {
     updates: Partial<Pick<InsertTaskRunLogRow, 'status' | 'result' | 'error' | 'duration_ms' | 'session_id'>>
   ): Promise<void> {
     const database = await this.getDatabase()
+    await storageV2AgentRuntimeWriteService.updateTaskRunLog(logId, updates)
     await database.update(taskRunLogsTable).set(updates).where(eq(taskRunLogsTable.id, logId))
   }
 

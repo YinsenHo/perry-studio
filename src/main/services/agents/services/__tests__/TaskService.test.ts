@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   storageWrite: {
+    createTaskRunLog: vi.fn(),
+    updateTaskRunLog: vi.fn(),
     upsertScheduledTask: vi.fn()
   },
   tombstone: {
@@ -93,6 +95,8 @@ const makeTask = (overrides: Record<string, unknown> = {}) =>
 describe('TaskService Storage v2 first writes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.storageWrite.createTaskRunLog.mockResolvedValue(42)
+    mocks.storageWrite.updateTaskRunLog.mockResolvedValue(undefined)
     mocks.storageWrite.upsertScheduledTask.mockResolvedValue(undefined)
     mocks.tombstone.tombstoneTask.mockResolvedValue(undefined)
     vi.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000)
@@ -230,5 +234,94 @@ describe('TaskService Storage v2 first writes', () => {
     expect(mocks.tombstone.tombstoneTask.mock.invocationCallOrder[0]).toBeLessThan(
       deleteFrom.mock.invocationCallOrder[0]
     )
+  })
+
+  it('creates task run logs in Storage v2 before inserting the legacy cache row with the same id', async () => {
+    const returning = vi.fn().mockResolvedValue([{ id: 42 }])
+    const values = vi.fn(() => ({ returning }))
+    const insert = vi.fn(() => ({ values }))
+    const database = { insert }
+    const service = new TaskService()
+    vi.spyOn(service as never, 'getDatabase').mockResolvedValue(database as never)
+
+    await expect(
+      service.logTaskRun({
+        task_id: 'task-1',
+        session_id: null,
+        run_at: '2026-05-29T00:00:00.000Z',
+        duration_ms: 0,
+        status: 'running',
+        result: null,
+        error: null
+      })
+    ).resolves.toBe(42)
+
+    expect(mocks.storageWrite.createTaskRunLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        task_id: 'task-1',
+        status: 'running'
+      })
+    )
+    expect(mocks.storageWrite.createTaskRunLog.mock.invocationCallOrder[0]).toBeLessThan(
+      insert.mock.invocationCallOrder[0]
+    )
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 42,
+        task_id: 'task-1'
+      })
+    )
+  })
+
+  it('does not insert a legacy task run log when the Storage v2 first write fails', async () => {
+    const insert = vi.fn()
+    const service = new TaskService()
+    vi.spyOn(service as never, 'getDatabase').mockResolvedValue({ insert } as never)
+    mocks.storageWrite.createTaskRunLog.mockRejectedValueOnce(new Error('storage unavailable'))
+
+    await expect(
+      service.logTaskRun({
+        task_id: 'task-1',
+        session_id: null,
+        run_at: '2026-05-29T00:00:00.000Z',
+        duration_ms: 0,
+        status: 'running',
+        result: null,
+        error: null
+      })
+    ).rejects.toThrow('storage unavailable')
+
+    expect(insert).not.toHaveBeenCalled()
+  })
+
+  it('updates task run logs in Storage v2 before updating the legacy cache row', async () => {
+    const where = vi.fn().mockResolvedValue(undefined)
+    const set = vi.fn(() => ({ where }))
+    const update = vi.fn(() => ({ set }))
+    const database = { update }
+    const service = new TaskService()
+    vi.spyOn(service as never, 'getDatabase').mockResolvedValue(database as never)
+
+    await expect(
+      service.updateTaskRunLog(42, {
+        session_id: 'session-1',
+        duration_ms: 123,
+        status: 'success',
+        result: 'Completed',
+        error: null
+      })
+    ).resolves.toBeUndefined()
+
+    expect(mocks.storageWrite.updateTaskRunLog).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        session_id: 'session-1',
+        status: 'success'
+      })
+    )
+    expect(mocks.storageWrite.updateTaskRunLog.mock.invocationCallOrder[0]).toBeLessThan(
+      update.mock.invocationCallOrder[0]
+    )
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({ status: 'success' }))
   })
 })
